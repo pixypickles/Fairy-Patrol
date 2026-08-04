@@ -21,7 +21,7 @@
   const keys = { up:false, down:false, left:false, right:false };
 
   const fairy = { x: W*.5, y:H*.44, r:18, speed:330, bob:0 };
-  const chick = { x:W*.5, y:H*.88, inv:0, shield:0, targetX:W*.5, targetY:H*.88, wanderTimer:0, speed:25 };
+  const chick = { x:W*.5, y:H*.88, inv:0, shield:0, targetX:W*.5, targetY:H*.88, wanderTimer:0, speed:25, hop:0, blockedLedge:null, jumpFlash:0 };
   const cooldown = { cutter:0, blast:0, water:0, shield:0 };
   let shieldGauge = 100;
   let enemies = [], projectiles = [], effects = [], obstacles = [], scenery = [];
@@ -44,7 +44,7 @@
     fairy.x=W*.5; fairy.y=H*.56;
     move.x=0; move.y=0; resetStick();
     Object.keys(keys).forEach(k=>keys[k]=false);
-    chick.x=W*.5; chick.y=H*.88; chick.inv=0; chick.shield=0; chick.targetX=chick.x; chick.targetY=chick.y; chick.wanderTimer=.3;
+    chick.x=W*.5; chick.y=H*.88; chick.inv=0; chick.shield=0; chick.targetX=chick.x; chick.targetY=chick.y; chick.wanderTimer=.3; chick.hop=0; chick.blockedLedge=null; chick.jumpFlash=0;
     shieldGauge=100;
     Object.keys(cooldown).forEach(k=>cooldown[k]=0);
     for(let i=0;i<20;i++) scenery.push(makeScenery(Math.random()*H));
@@ -78,8 +78,27 @@
       chick.wanderTimer=.8+Math.random()*1.8;
     }
     const cdx=chick.targetX-chick.x, cdy=chick.targetY-chick.y, cdl=Math.hypot(cdx,cdy)||1;
-    chick.x+=cdx/cdl*chick.speed*dt;
-    chick.y+=cdy/cdl*chick.speed*dt;
+    const nextX=chick.x+cdx/cdl*chick.speed*dt;
+    let nextY=chick.y+cdy/cdl*chick.speed*dt;
+    chick.blockedLedge=null;
+    for(const o of obstacles){
+      if(o.type!=='ledge'||o.cleared)continue;
+      const half=o.width*.5;
+      const inSpan=nextX>o.x-half-8&&nextX<o.x+half+8;
+      // ヒヨコが段差の下側から上へ進もうとした時だけ通せんぼする。
+      if(inSpan&&chick.y>=o.y+10&&nextY<o.y+18){
+        nextY=o.y+18;
+        chick.blockedLedge=o;
+        chick.hop+=dt*13;
+        // 段差を越えたい間は、少し先を目標にし続ける。
+        chick.targetY=Math.min(chick.targetY,o.y-34);
+        break;
+      }
+    }
+    if(!chick.blockedLedge)chick.hop=Math.max(0,chick.hop-dt*8);
+    chick.jumpFlash=Math.max(0,chick.jumpFlash-dt);
+    chick.x=nextX;
+    chick.y=nextY;
     chick.x=clamp(chick.x,22,W-22); chick.y=clamp(chick.y,H*.66,H*.95);
     shieldGauge=Math.min(100,shieldGauge+dt*4.5);
     Object.keys(cooldown).forEach(k=>cooldown[k]=Math.max(0,cooldown[k]-dt));
@@ -163,8 +182,9 @@
   }
 
   function spawnObstacle(){
-    const r=Math.random(); const type=r<.48?'branches':r<.78?'hole':'sprout';
-    obstacles.push({type,x:28+Math.random()*(W-56),y:70+Math.random()*45,r:type==='hole'?34:28,cleared:false,grown:false,bridged:false,penalized:false});
+    const r=Math.random(); const type=r<.35?'branches':r<.58?'hole':r<.78?'sprout':'ledge';
+    const width=type==='ledge'?90+Math.random()*95:0;
+    obstacles.push({type,x:type==='ledge'?width*.5+18+Math.random()*Math.max(1,W-width-36):28+Math.random()*(W-56),y:70+Math.random()*45,r:type==='hole'?34:28,width,cleared:false,grown:false,bridged:false,penalized:false});
   }
 
   function cast(action){
@@ -199,6 +219,18 @@
     }
     for(const o of obstacles){
       if(o.type==='branches'&&!o.cleared&&Math.hypot(o.x-x,o.y-y)<86){o.cleared=true;addScore(60,o.x,o.y);burst(o.x,o.y,'🍂');}
+      if(o.type==='ledge'&&!o.cleared){
+        const nearBlast=Math.hypot(chick.x-x,chick.y-y)<105;
+        const nearLedge=Math.abs(chick.y-o.y)<45&&Math.abs(chick.x-o.x)<o.width*.5+20;
+        if(nearBlast&&nearLedge&&chick.y>=o.y+8){
+          chick.y=o.y-28;
+          chick.targetY=Math.min(chick.targetY,o.y-55);
+          chick.blockedLedge=null;
+          chick.jumpFlash=.55;
+          addScore(80,chick.x,chick.y);
+          burst(chick.x,chick.y,'✨');
+        }
+      }
     }
   }
 
@@ -221,53 +253,20 @@
   function draw(){ctx.clearRect(0,0,W,H);drawBackground();drawScenery();drawObstacles();drawChicks();drawEnemies();drawProjectiles();drawFairy();drawEffects();}
 
   function drawBackground(){
-    // 全画面を地面として描画。空、地平線、遠景は一切表示しない。
+    // 中央の道は置かず、画面全体を自由に歩ける草原として描画。
     ctx.fillStyle='#76c85e';
     ctx.fillRect(0,0,W,H);
-
-    // 真上から見た草地の細かな模様。
-    ctx.fillStyle='rgba(255,255,255,.055)';
     const offset=(time*22)%54;
     for(let row=-1;row<Math.ceil(H/54)+1;row++){
       const y=row*54+offset;
       for(let col=0;col<Math.ceil(W/58)+1;col++){
         const x=col*58+(row%2)*24;
-        ctx.beginPath();
-        ctx.ellipse(x,y,12,5,.35,0,Math.PI*2);
-        ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,.05)';
+        ctx.beginPath();ctx.ellipse(x,y,12,5,.35,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='rgba(52,137,54,.08)';
+        ctx.beginPath();ctx.arc(x+17,y+14,3,0,Math.PI*2);ctx.fill();
       }
     }
-
-    // 縦スクロールSTGらしい、真上から見た土の道。
-    const roadTopLeft=W*.39, roadTopRight=W*.61;
-    const roadBottomLeft=W*.31, roadBottomRight=W*.69;
-    ctx.fillStyle='rgba(220,190,112,.9)';
-    ctx.beginPath();
-    ctx.moveTo(roadTopLeft,0);
-    ctx.lineTo(roadTopRight,0);
-    ctx.lineTo(roadBottomRight,H);
-    ctx.lineTo(roadBottomLeft,H);
-    ctx.closePath();
-    ctx.fill();
-
-    // 道の表面が下へ流れ、画面全体が縦スクロールしているように見せる。
-    ctx.strokeStyle='rgba(155,124,63,.16)';
-    ctx.lineWidth=2;
-    for(let y=((time*22)%52)-52;y<H;y+=52){
-      const t=Math.max(0,Math.min(1,y/H));
-      const left=roadTopLeft+(roadBottomLeft-roadTopLeft)*t;
-      const right=roadTopRight+(roadBottomRight-roadTopRight)*t;
-      ctx.beginPath();
-      ctx.moveTo(left+10,y);
-      ctx.quadraticCurveTo(W*.5,y+7,right-10,y+1);
-      ctx.stroke();
-    }
-
-    // 道の縁。斜め視点に見えないよう、影はごく弱くする。
-    ctx.strokeStyle='rgba(91,135,61,.22)';
-    ctx.lineWidth=3;
-    ctx.beginPath();ctx.moveTo(roadTopLeft,0);ctx.lineTo(roadBottomLeft,H);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(roadTopRight,0);ctx.lineTo(roadBottomRight,H);ctx.stroke();
   }
 
   function drawScenery(){for(const s of scenery){ctx.save();ctx.translate(s.x,s.y);if(s.type==='flower'){ctx.font='16px sans-serif';ctx.fillText('🌼',0,0);}else if(s.type==='stone'){ctx.fillStyle='#9da791';ctx.beginPath();ctx.ellipse(0,0,s.r,s.r*.7,0,0,Math.PI*2);ctx.fill();}else{ctx.fillStyle='#4f9d4f';ctx.beginPath();ctx.arc(0,0,s.r,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(-s.r*.55,2,s.r*.65,0,Math.PI*2);ctx.fill();}ctx.restore();}}
@@ -313,7 +312,9 @@
   }
 
   function drawChicks(){
-    if(!(chick.inv>0&&Math.floor(time*12)%2===0)) drawChick(chick.x,chick.y+Math.sin(time*7)*1.7);
+    const blockedBounce=chick.blockedLedge?Math.abs(Math.sin(chick.hop))*7:0;
+    const jumpBounce=chick.jumpFlash>0?Math.sin((1-chick.jumpFlash/.55)*Math.PI)*13:0;
+    if(!(chick.inv>0&&Math.floor(time*12)%2===0)) drawChick(chick.x,chick.y+Math.sin(time*7)*1.7-blockedBounce-jumpBounce);
     if(chick.shield>0){ctx.strokeStyle='rgba(184,116,255,.9)';ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(chick.x,chick.y,23,22,0,0,Math.PI*2);ctx.stroke();}
   }
   function drawChick(x,y){ctx.save();ctx.translate(x,y);ctx.fillStyle='#ffd83d';ctx.beginPath();ctx.ellipse(0,2,9,11,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(0,-7,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ef9d28';ctx.beginPath();ctx.moveTo(6,-7);ctx.lineTo(12,-4);ctx.lineTo(6,-2);ctx.fill();ctx.strokeStyle='#b97725';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-3,12);ctx.lineTo(-4,16);ctx.moveTo(3,12);ctx.lineTo(4,16);ctx.stroke();ctx.restore();}
@@ -324,7 +325,14 @@
   function drawSnake(){ctx.strokeStyle='#3c9b58';ctx.lineWidth=10;ctx.lineCap='round';ctx.beginPath();ctx.arc(0,4,12,.3,5.2);ctx.stroke();ctx.fillStyle='#56b96c';ctx.beginPath();ctx.ellipse(7,-9,8,6,-.3,0,Math.PI*2);ctx.fill();ctx.fillStyle='#222';ctx.beginPath();ctx.arc(10,-10,1.2,0,Math.PI*2);ctx.fill();}
   function drawBird(){ctx.fillStyle='#3f79bb';ctx.beginPath();ctx.ellipse(0,0,13,8,-.2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(-3,0);ctx.lineTo(-24,-12);ctx.lineTo(-12,6);ctx.moveTo(3,0);ctx.lineTo(23,-13);ctx.lineTo(13,7);ctx.fill();ctx.fillStyle='#ef9d28';ctx.beginPath();ctx.moveTo(12,-1);ctx.lineTo(20,2);ctx.lineTo(12,5);ctx.fill();}
 
-  function drawObstacles(){for(const o of obstacles){ctx.save();ctx.translate(o.x,o.y);if(o.type==='branches'){ctx.globalAlpha=o.cleared?.2:1;ctx.strokeStyle='#8d5d32';ctx.lineWidth=7;ctx.lineCap='round';[-18,-9,0,9,18].forEach((x,i)=>{ctx.beginPath();ctx.moveTo(x-10,-12+i%2*8);ctx.lineTo(x+10,12-i%2*8);ctx.stroke();});}else if(o.type==='hole'){ctx.fillStyle='#5a4028';ctx.beginPath();ctx.ellipse(0,0,38,24,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#2d2219';ctx.beginPath();ctx.ellipse(0,2,29,17,0,0,Math.PI*2);ctx.fill();if(o.bridged){ctx.strokeStyle='#4e9d4e';ctx.lineWidth=8;ctx.lineCap='round';[-12,-4,4,12].forEach(y=>{ctx.beginPath();ctx.moveTo(-32,y);ctx.lineTo(32,y);ctx.stroke();});ctx.fillStyle='#78c75e';for(let i=-25;i<=25;i+=10){ctx.beginPath();ctx.ellipse(i,-7,7,3,.4,0,Math.PI*2);ctx.fill();}}}else{ctx.font=o.grown?'40px sans-serif':'28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.grown?'🌿':'🌱',0,0);}ctx.restore();}}
+  function drawObstacles(){for(const o of obstacles){ctx.save();ctx.translate(o.x,o.y);if(o.type==='branches'){ctx.globalAlpha=o.cleared?.2:1;ctx.strokeStyle='#8d5d32';ctx.lineWidth=7;ctx.lineCap='round';[-18,-9,0,9,18].forEach((x,i)=>{ctx.beginPath();ctx.moveTo(x-10,-12+i%2*8);ctx.lineTo(x+10,12-i%2*8);ctx.stroke();});}else if(o.type==='hole'){ctx.fillStyle='#5a4028';ctx.beginPath();ctx.ellipse(0,0,38,24,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#2d2219';ctx.beginPath();ctx.ellipse(0,2,29,17,0,0,Math.PI*2);ctx.fill();if(o.bridged){ctx.strokeStyle='#4e9d4e';ctx.lineWidth=8;ctx.lineCap='round';[-12,-4,4,12].forEach(y=>{ctx.beginPath();ctx.moveTo(-32,y);ctx.lineTo(32,y);ctx.stroke();});ctx.fillStyle='#78c75e';for(let i=-25;i<=25;i+=10){ctx.beginPath();ctx.ellipse(i,-7,7,3,.4,0,Math.PI*2);ctx.fill();}}}else if(o.type==='ledge'){
+      const half=o.width*.5;
+      ctx.fillStyle='#8b8f78';ctx.beginPath();ctx.roundRect(-half,-10,o.width,20,8);ctx.fill();
+      ctx.fillStyle='#b7b99e';ctx.beginPath();ctx.roundRect(-half,-10,o.width,8,7);ctx.fill();
+      ctx.strokeStyle='rgba(67,76,55,.35)';ctx.lineWidth=2;
+      for(let x=-half+12;x<half;x+=22){ctx.beginPath();ctx.moveTo(x,-7);ctx.lineTo(x+7,7);ctx.stroke();}
+      ctx.fillStyle='rgba(49,96,42,.25)';ctx.fillRect(-half,10,o.width,5);
+    }else{ctx.font=o.grown?'40px sans-serif':'28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.grown?'🌿':'🌱',0,0);}ctx.restore();}}
 
   function drawProjectiles(){
     for(const p of projectiles){
