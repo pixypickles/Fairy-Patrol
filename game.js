@@ -13,14 +13,14 @@
   const stickKnob = document.querySelector('#stickKnob');
 
   let W = 390, H = 650, dpr = 1;
-  let running = false, last = 0, time = 0, distance = 100;
+  let running = false, last = 0, time = 0, distance = 100, score = 1000;
   let spawnTimer = 0, obstacleTimer = 0;
   const move = { x:0, y:0 };
   const stick = { pointerId:null, angle:0, strength:0, direction:-1 };
   const keys = { up:false, down:false, left:false, right:false };
 
   const fairy = { x: W*.5, y:H*.44, r:18, speed:330, bob:0 };
-  const chick = { x:W*.5, y:H*.91, hp:3, inv:0, shield:0 };
+  const chick = { x:W*.5, y:H*.88, inv:0, shield:0, targetX:W*.5, targetY:H*.88, wanderTimer:0, speed:25 };
   const cooldown = { cutter:0, blast:0, water:0, shield:0 };
   let shieldGauge = 100;
   let enemies = [], projectiles = [], effects = [], obstacles = [], scenery = [];
@@ -32,18 +32,18 @@
     canvas.height = Math.round(rect.height*dpr);
     W = rect.width; H = rect.height;
     ctx.setTransform(dpr,0,0,dpr,0,0);
-    chick.x = W*.5; chick.y = H*.94;
+    chick.x = clamp(chick.x, 24, W-24); chick.y = clamp(chick.y, H*.67, H*.94);
     fairy.x = clamp(fairy.x, 26, W-26);
     fairy.y = clamp(fairy.y, 82, H*.90);
   }
 
   function reset() {
-    time=0; distance=100; spawnTimer=.7; obstacleTimer=1.8;
+    time=0; distance=100; score=1000; spawnTimer=.7; obstacleTimer=1.8;
     enemies=[]; projectiles=[]; effects=[]; obstacles=[]; scenery=[];
     fairy.x=W*.5; fairy.y=H*.56;
     move.x=0; move.y=0; resetStick();
     Object.keys(keys).forEach(k=>keys[k]=false);
-    chick.x=W*.5; chick.y=H*.94; chick.hp=3; chick.inv=0; chick.shield=0;
+    chick.x=W*.5; chick.y=H*.88; chick.inv=0; chick.shield=0; chick.targetX=chick.x; chick.targetY=chick.y; chick.wanderTimer=.3;
     shieldGauge=100;
     Object.keys(cooldown).forEach(k=>cooldown[k]=0);
     for(let i=0;i<20;i++) scenery.push(makeScenery(Math.random()*H));
@@ -53,7 +53,7 @@
   function start(){ reset(); overlay.classList.remove('show'); running=true; last=performance.now(); requestAnimationFrame(loop); }
   function end(won){
     running=false; overlay.classList.add('show');
-    overlay.querySelector('.card').innerHTML=`<h1>${won?'無事に到着！':'ヒヨコを守れなかった…'}</h1><p>${won?'風と水の魔法で、ヒヨコたちは森を抜けました。':'敵や障害物を少し早めに追い払ってみよう。'}</p><button id="restartBtn">もう一度</button>`;
+    overlay.querySelector('.card').innerHTML=`<h1>${won?'無事に到着！':'ゲーム終了'}</h1><p>最終スコア：<strong>${Math.max(0,Math.round(score))}</strong>点<br>${won?'気まぐれなヒヨコを無事に森の出口まで送り届けました。':'ミスを減らして、より高いスコアを目指そう。'}</p><button id="restartBtn">もう一度</button>`;
     const b=overlay.querySelector('#restartBtn');
     b.style.cssText='width:100%;border:0;border-radius:16px;padding:14px;background:linear-gradient(90deg,#ffb65d,#ff8ba7);color:white;font-weight:900;font-size:17px;box-shadow:0 5px 0 #e67479';
     b.addEventListener('click',start,{once:true});
@@ -69,6 +69,17 @@
     if(dx||dy){ fairy.x+=dx/len*fairy.speed*dt; fairy.y+=dy/len*fairy.speed*dt; }
     fairy.x=clamp(fairy.x,24,W-24); fairy.y=clamp(fairy.y,82,H*.90); fairy.bob+=dt*7;
     chick.inv=Math.max(0,chick.inv-dt); chick.shield=Math.max(0,chick.shield-dt);
+    // ヒヨコは縦スクロール中も気まぐれに上下左右へ歩く。
+    chick.wanderTimer-=dt;
+    if(chick.wanderTimer<=0 || Math.hypot(chick.targetX-chick.x,chick.targetY-chick.y)<8){
+      chick.targetX=26+Math.random()*(W-52);
+      chick.targetY=H*(.69+Math.random()*.23);
+      chick.wanderTimer=.8+Math.random()*1.8;
+    }
+    const cdx=chick.targetX-chick.x, cdy=chick.targetY-chick.y, cdl=Math.hypot(cdx,cdy)||1;
+    chick.x+=cdx/cdl*chick.speed*dt;
+    chick.y+=cdy/cdl*chick.speed*dt;
+    chick.x=clamp(chick.x,22,W-22); chick.y=clamp(chick.y,H*.66,H*.95);
     shieldGauge=Math.min(100,shieldGauge+dt*4.5);
     Object.keys(cooldown).forEach(k=>cooldown[k]=Math.max(0,cooldown[k]-dt));
 
@@ -88,7 +99,7 @@
       e.x+=ex/el*e.speed*dt; e.y+=ey/el*e.speed*dt;
       if(el<30){
         if(chick.shield>0){ repel(e,e.x-chick.x,-1); burst(e.x,e.y,'✨'); }
-        else if(chick.inv<=0){ chick.hp--; chick.inv=1.3; repel(e,e.x-chick.x,-1); burst(chick.x,chick.y,'💥'); if(chick.hp<=0)return end(false); }
+        else if(chick.inv<=0){ deductScore(100,'敵に接触'); chick.inv=1.3; repel(e,e.x-chick.x,-1); burst(chick.x,chick.y,'💥'); }
       }
     }
 
@@ -120,12 +131,14 @@
 
     for(const o of obstacles){
       if(o.y>H+80)continue;
-      if(o.type==='hole'&&!o.bridged&&Math.abs(o.y-chick.y)<30&&Math.abs(o.x-chick.x)<58){
-        if(chick.shield<=0&&chick.inv<=0){chick.hp--;chick.inv=1.3;burst(chick.x,chick.y,'💥');if(chick.hp<=0)return end(false);}
+      if(o.type==='hole'&&!o.bridged&&Math.abs(o.y-chick.y)<28&&Math.abs(o.x-chick.x)<42){
+        if(chick.shield<=0&&chick.inv<=0&&!o.penalized){deductScore(150,'穴');chick.inv=1.25;o.penalized=true;burst(chick.x,chick.y,'💦');}
       }
-      if(o.type==='branches'&&!o.cleared&&Math.abs(o.y-chick.y)<25&&Math.abs(o.x-chick.x)<52) chick.y=Math.min(H*.94,chick.y+16*dt);
+      if(o.type==='branches'&&!o.cleared&&Math.abs(o.y-chick.y)<23&&Math.abs(o.x-chick.x)<38){
+        chick.y=Math.min(H*.95,chick.y+10*dt);
+        if(chick.inv<=0&&!o.penalized){deductScore(60,'小枝');chick.inv=.85;o.penalized=true;burst(chick.x,chick.y,'🍂');}
+      }
     }
-    chick.y+=(H*.91-chick.y)*dt*2;
 
     effects.forEach(e=>e.life-=dt);
     projectiles=projectiles.filter(p=>p.life>0||(p.type==='blast'&&!p.exploded));
@@ -150,7 +163,7 @@
 
   function spawnObstacle(){
     const r=Math.random(); const type=r<.48?'branches':r<.78?'hole':'sprout';
-    obstacles.push({type,x:W*.5+(Math.random()-.5)*Math.min(150,W*.38),y:95,r:type==='hole'?34:28,cleared:false,grown:false,bridged:false});
+    obstacles.push({type,x:28+Math.random()*(W-56),y:70+Math.random()*45,r:type==='hole'?34:28,cleared:false,grown:false,bridged:false,penalized:false});
   }
 
   function cast(action){
@@ -279,8 +292,8 @@
   }
 
   function drawChicks(){
-    [-23,0,23].forEach((ox,i)=>{if(chick.inv>0&&Math.floor(time*12)%2===0)return;drawChick(chick.x+ox,chick.y+Math.sin(time*7+i)*1.7);});
-    if(chick.shield>0){ctx.strokeStyle='rgba(184,116,255,.9)';ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(chick.x,chick.y,55,31,0,0,Math.PI*2);ctx.stroke();}
+    if(!(chick.inv>0&&Math.floor(time*12)%2===0)) drawChick(chick.x,chick.y+Math.sin(time*7)*1.7);
+    if(chick.shield>0){ctx.strokeStyle='rgba(184,116,255,.9)';ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(chick.x,chick.y,23,22,0,0,Math.PI*2);ctx.stroke();}
   }
   function drawChick(x,y){ctx.save();ctx.translate(x,y);ctx.fillStyle='#ffd83d';ctx.beginPath();ctx.ellipse(0,2,9,11,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(0,-7,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ef9d28';ctx.beginPath();ctx.moveTo(6,-7);ctx.lineTo(12,-4);ctx.lineTo(6,-2);ctx.fill();ctx.strokeStyle='#b97725';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-3,12);ctx.lineTo(-4,16);ctx.moveTo(3,12);ctx.lineTo(4,16);ctx.stroke();ctx.restore();}
 
@@ -351,7 +364,9 @@
   }
   function drawEffects(){for(const e of effects){const t=e.life/e.max;ctx.save();ctx.globalAlpha=t;if(e.kind==='splash'){ctx.strokeStyle='#5ab9ff';ctx.lineWidth=6;ctx.beginPath();ctx.arc(e.x,e.y,12+(1-t)*55,0,Math.PI*2);ctx.stroke();}else if(e.kind==='blastBurst'){ctx.strokeStyle='#dffff3';ctx.lineWidth=7;ctx.beginPath();ctx.arc(e.x,e.y,8+(1-t)*72,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='rgba(95,210,165,.55)';ctx.lineWidth=3;for(let i=0;i<8;i++){const a=i*Math.PI/4;ctx.beginPath();ctx.moveTo(e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);ctx.lineTo(e.x+Math.cos(a)*(35+(1-t)*45),e.y+Math.sin(a)*(35+(1-t)*45));ctx.stroke();}}else{ctx.font=`${24+(1-t)*15}px sans-serif`;ctx.textAlign='center';ctx.fillText(e.icon,e.x,e.y-(1-t)*24);}ctx.restore();}}
 
-  function updateHud(){hpEl.textContent=chick.hp;distanceEl.textContent=Math.ceil(distance);shieldEl.textContent=Math.floor(shieldGauge);buttons.forEach(b=>{const a=b.dataset.action;b.classList.toggle('cooldown',cooldown[a]>0||(a==='shield'&&shieldGauge<55));});}
+  function deductScore(points,label){score=Math.max(0,score-points);effects.push({x:chick.x,y:chick.y-24,icon:`-${points}`,life:.9,max:.9,kind:'icon'});}
+
+  function updateHud(){hpEl.textContent=Math.max(0,Math.round(score));distanceEl.textContent=Math.ceil(distance);shieldEl.textContent=Math.floor(shieldGauge);buttons.forEach(b=>{const a=b.dataset.action;b.classList.toggle('cooldown',cooldown[a]>0||(a==='shield'&&shieldGauge<55));});}
   function resetStick(){
     stick.pointerId=null; stick.strength=0; stick.direction=-1;
     move.x=0; move.y=0;
