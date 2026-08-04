@@ -15,7 +15,6 @@
         <div class="pill scorePlus">＋ <span id="plusScore">0</span>点</div>
         <div class="pill scoreMinus">－ <span id="minusScore">0</span>点</div>
         <div class="pill">あと <span id="distance">100</span>m</div>
-        <div class="pill shield">🛡️ <span id="shieldGauge">100</span>%</div>
       </section>
       
     </section>
@@ -31,10 +30,10 @@
         <div id="stickKnob" aria-hidden="true"></div>
       </section>
       <section id="buttons" aria-label="魔法ボタン">
-        <button class="magic wind" data-action="cutter"><b>A</b><small>カッター</small></button>
-        <button class="magic blast" data-action="blast"><b>B</b><small>ブラスト</small></button>
-        <button class="magic water" data-action="water"><b>C</b><small>水ボム</small></button>
-        <button class="magic shieldBtn" data-action="shield"><b>D</b><small>シールド</small></button>
+        <button class="magic wind windUp" data-action="windForward"><b>風・上</b><small>前方エアーブラスト</small></button>
+        <button class="magic wind windDown" data-action="windDown"><b>風・下</b><small>下方エアーブラスト</small></button>
+        <button class="magic water waterUp" data-action="waterForward"><b>水・上</b><small>前方ウォーターボール</small></button>
+        <button class="magic water waterDown" data-action="waterDown"><b>水・下</b><small>下方ウォーターボール</small></button>
       </section>
     </section>
 
@@ -43,10 +42,10 @@
         <h1>Fairy Guardian</h1>
         <p>円形スティックで妖精を動かし、気まぐれに歩く1匹のヒヨコを守ろう。成功点とミス点は別々に記録され、マイナスが増えてもゲームは続きます。</p>
         <dl>
-          <div><dt>A</dt><dd>山形の風の刃を前方3方向へ飛ばし、空中の鳥を追い払う</dd></div>
-          <div><dt>B</dt><dd>円形の風玉が前方へ飛びながら下降。着地時に破裂し、地上の敵や小枝を吹き飛ばす</dd></div>
-          <div><dt>C</dt><dd>妖精の真下へ短く落として破裂。穴に植物の橋を育てる</dd></div>
-          <div><dt>D</dt><dd>ヒヨコを短時間シールドする</dd></div>
+          <div><dt>風↑</dt><dd>円形の風玉を前方へ発射。鳥の近く、または地面への着弾で破裂する</dd></div>
+          <div><dt>風↓</dt><dd>近い地面へ素早く落とす短射程の風玉。段差で跳べないヒヨコを飛び越えさせる</dd></div>
+          <div><dt>水↑</dt><dd>水の塊を前方へ発射し、飛びながら落下。鳥にも当たり、水辺の双葉も育てる</dd></div>
+          <div><dt>水↓</dt><dd>水の塊を真下へ短く落とし、1秒未満で破裂する</dd></div>
         </dl>
         <button id="startBtn">スタート</button>
       </div>

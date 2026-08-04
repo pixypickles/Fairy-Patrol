@@ -57,7 +57,7 @@ body { display: grid; place-items: center; }
   box-shadow: 0 3px 10px rgba(40,90,60,.14);
   font-size: 14px;
 }
-.shield { margin-left: auto; }
+
 #moveHint {
   position: absolute;
   left: 12px;
@@ -135,12 +135,12 @@ body { display: grid; place-items: center; }
   touch-action: manipulation;
 }
 .magic:active, .magic.pressed { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0,0,0,.13); }
-.magic b { display: block; font-size: clamp(22px, 6vw, 31px); line-height: 1; }
+.magic b { display: block; font-size: clamp(15px, 4.2vw, 21px); line-height: 1.05; }
 .magic small { display: block; font-size: clamp(9px, 2.6vw, 12px); margin-top: 6px; white-space: nowrap; }
-.wind { background: linear-gradient(#6fe2bd,#35b994); }
-.blast { background: linear-gradient(#99d768,#5eb240); }
-.water { background: linear-gradient(#68c9ff,#318fe8); }
-.shieldBtn { background: linear-gradient(#d49cff,#9b62df); }
+.wind { background: linear-gradient(#83df85,#39a956); }
+.windDown { background: linear-gradient(#67c96c,#288d45); }
+.water { background: linear-gradient(#75d6ff,#318fe8); }
+.waterDown { background: linear-gradient(#55bced,#257acb); }
 .magic.cooldown { filter: grayscale(.75); opacity: .55; }
 #overlay {
   position: absolute;
