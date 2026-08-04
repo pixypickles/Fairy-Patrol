@@ -34,13 +34,13 @@
     ctx.setTransform(dpr,0,0,dpr,0,0);
     chick.x = W*.5; chick.y = H*.94;
     fairy.x = clamp(fairy.x, 26, W-26);
-    fairy.y = clamp(fairy.y, 82, H*.76);
+    fairy.y = clamp(fairy.y, 82, H*.90);
   }
 
   function reset() {
     time=0; distance=100; spawnTimer=.7; obstacleTimer=1.8;
     enemies=[]; projectiles=[]; effects=[]; obstacles=[]; scenery=[];
-    fairy.x=W*.5; fairy.y=H*.48;
+    fairy.x=W*.5; fairy.y=H*.56;
     move.x=0; move.y=0; resetStick();
     Object.keys(keys).forEach(k=>keys[k]=false);
     chick.x=W*.5; chick.y=H*.94; chick.hp=3; chick.inv=0; chick.shield=0;
@@ -67,7 +67,7 @@
     let dy=move.y+(keys.down?1:0)-(keys.up?1:0);
     const len=Math.hypot(dx,dy)||1;
     if(dx||dy){ fairy.x+=dx/len*fairy.speed*dt; fairy.y+=dy/len*fairy.speed*dt; }
-    fairy.x=clamp(fairy.x,24,W-24); fairy.y=clamp(fairy.y,82,H*.78); fairy.bob+=dt*7;
+    fairy.x=clamp(fairy.x,24,W-24); fairy.y=clamp(fairy.y,82,H*.90); fairy.bob+=dt*7;
     chick.inv=Math.max(0,chick.inv-dt); chick.shield=Math.max(0,chick.shield-dt);
     shieldGauge=Math.min(100,shieldGauge+dt*4.5);
     Object.keys(cooldown).forEach(k=>cooldown[k]=Math.max(0,cooldown[k]-dt));
@@ -100,7 +100,6 @@
         p.spin+=dt*7;
         if(p.z<=0&&!p.exploded){p.exploded=true;p.life=0;blastBurst(p.x,p.y);}
       }
-      if(p.type==='water'&&p.life<=0&&!p.exploded){p.exploded=true;waterSplash(p.x,p.y);}
     }
 
     for(const p of projectiles){
@@ -122,7 +121,7 @@
     chick.y+=(H*.91-chick.y)*dt*2;
 
     effects.forEach(e=>e.life-=dt);
-    projectiles=projectiles.filter(p=>p.life>0||((p.type==='water'||p.type==='blast')&&!p.exploded));
+    projectiles=projectiles.filter(p=>p.life>0||(p.type==='blast'&&!p.exploded));
     enemies=enemies.filter(e=>e.life>0&&e.x>-90&&e.x<W+90&&e.y<H+90);
     effects=effects.filter(e=>e.life>0);
     obstacles=obstacles.filter(o=>o.y<H+90);
@@ -158,10 +157,14 @@
       projectiles.push({
         type:'blast', x:fairy.x, y:fairy.y-8,
         vx:0, vy:-150, r:16, life:1.4, exploded:false,
-        z:74, descent:92, spin:0
+        z:74, descent:92, pulse:0
       });
     }
-    if(action==='water'){ cooldown.water=.9; projectiles.push({type:'water',x:fairy.x,y:fairy.y+8,vx:0,vy:185,r:13,life:.68,exploded:false}); }
+    if(action==='water'){
+      cooldown.water=.9;
+      // 妖精のすぐ真下で即座に破裂。落下弾や下方向への移動は行わない。
+      waterSplash(fairy.x, fairy.y+25);
+    }
     if(action==='shield'){ if(shieldGauge<55)return; shieldGauge-=55; cooldown.shield=.65; chick.shield=3.2; burst(chick.x,chick.y,'✨'); }
   }
 
@@ -246,7 +249,19 @@
     const y=fairy.y+Math.sin(fairy.bob)*2;
     ctx.save();ctx.translate(fairy.x,y);
     ctx.fillStyle='rgba(75,104,55,.22)';ctx.beginPath();ctx.ellipse(0,22,16,7,0,0,Math.PI*2);ctx.fill();
-    ctx.globalAlpha=.72;ctx.fillStyle='#efffff';ctx.beginPath();ctx.ellipse(-13,-1,10,18,-.45,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(13,-1,10,18,.45,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+    // 薄い7色が重なって見える、透明感のある妖精の羽。
+    const wingColors=['#ff8f9c','#ffbd7a','#fff18a','#a9ed9a','#8ee7eb','#91b8ff','#c6a0f5'];
+    ctx.globalAlpha=.17;
+    wingColors.forEach((color,i)=>{
+      const spread=(i-3)*.72;
+      ctx.fillStyle=color;
+      ctx.beginPath();ctx.ellipse(-13+spread,-1,10,18,-.45,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.ellipse(13-spread,-1,10,18,.45,0,Math.PI*2);ctx.fill();
+    });
+    ctx.globalAlpha=.38;ctx.strokeStyle='#f5ffff';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.ellipse(-13,-1,10,18,-.45,0,Math.PI*2);ctx.stroke();
+    ctx.beginPath();ctx.ellipse(13,-1,10,18,.45,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=1;
     ctx.fillStyle='#6ac98a';ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(-10,16);ctx.lineTo(10,16);ctx.closePath();ctx.fill();
     ctx.fillStyle='#f4c28a';ctx.beginPath();ctx.arc(0,-11,8,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='#efb35b';ctx.beginPath();ctx.arc(0,-17,8,Math.PI,Math.PI*2);ctx.fill();
@@ -267,17 +282,51 @@
 
   function drawObstacles(){for(const o of obstacles){ctx.save();ctx.translate(o.x,o.y);if(o.type==='branches'){ctx.globalAlpha=o.cleared?.2:1;ctx.strokeStyle='#8d5d32';ctx.lineWidth=7;ctx.lineCap='round';[-18,-9,0,9,18].forEach((x,i)=>{ctx.beginPath();ctx.moveTo(x-10,-12+i%2*8);ctx.lineTo(x+10,12-i%2*8);ctx.stroke();});}else if(o.type==='hole'){ctx.fillStyle='#5a4028';ctx.beginPath();ctx.ellipse(0,0,38,24,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#2d2219';ctx.beginPath();ctx.ellipse(0,2,29,17,0,0,Math.PI*2);ctx.fill();if(o.bridged){ctx.strokeStyle='#4e9d4e';ctx.lineWidth=8;ctx.lineCap='round';[-12,-4,4,12].forEach(y=>{ctx.beginPath();ctx.moveTo(-32,y);ctx.lineTo(32,y);ctx.stroke();});ctx.fillStyle='#78c75e';for(let i=-25;i<=25;i+=10){ctx.beginPath();ctx.ellipse(i,-7,7,3,.4,0,Math.PI*2);ctx.fill();}}}else{ctx.font=o.grown?'40px sans-serif':'28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.grown?'🌿':'🌱',0,0);}ctx.restore();}}
 
-  function drawProjectiles(){for(const p of projectiles){ctx.save();ctx.translate(p.x,p.y);if(p.type==='cutter'){ctx.strokeStyle='#dbfff2';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,10,-1.2,1.2);ctx.stroke();}if(p.type==='blast'){
-      const height=Math.max(0,p.z||0);
-      const visualY=-height*.22;
-      const scale=.72+(1-height/74)*.5;
-      ctx.fillStyle=`rgba(46,86,56,${.08+(1-height/74)*.18})`;
-      ctx.beginPath();ctx.ellipse(0,5,12*scale,5*scale,0,0,Math.PI*2);ctx.fill();
-      ctx.translate(0,visualY);ctx.rotate(p.spin||0);ctx.scale(scale,scale);
-      ctx.strokeStyle='#eafff5';ctx.lineWidth=7;ctx.beginPath();ctx.arc(0,0,12,-1.1,1.1);ctx.stroke();
-      ctx.strokeStyle='rgba(130,235,205,.72)';ctx.lineWidth=3;
-      ctx.beginPath();ctx.moveTo(-17,-7);ctx.lineTo(-5,-4);ctx.moveTo(-18,7);ctx.lineTo(-5,4);ctx.stroke();
-    }if(p.type==='water'){ctx.font='25px sans-serif';ctx.fillText('💧',0,0);}ctx.restore();}}
+  function drawProjectiles(){
+    for(const p of projectiles){
+      ctx.save();
+      ctx.translate(p.x,p.y);
+      if(p.type==='cutter'){
+        // 進行方向へ山形（∩）を向けた風の刃。
+        const angle=Math.atan2(p.vy,p.vx)+Math.PI/2;
+        ctx.rotate(angle);
+        ctx.lineCap='round';
+        ctx.strokeStyle='rgba(224,255,246,.98)';
+        ctx.lineWidth=5;
+        ctx.beginPath();
+        ctx.moveTo(-12,7);
+        ctx.quadraticCurveTo(0,-11,12,7);
+        ctx.stroke();
+        ctx.strokeStyle='rgba(116,229,197,.55)';
+        ctx.lineWidth=2;
+        ctx.beginPath();
+        ctx.moveTo(-9,8);
+        ctx.quadraticCurveTo(0,-6,9,8);
+        ctx.stroke();
+      }
+      if(p.type==='blast'){
+        const height=Math.max(0,p.z||0);
+        const progress=1-height/74;
+        const visualY=-height*.22;
+        const scale=.72+progress*.5;
+        p.pulse=(p.pulse||0)+.08;
+        ctx.fillStyle=`rgba(46,86,56,${.07+progress*.18})`;
+        ctx.beginPath();ctx.ellipse(0,5,12*scale,5*scale,0,0,Math.PI*2);ctx.fill();
+        ctx.translate(0,visualY);ctx.scale(scale,scale);
+        // 飛行中も欠けた弧ではなく、常に円形の風玉として表示。
+        const glow=ctx.createRadialGradient(-4,-5,2,0,0,17);
+        glow.addColorStop(0,'rgba(255,255,255,.96)');
+        glow.addColorStop(.42,'rgba(203,255,239,.88)');
+        glow.addColorStop(1,'rgba(87,209,170,.58)');
+        ctx.fillStyle=glow;ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='rgba(235,255,249,.96)';ctx.lineWidth=3;
+        ctx.beginPath();ctx.arc(0,0,14,0,Math.PI*2);ctx.stroke();
+        ctx.strokeStyle='rgba(78,181,150,.52)';ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(0,0,8,0,Math.PI*2);ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
   function drawEffects(){for(const e of effects){const t=e.life/e.max;ctx.save();ctx.globalAlpha=t;if(e.kind==='splash'){ctx.strokeStyle='#5ab9ff';ctx.lineWidth=6;ctx.beginPath();ctx.arc(e.x,e.y,12+(1-t)*55,0,Math.PI*2);ctx.stroke();}else if(e.kind==='blastBurst'){ctx.strokeStyle='#dffff3';ctx.lineWidth=7;ctx.beginPath();ctx.arc(e.x,e.y,8+(1-t)*72,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='rgba(95,210,165,.55)';ctx.lineWidth=3;for(let i=0;i<8;i++){const a=i*Math.PI/4;ctx.beginPath();ctx.moveTo(e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);ctx.lineTo(e.x+Math.cos(a)*(35+(1-t)*45),e.y+Math.sin(a)*(35+(1-t)*45));ctx.stroke();}}else{ctx.font=`${24+(1-t)*15}px sans-serif`;ctx.textAlign='center';ctx.fillText(e.icon,e.x,e.y-(1-t)*24);}ctx.restore();}}
 
   function updateHud(){hpEl.textContent=chick.hp;distanceEl.textContent=Math.ceil(distance);shieldEl.textContent=Math.floor(shieldGauge);buttons.forEach(b=>{const a=b.dataset.action;b.classList.toggle('cooldown',cooldown[a]>0||(a==='shield'&&shieldGauge<55));});}
