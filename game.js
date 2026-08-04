@@ -28,16 +28,16 @@
     canvas.height = Math.round(rect.height*dpr);
     W = rect.width; H = rect.height;
     ctx.setTransform(dpr,0,0,dpr,0,0);
-    chick.x = W*.5; chick.y = H*.91;
+    chick.x = W*.5; chick.y = H*.94;
     fairy.x = clamp(fairy.x, 26, W-26);
-    fairy.y = clamp(fairy.y, 95, H*.72);
+    fairy.y = clamp(fairy.y, 82, H*.76);
   }
 
   function reset() {
     time=0; distance=100; spawnTimer=.7; obstacleTimer=1.8;
     enemies=[]; projectiles=[]; effects=[]; obstacles=[]; scenery=[];
     fairy.x=W*.5; fairy.y=H*.48; targetX=fairy.x; targetY=fairy.y;
-    chick.x=W*.5; chick.y=H*.91; chick.hp=3; chick.inv=0; chick.shield=0;
+    chick.x=W*.5; chick.y=H*.94; chick.hp=3; chick.inv=0; chick.shield=0;
     shieldGauge=100;
     Object.keys(cooldown).forEach(k=>cooldown[k]=0);
     for(let i=0;i<20;i++) scenery.push(makeScenery(Math.random()*H));
@@ -59,7 +59,7 @@
     time+=dt; distance=Math.max(0,100-time*2.15); if(distance<=0)return end(true);
     const dx=targetX-fairy.x, dy=targetY-fairy.y, len=Math.hypot(dx,dy), step=fairy.speed*dt;
     if(len>1){ fairy.x+=dx/len*Math.min(step,len); fairy.y+=dy/len*Math.min(step,len); }
-    fairy.x=clamp(fairy.x,24,W-24); fairy.y=clamp(fairy.y,90,H*.76); fairy.bob+=dt*7;
+    fairy.x=clamp(fairy.x,24,W-24); fairy.y=clamp(fairy.y,82,H*.78); fairy.bob+=dt*7;
     chick.inv=Math.max(0,chick.inv-dt); chick.shield=Math.max(0,chick.shield-dt);
     shieldGauge=Math.min(100,shieldGauge+dt*4.5);
     Object.keys(cooldown).forEach(k=>cooldown[k]=Math.max(0,cooldown[k]-dt));
@@ -164,10 +164,53 @@
   function draw(){ctx.clearRect(0,0,W,H);drawBackground();drawScenery();drawObstacles();drawChicks();drawEnemies();drawProjectiles();drawFairy();drawEffects();}
 
   function drawBackground(){
-    const g=ctx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#9ddb76');g.addColorStop(1,'#72c75f');ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
-    ctx.fillStyle='rgba(221,195,118,.82)';ctx.beginPath();ctx.moveTo(W*.39,H);ctx.lineTo(W*.43,0);ctx.lineTo(W*.57,0);ctx.lineTo(W*.63,H);ctx.closePath();ctx.fill();
-    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=2;
-    for(let y=((time*34)%48)-48;y<H;y+=48){ctx.beginPath();ctx.moveTo(W*.43,y);ctx.lineTo(W*.57,y+18);ctx.stroke();}
+    // 全画面を地面として描画。空、地平線、遠景は一切表示しない。
+    ctx.fillStyle='#76c85e';
+    ctx.fillRect(0,0,W,H);
+
+    // 真上から見た草地の細かな模様。
+    ctx.fillStyle='rgba(255,255,255,.055)';
+    const offset=(time*34)%54;
+    for(let row=-1;row<Math.ceil(H/54)+1;row++){
+      const y=row*54+offset;
+      for(let col=0;col<Math.ceil(W/58)+1;col++){
+        const x=col*58+(row%2)*24;
+        ctx.beginPath();
+        ctx.ellipse(x,y,12,5,.35,0,Math.PI*2);
+        ctx.fill();
+      }
+    }
+
+    // 縦スクロールSTGらしい、真上から見た土の道。
+    const roadTopLeft=W*.39, roadTopRight=W*.61;
+    const roadBottomLeft=W*.31, roadBottomRight=W*.69;
+    ctx.fillStyle='rgba(220,190,112,.9)';
+    ctx.beginPath();
+    ctx.moveTo(roadTopLeft,0);
+    ctx.lineTo(roadTopRight,0);
+    ctx.lineTo(roadBottomRight,H);
+    ctx.lineTo(roadBottomLeft,H);
+    ctx.closePath();
+    ctx.fill();
+
+    // 道の表面が下へ流れ、画面全体が縦スクロールしているように見せる。
+    ctx.strokeStyle='rgba(155,124,63,.16)';
+    ctx.lineWidth=2;
+    for(let y=((time*34)%52)-52;y<H;y+=52){
+      const t=Math.max(0,Math.min(1,y/H));
+      const left=roadTopLeft+(roadBottomLeft-roadTopLeft)*t;
+      const right=roadTopRight+(roadBottomRight-roadTopRight)*t;
+      ctx.beginPath();
+      ctx.moveTo(left+10,y);
+      ctx.quadraticCurveTo(W*.5,y+7,right-10,y+1);
+      ctx.stroke();
+    }
+
+    // 道の縁。斜め視点に見えないよう、影はごく弱くする。
+    ctx.strokeStyle='rgba(91,135,61,.22)';
+    ctx.lineWidth=3;
+    ctx.beginPath();ctx.moveTo(roadTopLeft,0);ctx.lineTo(roadBottomLeft,H);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(roadTopRight,0);ctx.lineTo(roadBottomRight,H);ctx.stroke();
   }
 
   function drawScenery(){for(const s of scenery){ctx.save();ctx.translate(s.x,s.y);if(s.type==='flower'){ctx.font='16px sans-serif';ctx.fillText('🌼',0,0);}else if(s.type==='stone'){ctx.fillStyle='#9da791';ctx.beginPath();ctx.ellipse(0,0,s.r,s.r*.7,0,0,Math.PI*2);ctx.fill();}else{ctx.fillStyle='#4f9d4f';ctx.beginPath();ctx.arc(0,0,s.r,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(-s.r*.55,2,s.r*.65,0,Math.PI*2);ctx.fill();}ctx.restore();}}
