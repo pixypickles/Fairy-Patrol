@@ -1,7 +1,7 @@
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --dock-height: clamp(128px, 20dvh, 168px);
+  --dock-height: clamp(154px, 23dvh, 190px);
   --game-width: min(100vw, 520px);
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -78,13 +78,48 @@ body { display: grid; place-items: center; }
   border-top: 2px solid rgba(93,145,80,.22);
   padding: 9px 10px calc(9px + var(--safe-bottom));
   box-shadow: 0 -8px 22px rgba(42,84,50,.12);
+  display: grid;
+  grid-template-columns: minmax(128px, .8fr) minmax(205px, 1.35fr);
+  gap: 12px;
+  align-items: center;
 }
+#dpad {
+  position: relative;
+  width: min(36vw, 146px);
+  aspect-ratio: 1;
+  justify-self: center;
+  border-radius: 50%;
+  background: radial-gradient(circle, #eef4eb 0 28%, #d5e2d0 29% 100%);
+  box-shadow: inset 0 0 0 3px rgba(79,116,72,.16), 0 5px 14px rgba(30,70,40,.15);
+  touch-action: none;
+}
+.dir {
+  position: absolute;
+  width: 42%;
+  height: 42%;
+  border: 0;
+  border-radius: 50%;
+  background: #6eaa68;
+  color: white;
+  font-weight: 900;
+  font-size: 20px;
+  box-shadow: 0 4px 0 #4e8350;
+  touch-action: none;
+}
+.dir.pressed { transform: translateY(3px); box-shadow: 0 1px 0 #4e8350; }
+.dir.up { left: 29%; top: 2%; }
+.dir.down { left: 29%; bottom: 2%; }
+.dir.left { left: 2%; top: 29%; }
+.dir.right { right: 2%; top: 29%; }
+.dirCenter { position:absolute; left:35%; top:35%; width:30%; height:30%; border-radius:50%; background:#b9cdb5; box-shadow:inset 0 2px 5px rgba(0,0,0,.12); }
 #buttons {
   height: 100%;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   margin: auto;
+  width: 100%;
 }
 .magic {
   min-width: 0;
@@ -136,7 +171,13 @@ dd { margin: 0; padding: 4px 0 0 9px; font-size: 13px; line-height: 1.4; }
   #app { width: min(430px, 100vw); }
 }
 @media (max-height: 650px) {
-  :root { --dock-height: 116px; }
-  .magic b { font-size: 22px; }
-  .magic small { margin-top: 4px; }
+  :root { --dock-height: 138px; }
+  .magic b { font-size: 21px; }
+  .magic small { margin-top: 3px; }
+  #controlDock { grid-template-columns: 118px 1fr; gap: 8px; }
+  #dpad { width: 112px; }
+}
+@media (max-width: 360px) {
+  #controlDock { grid-template-columns: 116px 1fr; gap: 7px; padding-left: 6px; padding-right: 6px; }
+  #dpad { width: 112px; }
 }

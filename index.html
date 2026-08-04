@@ -16,10 +16,17 @@
         <div class="pill">あと <span id="distance">100</span>m</div>
         <div class="pill shield">🛡️ <span id="shieldGauge">100</span>%</div>
       </section>
-      <div id="moveHint">画面を指でなぞって移動</div>
+      
     </section>
 
     <section id="controlDock" aria-label="操作パネル">
+      <section id="dpad" aria-label="方向キー">
+        <button class="dir up" data-dir="up" aria-label="上">▲</button>
+        <button class="dir left" data-dir="left" aria-label="左">◀</button>
+        <div class="dirCenter"></div>
+        <button class="dir right" data-dir="right" aria-label="右">▶</button>
+        <button class="dir down" data-dir="down" aria-label="下">▼</button>
+      </section>
       <section id="buttons" aria-label="魔法ボタン">
         <button class="magic wind" data-action="cutter"><b>A</b><small>カッター</small></button>
         <button class="magic blast" data-action="blast"><b>B</b><small>ブラスト</small></button>
@@ -31,10 +38,10 @@
     <section id="overlay" class="show">
       <div class="card">
         <h1>Fairy Guardian</h1>
-        <p>地面を真上から見下ろす縦型画面で妖精を動かし、ヒヨコを安全に森の出口まで送り届けよう。</p>
+        <p>円形の方向キーで妖精を動かし、ヒヨコを安全に森の出口まで送り届けよう。</p>
         <dl>
-          <div><dt>A</dt><dd>進行方向へウィンドカッター。空中の鳥を追い払う</dd></div>
-          <div><dt>B</dt><dd>斜め下へエアーブラスト。地上の敵や小枝を吹き飛ばす</dd></div>
+          <div><dt>A</dt><dd>前方3方向へウィンドカッター。空中の鳥を追い払う</dd></div>
+          <div><dt>B</dt><dd>前方斜め下へエアーブラスト。着地点で破裂し、地上の敵や小枝を吹き飛ばす</dd></div>
           <div><dt>C</dt><dd>真下へウォーターボム。穴に植物の橋を育てる</dd></div>
           <div><dt>D</dt><dd>ヒヨコを短時間シールドする</dd></div>
         </dl>

@@ -9,13 +9,15 @@
   const distanceEl = document.querySelector('#distance');
   const shieldEl = document.querySelector('#shieldGauge');
   const buttons = [...document.querySelectorAll('.magic')];
+  const dirButtons = [...document.querySelectorAll('.dir')];
 
   let W = 390, H = 650, dpr = 1;
   let running = false, last = 0, time = 0, distance = 100;
-  let spawnTimer = 0, obstacleTimer = 0, pointerId = null;
-  let targetX = W * .5, targetY = H * .44;
+  let spawnTimer = 0, obstacleTimer = 0;
+  const move = { up:false, down:false, left:false, right:false };
+  const keys = { up:false, down:false, left:false, right:false };
 
-  const fairy = { x: W*.5, y:H*.44, r:18, speed:820, bob:0 };
+  const fairy = { x: W*.5, y:H*.44, r:18, speed:330, bob:0 };
   const chick = { x:W*.5, y:H*.91, hp:3, inv:0, shield:0 };
   const cooldown = { cutter:0, blast:0, water:0, shield:0 };
   let shieldGauge = 100;
@@ -36,7 +38,9 @@
   function reset() {
     time=0; distance=100; spawnTimer=.7; obstacleTimer=1.8;
     enemies=[]; projectiles=[]; effects=[]; obstacles=[]; scenery=[];
-    fairy.x=W*.5; fairy.y=H*.48; targetX=fairy.x; targetY=fairy.y;
+    fairy.x=W*.5; fairy.y=H*.48;
+    Object.keys(move).forEach(k=>move[k]=false);
+    Object.keys(keys).forEach(k=>keys[k]=false);
     chick.x=W*.5; chick.y=H*.94; chick.hp=3; chick.inv=0; chick.shield=0;
     shieldGauge=100;
     Object.keys(cooldown).forEach(k=>cooldown[k]=0);
@@ -56,18 +60,20 @@
   function loop(now){ if(!running)return; const dt=Math.min((now-last)/1000,.034); last=now; update(dt); draw(); requestAnimationFrame(loop); }
 
   function update(dt){
-    time+=dt; distance=Math.max(0,100-time*2.15); if(distance<=0)return end(true);
-    const dx=targetX-fairy.x, dy=targetY-fairy.y, len=Math.hypot(dx,dy), step=fairy.speed*dt;
-    if(len>1){ fairy.x+=dx/len*Math.min(step,len); fairy.y+=dy/len*Math.min(step,len); }
+    time+=dt; distance=Math.max(0,100-time*1.35); if(distance<=0)return end(true);
+    let dx=(move.right||keys.right?1:0)-(move.left||keys.left?1:0);
+    let dy=(move.down||keys.down?1:0)-(move.up||keys.up?1:0);
+    const len=Math.hypot(dx,dy)||1;
+    if(dx||dy){ fairy.x+=dx/len*fairy.speed*dt; fairy.y+=dy/len*fairy.speed*dt; }
     fairy.x=clamp(fairy.x,24,W-24); fairy.y=clamp(fairy.y,82,H*.78); fairy.bob+=dt*7;
     chick.inv=Math.max(0,chick.inv-dt); chick.shield=Math.max(0,chick.shield-dt);
     shieldGauge=Math.min(100,shieldGauge+dt*4.5);
     Object.keys(cooldown).forEach(k=>cooldown[k]=Math.max(0,cooldown[k]-dt));
 
-    spawnTimer-=dt; if(spawnTimer<=0){ spawnEnemy(); spawnTimer=Math.max(.75,1.55-time*.008)+Math.random()*.6; }
-    obstacleTimer-=dt; if(obstacleTimer<=0){ spawnObstacle(); obstacleTimer=3.5+Math.random()*2.6; }
+    spawnTimer-=dt; if(spawnTimer<=0){ spawnEnemy(); spawnTimer=Math.max(1.05,2.05-time*.005)+Math.random()*.75; }
+    obstacleTimer-=dt; if(obstacleTimer<=0){ spawnObstacle(); obstacleTimer=4.5+Math.random()*3.0; }
 
-    const scroll=34*dt;
+    const scroll=22*dt;
     scenery.forEach(s=>s.y+=scroll);
     scenery=scenery.filter(s=>s.y<H+40);
     while(scenery.length<20)scenery.push(makeScenery(-Math.random()*120));
@@ -84,17 +90,18 @@
       }
     }
 
-    for(const p of projectiles){ p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; if(p.type==='water'&&p.life<=0&&!p.exploded){p.exploded=true;waterSplash(p.x,p.y);} }
+    for(const p of projectiles){
+      p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+      if(p.type==='water'&&p.life<=0&&!p.exploded){p.exploded=true;waterSplash(p.x,p.y);}
+      if(p.type==='blast'&&p.life<=0&&!p.exploded){p.exploded=true;blastBurst(p.x,p.y);}
+    }
 
     for(const p of projectiles){
-      if(p.type==='water'||p.life<=0)continue;
+      if(p.type==='water'||p.type==='blast'||p.life<=0)continue;
       for(const e of enemies){
         if(e.state!=='hunt')continue;
         const compatible=(p.type==='cutter'&&e.layer==='air')||(p.type==='blast'&&e.layer==='ground');
         if(compatible&&dist(p,e)<p.r+e.r){ repel(e,p.vx,p.vy); p.life=0; burst(e.x,e.y,p.type==='cutter'?'🍃':'💨'); }
-      }
-      if(p.type==='blast')for(const o of obstacles){
-        if(o.type==='branches'&&!o.cleared&&dist(p,o)<p.r+o.r){o.cleared=true;p.life=0;burst(o.x,o.y,'🍂');}
       }
     }
 
@@ -108,7 +115,7 @@
     chick.y+=(H*.91-chick.y)*dt*2;
 
     effects.forEach(e=>e.life-=dt);
-    projectiles=projectiles.filter(p=>p.life>0||(p.type==='water'&&!p.exploded));
+    projectiles=projectiles.filter(p=>p.life>0||((p.type==='water'||p.type==='blast')&&!p.exploded));
     enemies=enemies.filter(e=>e.life>0&&e.x>-90&&e.x<W+90&&e.y<H+90);
     effects=effects.filter(e=>e.life>0);
     obstacles=obstacles.filter(o=>o.y<H+90);
@@ -125,7 +132,7 @@
     const kinds=air?['bird']:['fox','cat','snake'];
     const kind=kinds[Math.floor(Math.random()*kinds.length)];
     const side=Math.random();
-    enemies.push({x:side<.2?-25:side>.8?W+25:35+Math.random()*(W-70),y:side<.2||side>.8?120+Math.random()*H*.35:75,r:kind==='snake'?18:20,speed:(air?88:60)+Math.random()*30+time*.3,seed:Math.random()*10,state:'hunt',life:13,rot:0,kind,layer:air?'air':'ground'});
+    enemies.push({x:side<.2?-25:side>.8?W+25:35+Math.random()*(W-70),y:side<.2||side>.8?120+Math.random()*H*.35:75,r:kind==='snake'?18:20,speed:(air?58:40)+Math.random()*20+time*.16,seed:Math.random()*10,state:'hunt',life:13,rot:0,kind,layer:air?'air':'ground'});
   }
 
   function spawnObstacle(){
@@ -136,16 +143,26 @@
   function cast(action){
     if(!running||cooldown[action]>0)return;
     if(action==='cutter'){
-      cooldown.cutter=.18; const count=time>30?3:time>15?2:1;
-      const angles=count===1?[-Math.PI/2]:count===2?[-1.72,-1.42]:[-1.82,-Math.PI/2,-1.32];
-      angles.forEach(a=>projectiles.push({type:'cutter',x:fairy.x,y:fairy.y-14,vx:Math.cos(a)*540,vy:Math.sin(a)*540,r:9,life:1.15}));
+      cooldown.cutter=.28;
+      [-1.78,-Math.PI/2,-1.36].forEach(a=>projectiles.push({type:'cutter',x:fairy.x,y:fairy.y-14,vx:Math.cos(a)*390,vy:Math.sin(a)*390,r:9,life:1.35}));
     }
     if(action==='blast'){
-      cooldown.blast=.42; const a=Math.PI*.38;
-      [-.16,0,.16].forEach(off=>projectiles.push({type:'blast',x:fairy.x,y:fairy.y+9,vx:Math.cos(a+off)*350,vy:Math.sin(a+off)*350,r:16,life:.72}));
+      cooldown.blast=.75;
+      const a=Math.PI*.36;
+      projectiles.push({type:'blast',x:fairy.x+8,y:fairy.y+10,vx:Math.cos(a)*215,vy:Math.sin(a)*215,r:16,life:.78,exploded:false});
     }
-    if(action==='water'){ cooldown.water=.72; projectiles.push({type:'water',x:fairy.x,y:fairy.y+8,vx:0,vy:270,r:13,life:.5,exploded:false}); }
-    if(action==='shield'){ if(shieldGauge<55)return; shieldGauge-=55; cooldown.shield=.5; chick.shield=3.2; burst(chick.x,chick.y,'✨'); }
+    if(action==='water'){ cooldown.water=.9; projectiles.push({type:'water',x:fairy.x,y:fairy.y+8,vx:0,vy:185,r:13,life:.68,exploded:false}); }
+    if(action==='shield'){ if(shieldGauge<55)return; shieldGauge-=55; cooldown.shield=.65; chick.shield=3.2; burst(chick.x,chick.y,'✨'); }
+  }
+
+  function blastBurst(x,y){
+    effects.push({x,y,life:.5,max:.5,kind:'blastBurst'});
+    for(const e of enemies){
+      if(e.state==='hunt'&&e.layer==='ground'&&Math.hypot(e.x-x,e.y-y)<82)repel(e,e.x-x,e.y-y);
+    }
+    for(const o of obstacles){
+      if(o.type==='branches'&&!o.cleared&&Math.hypot(o.x-x,o.y-y)<86){o.cleared=true;burst(o.x,o.y,'🍂');}
+    }
   }
 
   function waterSplash(x,y){
@@ -170,7 +187,7 @@
 
     // 真上から見た草地の細かな模様。
     ctx.fillStyle='rgba(255,255,255,.055)';
-    const offset=(time*34)%54;
+    const offset=(time*22)%54;
     for(let row=-1;row<Math.ceil(H/54)+1;row++){
       const y=row*54+offset;
       for(let col=0;col<Math.ceil(W/58)+1;col++){
@@ -196,7 +213,7 @@
     // 道の表面が下へ流れ、画面全体が縦スクロールしているように見せる。
     ctx.strokeStyle='rgba(155,124,63,.16)';
     ctx.lineWidth=2;
-    for(let y=((time*34)%52)-52;y<H;y+=52){
+    for(let y=((time*22)%52)-52;y<H;y+=52){
       const t=Math.max(0,Math.min(1,y/H));
       const left=roadTopLeft+(roadBottomLeft-roadTopLeft)*t;
       const right=roadTopRight+(roadBottomRight-roadTopRight)*t;
@@ -240,16 +257,29 @@
 
   function drawObstacles(){for(const o of obstacles){ctx.save();ctx.translate(o.x,o.y);if(o.type==='branches'){ctx.globalAlpha=o.cleared?.2:1;ctx.strokeStyle='#8d5d32';ctx.lineWidth=7;ctx.lineCap='round';[-18,-9,0,9,18].forEach((x,i)=>{ctx.beginPath();ctx.moveTo(x-10,-12+i%2*8);ctx.lineTo(x+10,12-i%2*8);ctx.stroke();});}else if(o.type==='hole'){ctx.fillStyle='#5a4028';ctx.beginPath();ctx.ellipse(0,0,38,24,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#2d2219';ctx.beginPath();ctx.ellipse(0,2,29,17,0,0,Math.PI*2);ctx.fill();if(o.bridged){ctx.strokeStyle='#4e9d4e';ctx.lineWidth=8;ctx.lineCap='round';[-12,-4,4,12].forEach(y=>{ctx.beginPath();ctx.moveTo(-32,y);ctx.lineTo(32,y);ctx.stroke();});ctx.fillStyle='#78c75e';for(let i=-25;i<=25;i+=10){ctx.beginPath();ctx.ellipse(i,-7,7,3,.4,0,Math.PI*2);ctx.fill();}}}else{ctx.font=o.grown?'40px sans-serif':'28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.grown?'🌿':'🌱',0,0);}ctx.restore();}}
 
-  function drawProjectiles(){for(const p of projectiles){ctx.save();ctx.translate(p.x,p.y);if(p.type==='cutter'){ctx.strokeStyle='#dbfff2';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,10,-1.2,1.2);ctx.stroke();}if(p.type==='blast'){ctx.font='28px sans-serif';ctx.fillText('💨',0,0);}if(p.type==='water'){ctx.font='25px sans-serif';ctx.fillText('💧',0,0);}ctx.restore();}}
-  function drawEffects(){for(const e of effects){const t=e.life/e.max;ctx.save();ctx.globalAlpha=t;if(e.kind==='splash'){ctx.strokeStyle='#5ab9ff';ctx.lineWidth=6;ctx.beginPath();ctx.arc(e.x,e.y,12+(1-t)*55,0,Math.PI*2);ctx.stroke();}else{ctx.font=`${24+(1-t)*15}px sans-serif`;ctx.textAlign='center';ctx.fillText(e.icon,e.x,e.y-(1-t)*24);}ctx.restore();}}
+  function drawProjectiles(){for(const p of projectiles){ctx.save();ctx.translate(p.x,p.y);if(p.type==='cutter'){ctx.strokeStyle='#dbfff2';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,10,-1.2,1.2);ctx.stroke();}if(p.type==='blast'){ctx.rotate(Math.atan2(p.vy,p.vx));ctx.strokeStyle='#eafff5';ctx.lineWidth=7;ctx.beginPath();ctx.arc(0,0,12,-1.1,1.1);ctx.stroke();ctx.strokeStyle='rgba(130,235,205,.65)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-18,-7);ctx.lineTo(-5,-4);ctx.moveTo(-20,7);ctx.lineTo(-5,4);ctx.stroke();}if(p.type==='water'){ctx.font='25px sans-serif';ctx.fillText('💧',0,0);}ctx.restore();}}
+  function drawEffects(){for(const e of effects){const t=e.life/e.max;ctx.save();ctx.globalAlpha=t;if(e.kind==='splash'){ctx.strokeStyle='#5ab9ff';ctx.lineWidth=6;ctx.beginPath();ctx.arc(e.x,e.y,12+(1-t)*55,0,Math.PI*2);ctx.stroke();}else if(e.kind==='blastBurst'){ctx.strokeStyle='#dffff3';ctx.lineWidth=7;ctx.beginPath();ctx.arc(e.x,e.y,8+(1-t)*72,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='rgba(95,210,165,.55)';ctx.lineWidth=3;for(let i=0;i<8;i++){const a=i*Math.PI/4;ctx.beginPath();ctx.moveTo(e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);ctx.lineTo(e.x+Math.cos(a)*(35+(1-t)*45),e.y+Math.sin(a)*(35+(1-t)*45));ctx.stroke();}}else{ctx.font=`${24+(1-t)*15}px sans-serif`;ctx.textAlign='center';ctx.fillText(e.icon,e.x,e.y-(1-t)*24);}ctx.restore();}}
 
   function updateHud(){hpEl.textContent=chick.hp;distanceEl.textContent=Math.ceil(distance);shieldEl.textContent=Math.floor(shieldGauge);buttons.forEach(b=>{const a=b.dataset.action;b.classList.toggle('cooldown',cooldown[a]>0||(a==='shield'&&shieldGauge<55));});}
-  function canvasPoint(ev){const r=canvas.getBoundingClientRect();return{x:ev.clientX-r.left,y:ev.clientY-r.top};}
-  canvas.addEventListener('pointerdown',ev=>{if(!running)return;pointerId=ev.pointerId;canvas.setPointerCapture(pointerId);const p=canvasPoint(ev);targetX=p.x;targetY=p.y;});
-  canvas.addEventListener('pointermove',ev=>{if(ev.pointerId!==pointerId)return;const p=canvasPoint(ev);targetX=p.x;targetY=p.y;});
-  canvas.addEventListener('pointerup',ev=>{if(ev.pointerId===pointerId)pointerId=null;});canvas.addEventListener('pointercancel',()=>pointerId=null);
+  function setDirection(dir,on){
+    move[dir]=on;
+    const btn=dirButtons.find(b=>b.dataset.dir===dir);
+    if(btn)btn.classList.toggle('pressed',on);
+  }
+  dirButtons.forEach(btn=>{
+    const dir=btn.dataset.dir;
+    btn.addEventListener('pointerdown',ev=>{ev.preventDefault();btn.setPointerCapture(ev.pointerId);setDirection(dir,true);});
+    const stop=()=>setDirection(dir,false);
+    btn.addEventListener('pointerup',stop);btn.addEventListener('pointercancel',stop);btn.addEventListener('lostpointercapture',stop);
+  });
   buttons.forEach(btn=>{const action=btn.dataset.action;btn.addEventListener('pointerdown',ev=>{ev.preventDefault();btn.classList.add('pressed');cast(action);});btn.addEventListener('pointerup',()=>btn.classList.remove('pressed'));btn.addEventListener('pointercancel',()=>btn.classList.remove('pressed'));});
-  window.addEventListener('keydown',ev=>{const map={KeyA:'cutter',KeyB:'blast',KeyC:'water',KeyD:'shield',Space:'cutter'};if(map[ev.code])cast(map[ev.code]);const n=24;if(ev.code==='ArrowLeft')targetX-=n;if(ev.code==='ArrowRight')targetX+=n;if(ev.code==='ArrowUp')targetY-=n;if(ev.code==='ArrowDown')targetY+=n;});
+  window.addEventListener('keydown',ev=>{
+    const actionMap={KeyA:'cutter',KeyB:'blast',KeyC:'water',KeyD:'shield',Space:'cutter'};
+    if(actionMap[ev.code]&&!ev.repeat)cast(actionMap[ev.code]);
+    const dirMap={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};
+    if(dirMap[ev.code]){ev.preventDefault();keys[dirMap[ev.code]]=true;}
+  });
+  window.addEventListener('keyup',ev=>{const dirMap={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'};if(dirMap[ev.code])keys[dirMap[ev.code]]=false;});
   startBtn.addEventListener('click',start);window.addEventListener('resize',resize);resize();draw();
   function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}function clamp(v,min,max){return Math.max(min,Math.min(max,v));}
 })();
