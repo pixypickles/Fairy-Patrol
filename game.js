@@ -5,7 +5,8 @@
   const ctx = canvas.getContext('2d');
   const overlay = document.querySelector('#overlay');
   const startBtn = document.querySelector('#startBtn');
-  const hpEl = document.querySelector('#chickHp');
+  const plusEl = document.querySelector('#plusScore');
+  const minusEl = document.querySelector('#minusScore');
   const distanceEl = document.querySelector('#distance');
   const shieldEl = document.querySelector('#shieldGauge');
   const buttons = [...document.querySelectorAll('.magic')];
@@ -13,7 +14,7 @@
   const stickKnob = document.querySelector('#stickKnob');
 
   let W = 390, H = 650, dpr = 1;
-  let running = false, last = 0, time = 0, distance = 100, score = 1000;
+  let running = false, last = 0, time = 0, distance = 100, plusScore = 0, minusScore = 0;
   let spawnTimer = 0, obstacleTimer = 0;
   const move = { x:0, y:0 };
   const stick = { pointerId:null, angle:0, strength:0, direction:-1 };
@@ -38,7 +39,7 @@
   }
 
   function reset() {
-    time=0; distance=100; score=1000; spawnTimer=.7; obstacleTimer=1.8;
+    time=0; distance=100; plusScore=0; minusScore=0; spawnTimer=.7; obstacleTimer=1.8;
     enemies=[]; projectiles=[]; effects=[]; obstacles=[]; scenery=[];
     fairy.x=W*.5; fairy.y=H*.56;
     move.x=0; move.y=0; resetStick();
@@ -53,7 +54,7 @@
   function start(){ reset(); overlay.classList.remove('show'); running=true; last=performance.now(); requestAnimationFrame(loop); }
   function end(won){
     running=false; overlay.classList.add('show');
-    overlay.querySelector('.card').innerHTML=`<h1>${won?'無事に到着！':'ゲーム終了'}</h1><p>最終スコア：<strong>${Math.max(0,Math.round(score))}</strong>点<br>${won?'気まぐれなヒヨコを無事に森の出口まで送り届けました。':'ミスを減らして、より高いスコアを目指そう。'}</p><button id="restartBtn">もう一度</button>`;
+    overlay.querySelector('.card').innerHTML=`<h1>${won?'無事に到着！':'ゲーム終了'}</h1><p class="resultScores"><span class="plusResult">プラス +${Math.round(plusScore)}点</span><br><span class="minusResult">マイナス -${Math.round(minusScore)}点</span></p><p>${won?'気まぐれなヒヨコを森の出口まで送り届けました。マイナス点が増えてもゲームオーバーにはなりません。':'プラス点とマイナス点は別々に記録されます。'}</p><button id="restartBtn">もう一度</button>`;
     const b=overlay.querySelector('#restartBtn');
     b.style.cssText='width:100%;border:0;border-radius:16px;padding:14px;background:linear-gradient(90deg,#ffb65d,#ff8ba7);color:white;font-weight:900;font-size:17px;box-shadow:0 5px 0 #e67479';
     b.addEventListener('click',start,{once:true});
@@ -197,7 +198,7 @@
       if(e.state==='hunt'&&e.layer==='ground'&&Math.hypot(e.x-x,e.y-y)<82)repel(e,e.x-x,e.y-y);
     }
     for(const o of obstacles){
-      if(o.type==='branches'&&!o.cleared&&Math.hypot(o.x-x,o.y-y)<86){o.cleared=true;burst(o.x,o.y,'🍂');}
+      if(o.type==='branches'&&!o.cleared&&Math.hypot(o.x-x,o.y-y)<86){o.cleared=true;addScore(60,o.x,o.y);burst(o.x,o.y,'🍂');}
     }
   }
 
@@ -206,12 +207,15 @@
     for(const e of enemies)if(e.state==='hunt'&&e.layer==='ground'&&Math.hypot(e.x-x,e.y-y)<68)repel(e,e.x-x,e.y-y);
     for(const o of obstacles){
       if(Math.hypot(o.x-x,o.y-y)>=75)continue;
-      if(o.type==='sprout'&&!o.cleared){o.grown=true;o.cleared=true;burst(o.x,o.y,'🌼');}
-      if(o.type==='hole'&&!o.bridged){o.bridged=true;o.cleared=true;burst(o.x,o.y,'🌿');}
+      if(o.type==='sprout'&&!o.cleared){o.grown=true;o.cleared=true;addScore(40,o.x,o.y);burst(o.x,o.y,'🌼');}
+      if(o.type==='hole'&&!o.bridged){o.bridged=true;o.cleared=true;addScore(100,o.x,o.y);burst(o.x,o.y,'🌿');}
     }
   }
 
-  function repel(e,x,y){const l=Math.hypot(x,y)||1;e.state='flee';e.fleeX=x/l*310;e.fleeY=y/l*310;e.life=1.2;}
+  function repel(e,x,y){
+    if(e.state!=='flee'&&!e.awarded){e.awarded=true;addScore(e.layer==='air'?120:100,e.x,e.y);}
+    const l=Math.hypot(x,y)||1;e.state='flee';e.fleeX=x/l*310;e.fleeY=y/l*310;e.life=1.2;
+  }
   function burst(x,y,icon){effects.push({x,y,icon,life:.7,max:.7,kind:'icon'});}
 
   function draw(){ctx.clearRect(0,0,W,H);drawBackground();drawScenery();drawObstacles();drawChicks();drawEnemies();drawProjectiles();drawFairy();drawEffects();}
@@ -271,19 +275,36 @@
   function drawFairy(){
     const y=fairy.y+Math.sin(fairy.bob)*2;
     ctx.save();ctx.translate(fairy.x,y);
-    ctx.fillStyle='rgba(75,104,55,.22)';ctx.beginPath();ctx.ellipse(0,22,16,7,0,0,Math.PI*2);ctx.fill();
-    // 薄い7色が重なって見える、透明感のある妖精の羽。
-    const wingColors=['#ff8f9c','#ffbd7a','#fff18a','#a9ed9a','#8ee7eb','#91b8ff','#c6a0f5'];
-    ctx.globalAlpha=.17;
-    wingColors.forEach((color,i)=>{
-      const spread=(i-3)*.72;
-      ctx.fillStyle=color;
-      ctx.beginPath();ctx.ellipse(-13+spread,-1,10,18,-.45,0,Math.PI*2);ctx.fill();
-      ctx.beginPath();ctx.ellipse(13-spread,-1,10,18,.45,0,Math.PI*2);ctx.fill();
-    });
-    ctx.globalAlpha=.38;ctx.strokeStyle='#f5ffff';ctx.lineWidth=1.5;
-    ctx.beginPath();ctx.ellipse(-13,-1,10,18,-.45,0,Math.PI*2);ctx.stroke();
-    ctx.beginPath();ctx.ellipse(13,-1,10,18,.45,0,Math.PI*2);ctx.stroke();
+    ctx.fillStyle='rgba(75,104,55,.22)';ctx.beginPath();ctx.ellipse(0,23,17,7,0,0,Math.PI*2);ctx.fill();
+
+    // 蝶のような左右2枚ずつ、合計4枚の半透明な虹色の羽。
+    const wings=[
+      {x:-14,y:-5,rx:12,ry:21,rot:-.52,side:-1},
+      {x:-15,y:10,rx:10,ry:15,rot:-.92,side:-1},
+      {x:14,y:-5,rx:12,ry:21,rot:.52,side:1},
+      {x:15,y:10,rx:10,ry:15,rot:.92,side:1}
+    ];
+    const rainbow=['#ff91a4','#ffc47c','#fff39a','#9ceaa7','#8ce8e4','#91baff','#c9a2f4'];
+    for(const w of wings){
+      ctx.save();ctx.translate(w.x,w.y);ctx.rotate(w.rot);
+      const grad=ctx.createLinearGradient(-w.rx,-w.ry,w.rx,w.ry);
+      rainbow.forEach((c,i)=>grad.addColorStop(i/(rainbow.length-1),c));
+      ctx.globalAlpha=.26;ctx.fillStyle=grad;ctx.beginPath();ctx.ellipse(0,0,w.rx,w.ry,0,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=.42;ctx.strokeStyle='rgba(245,255,255,.9)';ctx.lineWidth=1.3;ctx.stroke();
+      // 蝶の羽脈と淡い模様。
+      ctx.globalAlpha=.22;ctx.strokeStyle='#ffffff';ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(0,w.ry*.72);ctx.quadraticCurveTo(w.side*2,0,0,-w.ry*.75);ctx.stroke();
+      ctx.beginPath();ctx.ellipse(0,-w.ry*.18,w.rx*.46,w.ry*.28,0,0,Math.PI*2);ctx.stroke();
+      ctx.beginPath();ctx.ellipse(w.side*1.5,w.ry*.35,w.rx*.32,w.ry*.2,0,0,Math.PI*2);ctx.stroke();
+      ctx.restore();
+    }
+    // 羽の上を流れる小さなきらめき。
+    for(let i=0;i<7;i++){
+      const a=time*1.7+i*2.31;
+      const sx=Math.sin(a)*25, sy=-2+Math.cos(a*1.37)*17;
+      ctx.globalAlpha=.28+.22*(.5+.5*Math.sin(a*2));ctx.fillStyle='#fff';
+      ctx.beginPath();ctx.arc(sx,sy,1.1+(i%2)*.5,0,Math.PI*2);ctx.fill();
+    }
     ctx.globalAlpha=1;
     ctx.fillStyle='#6ac98a';ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(-10,16);ctx.lineTo(10,16);ctx.closePath();ctx.fill();
     ctx.fillStyle='#f4c28a';ctx.beginPath();ctx.arc(0,-11,8,0,Math.PI*2);ctx.fill();
@@ -362,11 +383,12 @@
       ctx.restore();
     }
   }
-  function drawEffects(){for(const e of effects){const t=e.life/e.max;ctx.save();ctx.globalAlpha=t;if(e.kind==='splash'){ctx.strokeStyle='#5ab9ff';ctx.lineWidth=6;ctx.beginPath();ctx.arc(e.x,e.y,12+(1-t)*55,0,Math.PI*2);ctx.stroke();}else if(e.kind==='blastBurst'){ctx.strokeStyle='#dffff3';ctx.lineWidth=7;ctx.beginPath();ctx.arc(e.x,e.y,8+(1-t)*72,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='rgba(95,210,165,.55)';ctx.lineWidth=3;for(let i=0;i<8;i++){const a=i*Math.PI/4;ctx.beginPath();ctx.moveTo(e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);ctx.lineTo(e.x+Math.cos(a)*(35+(1-t)*45),e.y+Math.sin(a)*(35+(1-t)*45));ctx.stroke();}}else{ctx.font=`${24+(1-t)*15}px sans-serif`;ctx.textAlign='center';ctx.fillText(e.icon,e.x,e.y-(1-t)*24);}ctx.restore();}}
+  function drawEffects(){for(const e of effects){const t=e.life/e.max;ctx.save();ctx.globalAlpha=t;if(e.kind==='splash'){ctx.strokeStyle='#5ab9ff';ctx.lineWidth=6;ctx.beginPath();ctx.arc(e.x,e.y,12+(1-t)*55,0,Math.PI*2);ctx.stroke();}else if(e.kind==='blastBurst'){ctx.strokeStyle='#dffff3';ctx.lineWidth=7;ctx.beginPath();ctx.arc(e.x,e.y,8+(1-t)*72,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='rgba(95,210,165,.55)';ctx.lineWidth=3;for(let i=0;i<8;i++){const a=i*Math.PI/4;ctx.beginPath();ctx.moveTo(e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);ctx.lineTo(e.x+Math.cos(a)*(35+(1-t)*45),e.y+Math.sin(a)*(35+(1-t)*45));ctx.stroke();}}else{ctx.font=`900 ${24+(1-t)*15}px sans-serif`;ctx.textAlign='center';if(e.kind==='plus')ctx.fillStyle='#fff7a8';else if(e.kind==='minus')ctx.fillStyle='#ffb3bc';ctx.fillText(e.icon,e.x,e.y-(1-t)*24);}ctx.restore();}}
 
-  function deductScore(points,label){score=Math.max(0,score-points);effects.push({x:chick.x,y:chick.y-24,icon:`-${points}`,life:.9,max:.9,kind:'icon'});}
+  function deductScore(points,label){minusScore+=points;effects.push({x:chick.x,y:chick.y-24,icon:`-${points}`,life:.9,max:.9,kind:'minus'});}
+  function addScore(points,x,y){plusScore+=points;effects.push({x,y:y-18,icon:`+${points}`,life:.9,max:.9,kind:'plus'});}
 
-  function updateHud(){hpEl.textContent=Math.max(0,Math.round(score));distanceEl.textContent=Math.ceil(distance);shieldEl.textContent=Math.floor(shieldGauge);buttons.forEach(b=>{const a=b.dataset.action;b.classList.toggle('cooldown',cooldown[a]>0||(a==='shield'&&shieldGauge<55));});}
+  function updateHud(){plusEl.textContent=Math.round(plusScore);minusEl.textContent=Math.round(minusScore);distanceEl.textContent=Math.ceil(distance);shieldEl.textContent=Math.floor(shieldGauge);buttons.forEach(b=>{const a=b.dataset.action;b.classList.toggle('cooldown',cooldown[a]>0||(a==='shield'&&shieldGauge<55));});}
   function resetStick(){
     stick.pointerId=null; stick.strength=0; stick.direction=-1;
     move.x=0; move.y=0;

@@ -12,7 +12,8 @@
     <section id="stage">
       <canvas id="game" aria-label="妖精がヒヨコを守る縦長の見下ろし型シューティングゲーム"></canvas>
       <section id="hud">
-        <div class="pill">⭐ <span id="chickHp">1000</span>点</div>
+        <div class="pill scorePlus">＋ <span id="plusScore">0</span>点</div>
+        <div class="pill scoreMinus">－ <span id="minusScore">0</span>点</div>
         <div class="pill">あと <span id="distance">100</span>m</div>
         <div class="pill shield">🛡️ <span id="shieldGauge">100</span>%</div>
       </section>
@@ -40,7 +41,7 @@
     <section id="overlay" class="show">
       <div class="card">
         <h1>Fairy Guardian</h1>
-        <p>円形スティックで妖精を動かし、気まぐれに歩く1匹のヒヨコを守ろう。ミスするとスコアが減点されます。</p>
+        <p>円形スティックで妖精を動かし、気まぐれに歩く1匹のヒヨコを守ろう。成功点とミス点は別々に記録され、マイナスが増えてもゲームは続きます。</p>
         <dl>
           <div><dt>A</dt><dd>山形の風の刃を前方3方向へ飛ばし、空中の鳥を追い払う</dd></div>
           <div><dt>B</dt><dd>円形の風玉が前方へ飛びながら下降。着地時に破裂し、地上の敵や小枝を吹き飛ばす</dd></div>

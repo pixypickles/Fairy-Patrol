@@ -184,3 +184,12 @@ dd { margin: 0; padding: 4px 0 0 9px; font-size: 13px; line-height: 1.4; }
   #controlDock { grid-template-columns: 116px 1fr; gap: 7px; padding-left: 6px; padding-right: 6px; }
   #dpad { width: 112px; }
 }
+.scorePlus { color:#277b4c; }
+.scoreMinus { color:#b84b63; }
+.resultScores { font-size:20px; font-weight:900; line-height:1.7!important; }
+.plusResult { color:#258654; }
+.minusResult { color:#c44861; }
+@media (max-width: 390px) {
+  #hud { gap:4px; }
+  .pill { padding:6px 8px; font-size:12px; }
+}
