@@ -9,12 +9,14 @@
   const distanceEl = document.querySelector('#distance');
   const shieldEl = document.querySelector('#shieldGauge');
   const buttons = [...document.querySelectorAll('.magic')];
-  const dirButtons = [...document.querySelectorAll('.dir')];
+  const dpad = document.querySelector('#dpad');
+  const stickKnob = document.querySelector('#stickKnob');
 
   let W = 390, H = 650, dpr = 1;
   let running = false, last = 0, time = 0, distance = 100;
   let spawnTimer = 0, obstacleTimer = 0;
-  const move = { up:false, down:false, left:false, right:false };
+  const move = { x:0, y:0 };
+  const stick = { pointerId:null, angle:0, strength:0, direction:-1 };
   const keys = { up:false, down:false, left:false, right:false };
 
   const fairy = { x: W*.5, y:H*.44, r:18, speed:330, bob:0 };
@@ -39,7 +41,7 @@
     time=0; distance=100; spawnTimer=.7; obstacleTimer=1.8;
     enemies=[]; projectiles=[]; effects=[]; obstacles=[]; scenery=[];
     fairy.x=W*.5; fairy.y=H*.48;
-    Object.keys(move).forEach(k=>move[k]=false);
+    move.x=0; move.y=0; resetStick();
     Object.keys(keys).forEach(k=>keys[k]=false);
     chick.x=W*.5; chick.y=H*.94; chick.hp=3; chick.inv=0; chick.shield=0;
     shieldGauge=100;
@@ -61,8 +63,8 @@
 
   function update(dt){
     time+=dt; distance=Math.max(0,100-time*1.35); if(distance<=0)return end(true);
-    let dx=(move.right||keys.right?1:0)-(move.left||keys.left?1:0);
-    let dy=(move.down||keys.down?1:0)-(move.up||keys.up?1:0);
+    let dx=move.x+(keys.right?1:0)-(keys.left?1:0);
+    let dy=move.y+(keys.down?1:0)-(keys.up?1:0);
     const len=Math.hypot(dx,dy)||1;
     if(dx||dy){ fairy.x+=dx/len*fairy.speed*dt; fairy.y+=dy/len*fairy.speed*dt; }
     fairy.x=clamp(fairy.x,24,W-24); fairy.y=clamp(fairy.y,82,H*.78); fairy.bob+=dt*7;
@@ -92,8 +94,13 @@
 
     for(const p of projectiles){
       p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt;
+      if(p.type==='blast'){
+        // 画面上では前方（上）へ進みつつ、高度だけが下がって地面へ着弾する。
+        p.z=Math.max(0,p.z-p.descent*dt);
+        p.spin+=dt*7;
+        if(p.z<=0&&!p.exploded){p.exploded=true;p.life=0;blastBurst(p.x,p.y);}
+      }
       if(p.type==='water'&&p.life<=0&&!p.exploded){p.exploded=true;waterSplash(p.x,p.y);}
-      if(p.type==='blast'&&p.life<=0&&!p.exploded){p.exploded=true;blastBurst(p.x,p.y);}
     }
 
     for(const p of projectiles){
@@ -147,9 +154,12 @@
       [-1.78,-Math.PI/2,-1.36].forEach(a=>projectiles.push({type:'cutter',x:fairy.x,y:fairy.y-14,vx:Math.cos(a)*390,vy:Math.sin(a)*390,r:9,life:1.35}));
     }
     if(action==='blast'){
-      cooldown.blast=.75;
-      const a=Math.PI*.36;
-      projectiles.push({type:'blast',x:fairy.x+8,y:fairy.y+10,vx:Math.cos(a)*215,vy:Math.sin(a)*215,r:16,life:.78,exploded:false});
+      cooldown.blast=.82;
+      projectiles.push({
+        type:'blast', x:fairy.x, y:fairy.y-8,
+        vx:0, vy:-150, r:16, life:1.4, exploded:false,
+        z:74, descent:92, spin:0
+      });
     }
     if(action==='water'){ cooldown.water=.9; projectiles.push({type:'water',x:fairy.x,y:fairy.y+8,vx:0,vy:185,r:13,life:.68,exploded:false}); }
     if(action==='shield'){ if(shieldGauge<55)return; shieldGauge-=55; cooldown.shield=.65; chick.shield=3.2; burst(chick.x,chick.y,'✨'); }
@@ -257,21 +267,55 @@
 
   function drawObstacles(){for(const o of obstacles){ctx.save();ctx.translate(o.x,o.y);if(o.type==='branches'){ctx.globalAlpha=o.cleared?.2:1;ctx.strokeStyle='#8d5d32';ctx.lineWidth=7;ctx.lineCap='round';[-18,-9,0,9,18].forEach((x,i)=>{ctx.beginPath();ctx.moveTo(x-10,-12+i%2*8);ctx.lineTo(x+10,12-i%2*8);ctx.stroke();});}else if(o.type==='hole'){ctx.fillStyle='#5a4028';ctx.beginPath();ctx.ellipse(0,0,38,24,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#2d2219';ctx.beginPath();ctx.ellipse(0,2,29,17,0,0,Math.PI*2);ctx.fill();if(o.bridged){ctx.strokeStyle='#4e9d4e';ctx.lineWidth=8;ctx.lineCap='round';[-12,-4,4,12].forEach(y=>{ctx.beginPath();ctx.moveTo(-32,y);ctx.lineTo(32,y);ctx.stroke();});ctx.fillStyle='#78c75e';for(let i=-25;i<=25;i+=10){ctx.beginPath();ctx.ellipse(i,-7,7,3,.4,0,Math.PI*2);ctx.fill();}}}else{ctx.font=o.grown?'40px sans-serif':'28px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(o.grown?'🌿':'🌱',0,0);}ctx.restore();}}
 
-  function drawProjectiles(){for(const p of projectiles){ctx.save();ctx.translate(p.x,p.y);if(p.type==='cutter'){ctx.strokeStyle='#dbfff2';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,10,-1.2,1.2);ctx.stroke();}if(p.type==='blast'){ctx.rotate(Math.atan2(p.vy,p.vx));ctx.strokeStyle='#eafff5';ctx.lineWidth=7;ctx.beginPath();ctx.arc(0,0,12,-1.1,1.1);ctx.stroke();ctx.strokeStyle='rgba(130,235,205,.65)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-18,-7);ctx.lineTo(-5,-4);ctx.moveTo(-20,7);ctx.lineTo(-5,4);ctx.stroke();}if(p.type==='water'){ctx.font='25px sans-serif';ctx.fillText('💧',0,0);}ctx.restore();}}
+  function drawProjectiles(){for(const p of projectiles){ctx.save();ctx.translate(p.x,p.y);if(p.type==='cutter'){ctx.strokeStyle='#dbfff2';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,10,-1.2,1.2);ctx.stroke();}if(p.type==='blast'){
+      const height=Math.max(0,p.z||0);
+      const visualY=-height*.22;
+      const scale=.72+(1-height/74)*.5;
+      ctx.fillStyle=`rgba(46,86,56,${.08+(1-height/74)*.18})`;
+      ctx.beginPath();ctx.ellipse(0,5,12*scale,5*scale,0,0,Math.PI*2);ctx.fill();
+      ctx.translate(0,visualY);ctx.rotate(p.spin||0);ctx.scale(scale,scale);
+      ctx.strokeStyle='#eafff5';ctx.lineWidth=7;ctx.beginPath();ctx.arc(0,0,12,-1.1,1.1);ctx.stroke();
+      ctx.strokeStyle='rgba(130,235,205,.72)';ctx.lineWidth=3;
+      ctx.beginPath();ctx.moveTo(-17,-7);ctx.lineTo(-5,-4);ctx.moveTo(-18,7);ctx.lineTo(-5,4);ctx.stroke();
+    }if(p.type==='water'){ctx.font='25px sans-serif';ctx.fillText('💧',0,0);}ctx.restore();}}
   function drawEffects(){for(const e of effects){const t=e.life/e.max;ctx.save();ctx.globalAlpha=t;if(e.kind==='splash'){ctx.strokeStyle='#5ab9ff';ctx.lineWidth=6;ctx.beginPath();ctx.arc(e.x,e.y,12+(1-t)*55,0,Math.PI*2);ctx.stroke();}else if(e.kind==='blastBurst'){ctx.strokeStyle='#dffff3';ctx.lineWidth=7;ctx.beginPath();ctx.arc(e.x,e.y,8+(1-t)*72,0,Math.PI*2);ctx.stroke();ctx.strokeStyle='rgba(95,210,165,.55)';ctx.lineWidth=3;for(let i=0;i<8;i++){const a=i*Math.PI/4;ctx.beginPath();ctx.moveTo(e.x+Math.cos(a)*18,e.y+Math.sin(a)*18);ctx.lineTo(e.x+Math.cos(a)*(35+(1-t)*45),e.y+Math.sin(a)*(35+(1-t)*45));ctx.stroke();}}else{ctx.font=`${24+(1-t)*15}px sans-serif`;ctx.textAlign='center';ctx.fillText(e.icon,e.x,e.y-(1-t)*24);}ctx.restore();}}
 
   function updateHud(){hpEl.textContent=chick.hp;distanceEl.textContent=Math.ceil(distance);shieldEl.textContent=Math.floor(shieldGauge);buttons.forEach(b=>{const a=b.dataset.action;b.classList.toggle('cooldown',cooldown[a]>0||(a==='shield'&&shieldGauge<55));});}
-  function setDirection(dir,on){
-    move[dir]=on;
-    const btn=dirButtons.find(b=>b.dataset.dir===dir);
-    if(btn)btn.classList.toggle('pressed',on);
+  function resetStick(){
+    stick.pointerId=null; stick.strength=0; stick.direction=-1;
+    move.x=0; move.y=0;
+    if(stickKnob)stickKnob.style.transform='translate(-50%,-50%)';
+    if(dpad)dpad.classList.remove('active');
   }
-  dirButtons.forEach(btn=>{
-    const dir=btn.dataset.dir;
-    btn.addEventListener('pointerdown',ev=>{ev.preventDefault();btn.setPointerCapture(ev.pointerId);setDirection(dir,true);});
-    const stop=()=>setDirection(dir,false);
-    btn.addEventListener('pointerup',stop);btn.addEventListener('pointercancel',stop);btn.addEventListener('lostpointercapture',stop);
+  function updateStick(clientX,clientY){
+    const rect=dpad.getBoundingClientRect();
+    const cx=rect.left+rect.width/2, cy=rect.top+rect.height/2;
+    let dx=clientX-cx, dy=clientY-cy;
+    const max=rect.width*.29, len=Math.hypot(dx,dy);
+    const dead=rect.width*.09;
+    if(len<dead){ move.x=0; move.y=0; stick.direction=-1; dx=0;dy=0; }
+    else {
+      const angle=Math.atan2(dy,dx);
+      // 8方向へスナップ。上、右上、右、右下、下、左下、左、左上。
+      const step=Math.PI/4;
+      const snapped=Math.round(angle/step)*step;
+      stick.direction=((Math.round(angle/step)%8)+8)%8;
+      stick.angle=snapped; stick.strength=Math.min(1,(len-dead)/(max-dead));
+      move.x=Math.cos(snapped); move.y=Math.sin(snapped);
+      const knobLen=Math.min(max,len);
+      dx=Math.cos(angle)*knobLen; dy=Math.sin(angle)*knobLen;
+    }
+    stickKnob.style.transform=`translate(calc(-50% + ${dx}px),calc(-50% + ${dy}px))`;
+  }
+  dpad.addEventListener('pointerdown',ev=>{
+    ev.preventDefault(); stick.pointerId=ev.pointerId; dpad.setPointerCapture(ev.pointerId);
+    dpad.classList.add('active'); updateStick(ev.clientX,ev.clientY);
   });
+  dpad.addEventListener('pointermove',ev=>{
+    if(ev.pointerId!==stick.pointerId)return; ev.preventDefault(); updateStick(ev.clientX,ev.clientY);
+  });
+  const endStick=ev=>{ if(stick.pointerId!==null&&ev.pointerId!==undefined&&ev.pointerId!==stick.pointerId)return; resetStick(); };
+  dpad.addEventListener('pointerup',endStick); dpad.addEventListener('pointercancel',endStick); dpad.addEventListener('lostpointercapture',endStick);
   buttons.forEach(btn=>{const action=btn.dataset.action;btn.addEventListener('pointerdown',ev=>{ev.preventDefault();btn.classList.add('pressed');cast(action);});btn.addEventListener('pointerup',()=>btn.classList.remove('pressed'));btn.addEventListener('pointercancel',()=>btn.classList.remove('pressed'));});
   window.addEventListener('keydown',ev=>{
     const actionMap={KeyA:'cutter',KeyB:'blast',KeyC:'water',KeyD:'shield',Space:'cutter'};

@@ -20,12 +20,14 @@
     </section>
 
     <section id="controlDock" aria-label="操作パネル">
-      <section id="dpad" aria-label="方向キー">
-        <button class="dir up" data-dir="up" aria-label="上">▲</button>
-        <button class="dir left" data-dir="left" aria-label="左">◀</button>
-        <div class="dirCenter"></div>
-        <button class="dir right" data-dir="right" aria-label="右">▶</button>
-        <button class="dir down" data-dir="down" aria-label="下">▼</button>
+      <section id="dpad" aria-label="8方向アナログスティック">
+        <div class="stickGuide" aria-hidden="true">
+          <span class="guide up">▲</span><span class="guide upRight">↗</span>
+          <span class="guide right">▶</span><span class="guide downRight">↘</span>
+          <span class="guide down">▼</span><span class="guide downLeft">↙</span>
+          <span class="guide left">◀</span><span class="guide upLeft">↖</span>
+        </div>
+        <div id="stickKnob" aria-hidden="true"></div>
       </section>
       <section id="buttons" aria-label="魔法ボタン">
         <button class="magic wind" data-action="cutter"><b>A</b><small>カッター</small></button>
@@ -38,10 +40,10 @@
     <section id="overlay" class="show">
       <div class="card">
         <h1>Fairy Guardian</h1>
-        <p>円形の方向キーで妖精を動かし、ヒヨコを安全に森の出口まで送り届けよう。</p>
+        <p>円形スティックを8方向へ倒して妖精を動かし、ヒヨコを安全に森の出口まで送り届けよう。</p>
         <dl>
           <div><dt>A</dt><dd>前方3方向へウィンドカッター。空中の鳥を追い払う</dd></div>
-          <div><dt>B</dt><dd>前方斜め下へエアーブラスト。着地点で破裂し、地上の敵や小枝を吹き飛ばす</dd></div>
+          <div><dt>B</dt><dd>前方へ飛びながら地面へ下降するエアーブラスト。着地時に破裂し、地上の敵や小枝を吹き飛ばす</dd></div>
           <div><dt>C</dt><dd>真下へウォーターボム。穴に植物の橋を育てる</dd></div>
           <div><dt>D</dt><dd>ヒヨコを短時間シールドする</dd></div>
         </dl>

@@ -89,29 +89,32 @@ body { display: grid; place-items: center; }
   aspect-ratio: 1;
   justify-self: center;
   border-radius: 50%;
-  background: radial-gradient(circle, #eef4eb 0 28%, #d5e2d0 29% 100%);
-  box-shadow: inset 0 0 0 3px rgba(79,116,72,.16), 0 5px 14px rgba(30,70,40,.15);
+  background:
+    radial-gradient(circle at 50% 50%, rgba(255,255,255,.8) 0 10%, transparent 11%),
+    radial-gradient(circle, #eef4eb 0 53%, #d3e0cf 54% 100%);
+  box-shadow: inset 0 0 0 3px rgba(79,116,72,.18), inset 0 4px 10px rgba(31,68,35,.1), 0 5px 14px rgba(30,70,40,.15);
   touch-action: none;
+  user-select: none;
 }
-.dir {
+#dpad.active { box-shadow: inset 0 0 0 4px rgba(71,154,92,.32), inset 0 4px 10px rgba(31,68,35,.1), 0 5px 14px rgba(30,70,40,.15); }
+.stickGuide { position: absolute; inset: 0; pointer-events: none; opacity: .48; }
+.guide { position: absolute; color: #668262; font-size: 12px; line-height: 1; transform: translate(-50%,-50%); }
+.guide.up { left:50%; top:11%; } .guide.upRight { left:78%; top:22%; }
+.guide.right { left:89%; top:50%; } .guide.downRight { left:78%; top:78%; }
+.guide.down { left:50%; top:89%; } .guide.downLeft { left:22%; top:78%; }
+.guide.left { left:11%; top:50%; } .guide.upLeft { left:22%; top:22%; }
+#stickKnob {
   position: absolute;
-  width: 42%;
-  height: 42%;
-  border: 0;
+  left: 50%; top: 50%;
+  width: 43%; height: 43%;
   border-radius: 50%;
-  background: #6eaa68;
-  color: white;
-  font-weight: 900;
-  font-size: 20px;
-  box-shadow: 0 4px 0 #4e8350;
-  touch-action: none;
+  transform: translate(-50%,-50%);
+  background: linear-gradient(145deg,#80bd79,#559b5b);
+  border: 3px solid rgba(255,255,255,.48);
+  box-shadow: 0 5px 0 #437d49, 0 8px 15px rgba(30,70,40,.25), inset 0 3px 5px rgba(255,255,255,.28);
+  pointer-events: none;
+  will-change: transform;
 }
-.dir.pressed { transform: translateY(3px); box-shadow: 0 1px 0 #4e8350; }
-.dir.up { left: 29%; top: 2%; }
-.dir.down { left: 29%; bottom: 2%; }
-.dir.left { left: 2%; top: 29%; }
-.dir.right { right: 2%; top: 29%; }
-.dirCenter { position:absolute; left:35%; top:35%; width:30%; height:30%; border-radius:50%; background:#b9cdb5; box-shadow:inset 0 2px 5px rgba(0,0,0,.12); }
 #buttons {
   height: 100%;
   display: grid;
