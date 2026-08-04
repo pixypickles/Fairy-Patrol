@@ -1,3 +1,0 @@
-Requested changes:
-- Air Blast: circular projectile, travels forward while descending, explodes in circular wind burst.
-- Water Bomb: no falling trail; detonates immediately directly beneath fairy.
