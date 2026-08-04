@@ -100,6 +100,13 @@
         p.spin+=dt*7;
         if(p.z<=0&&!p.exploded){p.exploded=true;p.life=0;blastBurst(p.x,p.y);}
       }
+      if(p.type==='water'){
+        // ごく短い距離だけ真下へ落ち、すぐに着弾して破裂する。
+        if(p.life<=0&&!p.exploded){
+          p.exploded=true;
+          waterSplash(p.x,p.y);
+        }
+      }
     }
 
     for(const p of projectiles){
@@ -162,8 +169,11 @@
     }
     if(action==='water'){
       cooldown.water=.9;
-      // 妖精のすぐ真下で即座に破裂。落下弾や下方向への移動は行わない。
-      waterSplash(fairy.x, fairy.y+25);
+      // 妖精の真下へほんの少しだけ落下してから、すぐ着弾・破裂する。
+      projectiles.push({
+        type:'water', x:fairy.x, y:fairy.y+14,
+        vx:0, vy:78, r:8, life:.14, maxLife:.14, exploded:false
+      });
     }
     if(action==='shield'){ if(shieldGauge<55)return; shieldGauge-=55; cooldown.shield=.65; chick.shield=3.2; burst(chick.x,chick.y,'✨'); }
   }
@@ -303,6 +313,18 @@
         ctx.moveTo(-9,8);
         ctx.quadraticCurveTo(0,-6,9,8);
         ctx.stroke();
+      }
+      if(p.type==='water'){
+        const progress=1-Math.max(0,p.life)/(p.maxLife||.14);
+        const scale=.82+progress*.18;
+        ctx.scale(scale,scale);
+        ctx.fillStyle='rgba(77,174,255,.28)';
+        ctx.beginPath();ctx.ellipse(0,5,8,3,0,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='rgba(92,190,255,.95)';
+        ctx.beginPath();
+        ctx.moveTo(0,-9);ctx.quadraticCurveTo(8,-1,6,5);ctx.quadraticCurveTo(0,11,-6,5);ctx.quadraticCurveTo(-8,-1,0,-9);ctx.fill();
+        ctx.strokeStyle='rgba(225,248,255,.92)';ctx.lineWidth=2;
+        ctx.beginPath();ctx.arc(-2,-1,3.2,Math.PI*1.05,Math.PI*1.85);ctx.stroke();
       }
       if(p.type==='blast'){
         const height=Math.max(0,p.z||0);
