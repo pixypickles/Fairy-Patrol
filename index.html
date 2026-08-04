@@ -3,38 +3,40 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-  <meta name="theme-color" content="#bdefff" />
+  <meta name="theme-color" content="#7fcf68" />
   <title>Fairy Guardian Prototype</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main id="app">
-    <canvas id="game" aria-label="妖精がヒヨコを守る縦スクロールゲーム"></canvas>
-
-    <section id="hud">
-      <div class="pill">🐥 <span id="chickHp">3</span></div>
-      <div class="pill">あと <span id="distance">100</span>m</div>
-      <div class="pill shield">🛡️ <span id="shieldGauge">100</span>%</div>
+    <section id="stage">
+      <canvas id="game" aria-label="妖精がヒヨコを守る見下ろし型シューティングゲーム"></canvas>
+      <section id="hud">
+        <div class="pill">🐥 <span id="chickHp">3</span></div>
+        <div class="pill">あと <span id="distance">100</span>m</div>
+        <div class="pill shield">🛡️ <span id="shieldGauge">100</span>%</div>
+      </section>
+      <div id="moveHint">画面を指でなぞって移動</div>
     </section>
 
-    <div id="moveHint">左側を指でなぞって移動</div>
-
-    <section id="buttons" aria-label="魔法ボタン">
-      <button class="magic wind" data-action="cutter"><b>A</b><small>カッター</small></button>
-      <button class="magic blast" data-action="blast"><b>B</b><small>ブラスト</small></button>
-      <button class="magic water" data-action="water"><b>C</b><small>水ボム</small></button>
-      <button class="magic shieldBtn" data-action="shield"><b>D</b><small>シールド</small></button>
+    <section id="controlDock" aria-label="操作パネル">
+      <section id="buttons" aria-label="魔法ボタン">
+        <button class="magic wind" data-action="cutter"><b>A</b><small>カッター</small></button>
+        <button class="magic blast" data-action="blast"><b>B</b><small>ブラスト</small></button>
+        <button class="magic water" data-action="water"><b>C</b><small>水ボム</small></button>
+        <button class="magic shieldBtn" data-action="shield"><b>D</b><small>シールド</small></button>
+      </section>
     </section>
 
     <section id="overlay" class="show">
       <div class="card">
         <h1>Fairy Guardian</h1>
-        <p>妖精を動かして、歩くヒヨコを安全に送り届けよう。</p>
+        <p>上空から妖精を動かし、ヒヨコを安全に森の出口まで送り届けよう。</p>
         <dl>
-          <div><dt>A</dt><dd>前方へウィンドカッター</dd></div>
-          <div><dt>B</dt><dd>斜め下へエアーブラスト。敵や小枝を吹き飛ばす</dd></div>
-          <div><dt>C</dt><dd>真下へウォーターボム。植物を成長させる</dd></div>
-          <div><dt>D</dt><dd>ヒヨコを短時間シールド</dd></div>
+          <div><dt>A</dt><dd>進行方向へウィンドカッター。空中の鳥を追い払う</dd></div>
+          <div><dt>B</dt><dd>斜め下へエアーブラスト。地上の敵や小枝を吹き飛ばす</dd></div>
+          <div><dt>C</dt><dd>真下へウォーターボム。穴に植物の橋を育てる</dd></div>
+          <div><dt>D</dt><dd>ヒヨコを短時間シールドする</dd></div>
         </dl>
         <button id="startBtn">スタート</button>
       </div>
