@@ -151,8 +151,14 @@
 
     for(const o of obstacles){
       if(o.y>H+80)continue;
-      if(o.type==='hole'&&!o.bridged&&Math.abs(o.y-chick.y)<28&&Math.abs(o.x-chick.x)<42){
-        if(chick.shield<=0&&chick.inv<=0&&!o.penalized){deductScore(150,'穴');chick.inv=1.25;o.penalized=true;burst(chick.x,chick.y,'💦');}
+      if(o.type==='waterway'&&!o.bridged){
+        const half=o.width*.5;
+        const inWater=Math.abs(o.y-chick.y)<22&&Math.abs(o.x-chick.x)<half+8;
+        if(inWater){
+          chick.y=Math.min(H*.95,o.y+28);
+          chick.targetY=Math.max(chick.targetY,o.y+46);
+          if(chick.shield<=0&&chick.inv<=0&&!o.penalized){deductScore(120,'水辺');chick.inv=1.1;o.penalized=true;burst(chick.x,chick.y,'💦');}
+        }
       }
       if(o.type==='branches'&&!o.cleared&&Math.abs(o.y-chick.y)<23&&Math.abs(o.x-chick.x)<38){
         chick.y=Math.min(H*.95,chick.y+10*dt);
@@ -182,9 +188,10 @@
   }
 
   function spawnObstacle(){
-    const r=Math.random(); const type=r<.35?'branches':r<.58?'hole':r<.78?'sprout':'ledge';
-    const width=type==='ledge'?90+Math.random()*95:0;
-    obstacles.push({type,x:type==='ledge'?width*.5+18+Math.random()*Math.max(1,W-width-36):28+Math.random()*(W-56),y:70+Math.random()*45,r:type==='hole'?34:28,width,cleared:false,grown:false,bridged:false,penalized:false});
+    const r=Math.random(); const type=r<.34?'branches':r<.60?'waterway':r<.78?'sprout':'ledge';
+    const width=type==='ledge'?90+Math.random()*95:type==='waterway'?105+Math.random()*105:0;
+    const x=(type==='ledge'||type==='waterway')?width*.5+18+Math.random()*Math.max(1,W-width-36):28+Math.random()*(W-56);
+    obstacles.push({type,x,y:70+Math.random()*45,r:28,width,cleared:false,grown:false,bridged:false,penalized:false,grow:0});
   }
 
   function cast(action){
@@ -240,7 +247,10 @@
     for(const o of obstacles){
       if(Math.hypot(o.x-x,o.y-y)>=75)continue;
       if(o.type==='sprout'&&!o.cleared){o.grown=true;o.cleared=true;addScore(40,o.x,o.y);burst(o.x,o.y,'🌼');}
-      if(o.type==='hole'&&!o.bridged){o.bridged=true;o.cleared=true;addScore(100,o.x,o.y);burst(o.x,o.y,'🌿');}
+      if(o.type==='waterway'&&!o.bridged){
+        const seedX=o.x-o.width*.5+18, seedY=o.y+25;
+        if(Math.hypot(seedX-x,seedY-y)<52){o.bridged=true;o.cleared=true;o.grow=1;addScore(120,o.x,o.y);burst(seedX,seedY,'🌿');}
+      }
     }
   }
 
@@ -325,7 +335,25 @@
   function drawSnake(){ctx.strokeStyle='#3c9b58';ctx.lineWidth=10;ctx.lineCap='round';ctx.beginPath();ctx.arc(0,4,12,.3,5.2);ctx.stroke();ctx.fillStyle='#56b96c';ctx.beginPath();ctx.ellipse(7,-9,8,6,-.3,0,Math.PI*2);ctx.fill();ctx.fillStyle='#222';ctx.beginPath();ctx.arc(10,-10,1.2,0,Math.PI*2);ctx.fill();}
   function drawBird(){ctx.fillStyle='#3f79bb';ctx.beginPath();ctx.ellipse(0,0,13,8,-.2,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.moveTo(-3,0);ctx.lineTo(-24,-12);ctx.lineTo(-12,6);ctx.moveTo(3,0);ctx.lineTo(23,-13);ctx.lineTo(13,7);ctx.fill();ctx.fillStyle='#ef9d28';ctx.beginPath();ctx.moveTo(12,-1);ctx.lineTo(20,2);ctx.lineTo(12,5);ctx.fill();}
 
-  function drawObstacles(){for(const o of obstacles){ctx.save();ctx.translate(o.x,o.y);if(o.type==='branches'){ctx.globalAlpha=o.cleared?.2:1;ctx.strokeStyle='#8d5d32';ctx.lineWidth=7;ctx.lineCap='round';[-18,-9,0,9,18].forEach((x,i)=>{ctx.beginPath();ctx.moveTo(x-10,-12+i%2*8);ctx.lineTo(x+10,12-i%2*8);ctx.stroke();});}else if(o.type==='hole'){ctx.fillStyle='#5a4028';ctx.beginPath();ctx.ellipse(0,0,38,24,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#2d2219';ctx.beginPath();ctx.ellipse(0,2,29,17,0,0,Math.PI*2);ctx.fill();if(o.bridged){ctx.strokeStyle='#4e9d4e';ctx.lineWidth=8;ctx.lineCap='round';[-12,-4,4,12].forEach(y=>{ctx.beginPath();ctx.moveTo(-32,y);ctx.lineTo(32,y);ctx.stroke();});ctx.fillStyle='#78c75e';for(let i=-25;i<=25;i+=10){ctx.beginPath();ctx.ellipse(i,-7,7,3,.4,0,Math.PI*2);ctx.fill();}}}else if(o.type==='ledge'){
+  function drawObstacles(){for(const o of obstacles){ctx.save();ctx.translate(o.x,o.y);if(o.type==='branches'){ctx.globalAlpha=o.cleared?.2:1;ctx.strokeStyle='#8d5d32';ctx.lineWidth=7;ctx.lineCap='round';[-18,-9,0,9,18].forEach((x,i)=>{ctx.beginPath();ctx.moveTo(x-10,-12+i%2*8);ctx.lineTo(x+10,12-i%2*8);ctx.stroke();});}else if(o.type==='waterway'){
+      const half=o.width*.5;
+      // 水たまり／小川。下側（ヒヨコ側）の左端に双葉を置く。
+      const water=ctx.createLinearGradient(0,-20,0,22);water.addColorStop(0,'#71d7ef');water.addColorStop(1,'#3ca6d2');
+      ctx.fillStyle=water;ctx.beginPath();ctx.roundRect(-half,-19,o.width,38,18);ctx.fill();
+      ctx.strokeStyle='rgba(229,253,255,.72)';ctx.lineWidth=2;
+      for(let x=-half+15;x<half-8;x+=25){ctx.beginPath();ctx.arc(x,0,9,Math.PI*.1,Math.PI*.9);ctx.stroke();}
+      if(o.bridged){
+        ctx.strokeStyle='#3e9147';ctx.lineWidth=9;ctx.lineCap='round';
+        [-12,-4,4,12].forEach(y=>{ctx.beginPath();ctx.moveTo(-half+7,y);ctx.lineTo(half-7,y);ctx.stroke();});
+        ctx.fillStyle='#77c95d';
+        for(let x=-half+14;x<half-5;x+=15){ctx.beginPath();ctx.ellipse(x,-8,8,4,(x%2?-.45:.45),0,Math.PI*2);ctx.fill();}
+      }
+      const sx=-half+18, sy=25;
+      ctx.strokeStyle='#32843e';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(sx,sy+8);ctx.lineTo(sx,sy-2);ctx.stroke();
+      ctx.fillStyle=o.bridged?'#68c957':'#7bd46b';
+      ctx.beginPath();ctx.ellipse(sx-5,sy-4,6,3,-.55,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.ellipse(sx+5,sy-4,6,3,.55,0,Math.PI*2);ctx.fill();
+    }else if(o.type==='ledge'){
       const half=o.width*.5;
       ctx.fillStyle='#8b8f78';ctx.beginPath();ctx.roundRect(-half,-10,o.width,20,8);ctx.fill();
       ctx.fillStyle='#b7b99e';ctx.beginPath();ctx.roundRect(-half,-10,o.width,8,7);ctx.fill();
