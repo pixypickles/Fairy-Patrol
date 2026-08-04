@@ -1,56 +1,135 @@
 <!doctype html>
 <html lang="ja">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
-  <meta name="theme-color" content="#7fcf68" />
-  <title>Fairy Guardian Prototype</title>
-  <link rel="stylesheet" href="style.css" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+<title>Fairy Guardian Prototype v2</title>
+<style>
+  :root{--bg:#f5f0df;--panel:#fff9ea;--line:#ceb987;--green:#2ca35a;--blue:#36a9e1}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:none}
+  html,body{margin:0;height:100%;background:var(--bg);font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;color:#473b2b;overflow:hidden}
+  body{display:flex;justify-content:center}
+  #app{width:min(100vw,520px);height:100dvh;display:grid;grid-template-rows:1fr 178px;background:#203a25}
+  #gameWrap{position:relative;min-height:0;background:#4f9d48;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+  #hud{position:absolute;inset:0 0 auto 0;display:flex;justify-content:space-between;padding:10px 12px;pointer-events:none;font-weight:800;text-shadow:0 1px 2px #fff}
+  .pill{background:rgba(255,255,255,.82);border:2px solid rgba(96,88,59,.35);border-radius:999px;padding:5px 10px}
+  #toast{position:absolute;left:50%;top:58px;transform:translateX(-50%);background:rgba(255,255,255,.9);border-radius:999px;padding:5px 12px;font-weight:800;opacity:0;transition:opacity .15s;white-space:nowrap;pointer-events:none}
+  #controls{background:var(--panel);border-top:3px solid var(--line);display:grid;grid-template-columns:174px 1fr;gap:8px;padding:8px max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left));align-items:center}
+  #stick{width:150px;height:150px;border-radius:50%;margin:auto;position:relative;background:radial-gradient(circle,#fdfcf6 0 42%,#e8dfc4 43% 68%,#c9ba8f 69% 72%,#efe7cf 73%);box-shadow:inset 0 2px 7px #a89b75,0 2px 4px #b9ac86}
+  #knob{position:absolute;width:62px;height:62px;left:44px;top:44px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#c8b98a 70%);border:3px solid #9e8f67;box-shadow:0 3px 7px #8f805a}
+  #magic{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  button{font:inherit;font-weight:900;border:0;border-radius:16px;min-height:70px;color:#fff;box-shadow:0 4px 0 rgba(0,0,0,.18);position:relative;overflow:hidden}
+  button:active{transform:translateY(2px);box-shadow:0 2px 0 rgba(0,0,0,.2)}
+  .wind{background:linear-gradient(#62d789,#209952)} .water{background:linear-gradient(#72d5ff,#278dc6)}
+  .sub{display:block;font-size:12px;font-weight:700;opacity:.9;margin-top:2px}
+  #overlay{position:absolute;inset:0;background:linear-gradient(rgba(255,255,255,.91),rgba(244,238,206,.95));display:flex;align-items:center;justify-content:center;padding:24px;z-index:4}
+  #card{width:min(360px,92%);background:#fffdf3;border:4px solid #d2bc79;border-radius:26px;padding:22px;text-align:center;box-shadow:0 16px 40px rgba(57,51,31,.25)}
+  h1{margin:0 0 8px;font-size:28px} p{line-height:1.55;margin:8px 0 18px}
+  #start,#restart{width:100%;min-height:58px;background:linear-gradient(#ffd85c,#e7a91d);color:#5b3d00}
+  #result{display:none}
+  @media (max-height:700px){#app{grid-template-rows:1fr 150px}#stick{width:126px;height:126px}#knob{left:37px;top:37px;width:52px;height:52px}#controls{grid-template-columns:144px 1fr}button{min-height:58px}}
+</style>
 </head>
 <body>
-  <main id="app">
-    <section id="stage">
-      <canvas id="game" aria-label="妖精がヒヨコを守る縦長の見下ろし型シューティングゲーム"></canvas>
-      <section id="hud">
-        <div class="pill scorePlus">＋ <span id="plusScore">0</span>点</div>
-        <div class="pill scoreMinus">－ <span id="minusScore">0</span>点</div>
-        <div class="pill">あと <span id="distance">100</span>m</div>
-      </section>
-      
-    </section>
-
-    <section id="controlDock" aria-label="操作パネル">
-      <section id="dpad" aria-label="8方向アナログスティック">
-        <div class="stickGuide" aria-hidden="true">
-          <span class="guide up">▲</span><span class="guide upRight">↗</span>
-          <span class="guide right">▶</span><span class="guide downRight">↘</span>
-          <span class="guide down">▼</span><span class="guide downLeft">↙</span>
-          <span class="guide left">◀</span><span class="guide upLeft">↖</span>
-        </div>
-        <div id="stickKnob" aria-hidden="true"></div>
-      </section>
-      <section id="buttons" aria-label="魔法ボタン">
-        <button class="magic wind windUp" data-action="windForward"><b>風・上</b><small>前方エアーブラスト</small></button>
-        <button class="magic wind windDown" data-action="windDown"><b>風・下</b><small>下方エアーブラスト</small></button>
-        <button class="magic water waterUp" data-action="waterForward"><b>水・上</b><small>前方ウォーターボール</small></button>
-        <button class="magic water waterDown" data-action="waterDown"><b>水・下</b><small>下方ウォーターボール</small></button>
-      </section>
-    </section>
-
-    <section id="overlay" class="show">
-      <div class="card">
-        <h1>Fairy Guardian</h1>
-        <p>円形スティックで妖精を動かし、気まぐれに歩く1匹のヒヨコを守ろう。成功点とミス点は別々に記録され、マイナスが増えてもゲームは続きます。</p>
-        <dl>
-          <div><dt>風↑</dt><dd>円形の風玉を前方へ発射。鳥の近く、または地面への着弾で破裂する</dd></div>
-          <div><dt>風↓</dt><dd>近い地面へ素早く落とす短射程の風玉。段差で跳べないヒヨコを飛び越えさせる</dd></div>
-          <div><dt>水↑</dt><dd>水の塊を前方へ発射し、飛びながら落下。鳥にも当たり、水辺の双葉も育てる</dd></div>
-          <div><dt>水↓</dt><dd>水の塊を真下へ短く落とし、1秒未満で破裂する</dd></div>
-        </dl>
-        <button id="startBtn">スタート</button>
+<div id="app">
+  <div id="gameWrap">
+    <canvas id="game"></canvas>
+    <div id="hud"><div class="pill">＋ <span id="plus">0</span></div><div class="pill">− <span id="minus">0</span></div><div class="pill"><span id="distance">300</span>m</div></div>
+    <div id="toast"></div>
+    <div id="overlay">
+      <div id="card">
+        <div id="intro"><h1>Fairy Guardian</h1><p>気まぐれなヒヨコを、風と水の魔法で守ろう。<br>点数がマイナスになってもゲームは続きます。</p><button id="start">スタート</button></div>
+        <div id="result"><h1>ゴール！</h1><p>プラス <b id="rPlus">0</b>点<br>マイナス <b id="rMinus">0</b>点</p><button id="restart">もう一度</button></div>
       </div>
-    </section>
-  </main>
-  <script src="game.js"></script>
+    </div>
+  </div>
+  <div id="controls">
+    <div id="stick"><div id="knob"></div></div>
+    <div id="magic">
+      <button class="wind" id="windUp">風・上<span class="sub">前方エアーブラスト</span></button>
+      <button class="wind" id="windDown">風・下<span class="sub">近距離ブラスト</span></button>
+      <button class="water" id="waterUp">水・上<span class="sub">前方ウォーターボール</span></button>
+      <button class="water" id="waterDown">水・下<span class="sub">真下ウォーターボール</span></button>
+    </div>
+  </div>
+</div>
+<script>
+'use strict';
+const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
+const wrap=document.getElementById('gameWrap');
+const overlay=document.getElementById('overlay'),intro=document.getElementById('intro'),result=document.getElementById('result');
+const plusEl=document.getElementById('plus'),minusEl=document.getElementById('minus'),distEl=document.getElementById('distance');
+let W=360,H=640,dpr=1,running=false,last=0,spawnT=0,worldT=0,plus=0,minus=0,distance=300;
+let particles=[],shots=[],enemies=[],obstacles=[];
+const fairy={x:180,y:390,r:16,speed:250};
+const chick={x:180,y:550,r:12,vx:0,vy:0,wander:0,stuck:null,bounce:0};
+const input={x:0,y:0};
+function resize(){const r=wrap.getBoundingClientRect();dpr=Math.min(devicePixelRatio||1,2);W=r.width;H=r.height;canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);fairy.x=Math.min(fairy.x,W-20);chick.x=Math.min(chick.x,W-20)}
+addEventListener('resize',resize);resize();
+function reset(){plus=minus=0;distance=300;worldT=spawnT=0;shots=[];particles=[];enemies=[];obstacles=[];fairy.x=W*.5;fairy.y=H*.62;chick.x=W*.5;chick.y=H*.84;chick.vx=chick.vy=0;chick.wander=0;chick.stuck=null;for(let i=0;i<7;i++)spawnObstacle(-i*105-120);for(let i=0;i<4;i++)spawnEnemy(-i*170-80);updateHud()}
+function startGame(){reset();overlay.style.display='none';running=true;last=performance.now();requestAnimationFrame(loop)}
+document.getElementById('start').addEventListener('click',startGame);
+document.getElementById('restart').addEventListener('click',()=>{intro.style.display='block';result.style.display='none';startGame()});
+function updateHud(){plusEl.textContent=plus;minusEl.textContent=minus;distEl.textContent=Math.max(0,Math.ceil(distance))}
+function toast(t){const e=document.getElementById('toast');e.textContent=t;e.style.opacity=1;clearTimeout(e._t);e._t=setTimeout(()=>e.style.opacity=0,550)}
+function addPlus(n,label){plus+=n;toast(`＋${n} ${label||''}`);updateHud()}
+function addMinus(n,label){minus+=n;toast(`−${n} ${label||''}`);updateHud()}
+// 8 direction analog stick
+const stick=document.getElementById('stick'),knob=document.getElementById('knob');let stickId=null;
+function setStick(px,py){const r=stick.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;let dx=px-cx,dy=py-cy;const max=r.width*.31,mag=Math.hypot(dx,dy);if(mag>max){dx*=max/mag;dy*=max/mag}knob.style.transform=`translate(${dx}px,${dy}px)`;if(mag<10){input.x=input.y=0;return}let a=Math.atan2(dy,dx);let step=Math.round(a/(Math.PI/4));a=step*Math.PI/4;input.x=Math.cos(a);input.y=Math.sin(a)}
+stick.addEventListener('pointerdown',e=>{stickId=e.pointerId;stick.setPointerCapture(e.pointerId);setStick(e.clientX,e.clientY)});
+stick.addEventListener('pointermove',e=>{if(e.pointerId===stickId)setStick(e.clientX,e.clientY)});
+function release(e){if(stickId===null||!e||e.pointerId===stickId){stickId=null;input.x=input.y=0;knob.style.transform='translate(0,0)'}}
+stick.addEventListener('pointerup',release);stick.addEventListener('pointercancel',release);
+const keys={};addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(['a','b','c','d'].includes(e.key.toLowerCase()))fireByKey(e.key.toLowerCase())});addEventListener('keyup',e=>keys[e.key.toLowerCase()]=false);
+function fireByKey(k){({a:fireWindUp,b:fireWindDown,c:fireWaterUp,d:fireWaterDown}[k]||(()=>{}))()}
+['windUp','windDown','waterUp','waterDown'].forEach((id,i)=>document.getElementById(id).addEventListener('pointerdown',e=>{e.preventDefault();[fireWindUp,fireWindDown,fireWaterUp,fireWaterDown][i]()}));
+function fireWindUp(){if(!running)return;shots.push({type:'windUp',x:fairy.x,y:fairy.y-16,vx:0,vy:-300,t:0,life:.85,r:13})}
+function fireWindDown(){if(!running)return;shots.push({type:'windDown',x:fairy.x,y:fairy.y+12,vx:0,vy:90,t:0,life:.24,r:17})}
+function fireWaterUp(){if(!running)return;shots.push({type:'waterUp',x:fairy.x,y:fairy.y-10,vx:0,vy:-230,t:0,life:.7,r:11,height:34})}
+function fireWaterDown(){if(!running)return;shots.push({type:'waterDown',x:fairy.x,y:fairy.y+8,vx:0,vy:50,t:0,life:.34,r:12,height:18})}
+function spawnEnemy(y=-60){const air=Math.random()<.38;enemies.push({type:air?'bird':['fox','cat','snake'][Math.floor(Math.random()*3)],air,x:35+Math.random()*(W-70),y,r:air?15:14,vx:(Math.random()-.5)*25,vy:air?55:38,hp:1,cool:0})}
+function spawnObstacle(y=-50){const p=Math.random();let type=p<.25?'twigs':p<.5?'ledge':p<.75?'water':'sproutWater';let x=30+Math.random()*(W-60),w=45+Math.random()*70;obstacles.push({type,x,y,w,h:type==='ledge'?20:36,done:false,hit:false})}
+function update(dt){worldT+=dt;distance-=dt*8;if(distance<=0){finish();return}
+ let ix=input.x+(keys.arrowleft?-1:0)+(keys.arrowright?1:0),iy=input.y+(keys.arrowup?-1:0)+(keys.arrowdown?1:0);let m=Math.hypot(ix,iy);if(m>0){ix/=m;iy/=m}fairy.x+=ix*fairy.speed*dt;fairy.y+=iy*fairy.speed*dt;fairy.x=Math.max(18,Math.min(W-18,fairy.x));fairy.y=Math.max(55,Math.min(H-26,fairy.y));
+ const scroll=44;spawnT+=dt;if(spawnT>1.25){spawnT=0;(Math.random()<.55?spawnEnemy:spawnObstacle)()}
+ for(const e of enemies){e.y+=scroll*dt+e.vy*dt;e.x+=e.vx*dt;e.cool-=dt;if(!e.air){const dx=chick.x-e.x,dy=chick.y-e.y,d=Math.hypot(dx,dy)||1;e.x+=dx/d*18*dt;e.y+=dy/d*18*dt}if(dist(e,chick)<e.r+chick.r&&e.cool<=0){e.cool=1.4;addMinus(e.air?90:70,'ヒヨコがびっくり');e.vy=-80}}
+ enemies=enemies.filter(e=>e.y<H+70);
+ for(const o of obstacles)o.y+=scroll*dt;obstacles=obstacles.filter(o=>o.y<H+70);
+ // chick wandering
+ chick.wander-=dt;if(chick.wander<=0&&!chick.stuck){chick.wander=.6+Math.random()*1.4;const a=Math.random()*Math.PI*2;chick.vx=Math.cos(a)*(20+Math.random()*32);chick.vy=Math.sin(a)*(12+Math.random()*24)}
+ chick.bounce+=dt*9;
+ if(chick.stuck){chick.vx=chick.vy=0;const o=chick.stuck;if(o.done)chick.stuck=null}
+ else{chick.x+=chick.vx*dt;chick.y+=chick.vy*dt;chick.x=Math.max(16,Math.min(W-16,chick.x));chick.y=Math.max(H*.58,Math.min(H-18,chick.y))}
+ for(const o of obstacles){if(o.done)continue;const near=chick.x>o.x-o.w/2&&chick.x<o.x+o.w/2&&Math.abs(chick.y-o.y)<20;if(near){if(o.type==='ledge'){chick.stuck=o; if(!o.hit){o.hit=true;addMinus(25,'段差で足止め')}}else if(o.type==='water'||o.type==='sproutWater'){chick.vy=Math.abs(chick.vy)+20;if(!o.hit){o.hit=true;addMinus(45,'水辺で足止め')}}else if(o.type==='twigs'&&!o.hit){o.hit=true;addMinus(30,'小枝に接触')}}}
+ // shots
+ for(const s of shots){s.t+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;if(s.type==='waterUp'||s.type==='waterDown')s.height=Math.max(0,s.height-75*dt);if(s.type==='windDown')s.r+=35*dt;
+   for(const e of enemies){if(e.dead)continue;const canAir=s.type!=='waterDown';if(e.air&&!canAir)continue;if(Math.hypot(s.x-e.x,s.y-e.y)<s.r+e.r+((s.type==='windUp'||s.type==='windDown')?16:4)){e.dead=true;addPlus(e.air?60:45,'敵を追い払った');burst(e.x,e.y,s.type.startsWith('water')?'water':'wind')}}
+   for(const o of obstacles){if(o.done)continue;const hit=Math.abs(s.x-o.x)<o.w/2+s.r&&Math.abs(s.y-o.y)<o.h/2+s.r;if(!hit)continue;
+    if(s.type.startsWith('wind')&&o.type==='twigs'){o.done=true;addPlus(35,'小枝を除去');burst(o.x,o.y,'wind')}
+    if(s.type==='windDown'&&o.type==='ledge'&&chick.stuck===o){o.done=true;chick.stuck=null;chick.y-=32;addPlus(80,'段差をジャンプ');burst(chick.x,chick.y,'wind')}
+    if(s.type.startsWith('water')&&o.type==='sproutWater'){o.done=true;addPlus(120,'緑の橋を作った');burst(o.x,o.y,'leaf')}
+   }
+ }
+ shots=shots.filter(s=>s.t<s.life&&s.y>-80&&s.y<H+40);enemies=enemies.filter(e=>!e.dead);
+ for(const p of particles){p.t+=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;p.vx*=.96;p.vy*=.96}particles=particles.filter(p=>p.t<p.life);
+ updateHud()}
+function finish(){running=false;overlay.style.display='flex';intro.style.display='none';result.style.display='block';document.getElementById('rPlus').textContent=plus;document.getElementById('rMinus').textContent=minus}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y)}
+function burst(x,y,type){for(let i=0;i<12;i++){const a=i/12*Math.PI*2,sp=35+Math.random()*60;particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,t:0,life:.45+Math.random()*.25,type})}}
+function draw(){ctx.clearRect(0,0,W,H);drawGround();for(const o of obstacles)drawObstacle(o);for(const e of enemies)drawEnemy(e);for(const s of shots)drawShot(s);drawChick();drawFairy();for(const p of particles)drawParticle(p)}
+function drawGround(){ctx.fillStyle='#67ad57';ctx.fillRect(0,0,W,H);ctx.globalAlpha=.18;ctx.fillStyle='#d9f39b';for(let y=((worldT*44)%36)-36;y<H;y+=36)for(let x=12;x<W;x+=34){ctx.beginPath();ctx.ellipse(x+(y%72?7:0),y,2,7,.2,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+function drawFairy(){ctx.save();ctx.translate(fairy.x,fairy.y);const flap=Math.sin(worldT*15)*.12;const cols=['rgba(255,110,160,.26)','rgba(255,190,70,.24)','rgba(100,220,150,.23)','rgba(90,180,255,.24)','rgba(170,110,255,.22)'];
+ [[-1,-1.05,24,15],[1,-1.05,24,15],[-1,.35,20,12],[1,.35,20,12]].forEach((w,i)=>{ctx.save();ctx.scale(w[0],1);ctx.rotate(flap*w[0]);const g=ctx.createLinearGradient(4,-10,28,10);g.addColorStop(0,cols[i%cols.length]);g.addColorStop(.5,'rgba(255,255,255,.35)');g.addColorStop(1,cols[(i+2)%cols.length]);ctx.fillStyle=g;ctx.strokeStyle='rgba(255,255,255,.55)';ctx.lineWidth=1.4;ctx.beginPath();ctx.ellipse(16,w[1]*9,w[2],w[3],w[0]*.25,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.globalAlpha=.45;ctx.beginPath();ctx.arc(18,w[1]*9,9,0,Math.PI*1.5);ctx.stroke();ctx.restore()});
+ ctx.fillStyle='#f4d0b4';ctx.beginPath();ctx.arc(0,-9,7,0,Math.PI*2);ctx.fill();ctx.fillStyle='#6a3b2b';ctx.beginPath();ctx.arc(0,-11,7,Math.PI,Math.PI*2);ctx.fill();ctx.fillStyle='#f5e5ff';ctx.beginPath();ctx.ellipse(0,7,7,14,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#e7b9ff';ctx.stroke();ctx.fillStyle='white';for(let i=0;i<3;i++){ctx.globalAlpha=.7+.3*Math.sin(worldT*6+i);ctx.beginPath();ctx.arc(-26+i*26,-18+i*4,1.7,0,Math.PI*2);ctx.fill()}ctx.restore();ctx.globalAlpha=1}
+function drawChick(){ctx.save();ctx.translate(chick.x,chick.y+(chick.stuck?-Math.abs(Math.sin(chick.bounce))*7:0));ctx.fillStyle='#ffd94d';ctx.beginPath();ctx.ellipse(0,1,11,9,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(0,-7,8,0,Math.PI*2);ctx.fill();ctx.fillStyle='#6d5322';ctx.beginPath();ctx.arc(-3,-8,1.1,0,7);ctx.arc(3,-8,1.1,0,7);ctx.fill();ctx.fillStyle='#ee8f25';ctx.beginPath();ctx.moveTo(0,-5);ctx.lineTo(7,-3);ctx.lineTo(0,-1);ctx.fill();ctx.restore()}
+function drawEnemy(e){ctx.save();ctx.translate(e.x,e.y);if(e.air){ctx.fillStyle='#523b2d';ctx.beginPath();ctx.moveTo(0,5);ctx.quadraticCurveTo(-20,-14,-28,0);ctx.quadraticCurveTo(-11,-4,0,8);ctx.quadraticCurveTo(11,-4,28,0);ctx.quadraticCurveTo(20,-14,0,5);ctx.fill();ctx.fillStyle='#d2aa42';ctx.beginPath();ctx.arc(0,1,6,0,7);ctx.fill()}else{const c=e.type==='fox'?'#d97a30':e.type==='cat'?'#777':'#3e8e52';ctx.fillStyle=c;if(e.type==='snake'){ctx.lineWidth=8;ctx.strokeStyle=c;ctx.beginPath();ctx.moveTo(-12,7);ctx.quadraticCurveTo(0,-9,12,6);ctx.stroke();ctx.beginPath();ctx.arc(14,5,5,0,7);ctx.fill()}else{ctx.beginPath();ctx.ellipse(0,4,13,8,0,0,7);ctx.fill();ctx.beginPath();ctx.arc(8,-3,7,0,7);ctx.fill();ctx.fillRect(-8,7,4,8);ctx.fillRect(5,7,4,8)}}ctx.restore()}
+function drawObstacle(o){ctx.save();ctx.translate(o.x,o.y);if(o.done&&o.type==='sproutWater'){ctx.fillStyle='#3e9b4b';ctx.fillRect(-o.w/2,-6,o.w,12);for(let x=-o.w/2;x<o.w/2;x+=12){ctx.beginPath();ctx.ellipse(x,0,9,5,.5,0,7);ctx.fill()}ctx.restore();return}if(o.done){ctx.restore();return}if(o.type==='twigs'){ctx.strokeStyle='#7d4b2b';ctx.lineWidth=5;for(let i=-2;i<=2;i++){ctx.beginPath();ctx.moveTo(i*8-8,8);ctx.lineTo(i*8+8,-8);ctx.stroke()}}else if(o.type==='ledge'){ctx.fillStyle='#745331';ctx.fillRect(-o.w/2,-7,o.w,14);ctx.fillStyle='#b48a55';ctx.fillRect(-o.w/2,-9,o.w,5)}else{ctx.fillStyle='#4ba4c9';ctx.beginPath();ctx.ellipse(0,0,o.w/2,o.h/2,0,0,7);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.ellipse(0,-2,o.w*.32,o.h*.2,0,0,7);ctx.stroke();if(o.type==='sproutWater'){ctx.strokeStyle='#26783e';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,o.h/2+10);ctx.lineTo(0,o.h/2-2);ctx.stroke();ctx.fillStyle='#5cc967';ctx.beginPath();ctx.ellipse(-5,o.h/2+1,7,4,-.5,0,7);ctx.ellipse(5,o.h/2+1,7,4,.5,0,7);ctx.fill()}}ctx.restore()}
+function drawShot(s){ctx.save();ctx.translate(s.x,s.y);if(s.type.startsWith('wind')){ctx.strokeStyle='rgba(225,255,235,.95)';ctx.lineWidth=5;ctx.fillStyle='rgba(110,235,160,.24)';ctx.beginPath();ctx.arc(0,0,s.r,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.strokeStyle='rgba(72,177,113,.7)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,s.r*.55,0,Math.PI*1.6);ctx.stroke()}else{ctx.fillStyle='rgba(70,175,240,.88)';ctx.beginPath();ctx.arc(0,-s.height,s.r,0,7);ctx.fill();ctx.fillStyle='rgba(20,90,130,.2)';ctx.beginPath();ctx.ellipse(0,3,s.r*.9,s.r*.35,0,0,7);ctx.fill();ctx.strokeStyle='rgba(220,250,255,.9)';ctx.stroke()}ctx.restore()}
+function drawParticle(p){ctx.save();ctx.globalAlpha=1-p.t/p.life;ctx.translate(p.x,p.y);ctx.fillStyle=p.type==='water'?'#65cfff':p.type==='leaf'?'#67cf64':'#dfffe8';ctx.beginPath();ctx.arc(0,0,p.type==='leaf'?4:3,0,7);ctx.fill();ctx.restore()}
+function loop(t){if(!running)return;const dt=Math.min((t-last)/1000,.033);last=t;update(dt);draw();requestAnimationFrame(loop)}
+draw();
+</script>
 </body>
 </html>
