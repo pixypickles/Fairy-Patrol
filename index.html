@@ -199,16 +199,43 @@ function drawEnemy(e){
     ctx.fillStyle='#e99a43';ctx.strokeStyle='#171713';ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(7,-3);ctx.lineTo(0,0);ctx.closePath();ctx.fill();ctx.stroke();
     ctx.fillStyle='#69c8a8';ctx.strokeStyle='#171713';ctx.beginPath();ctx.moveTo(-5,16);ctx.lineTo(0,23);ctx.lineTo(5,16);ctx.closePath();ctx.fill();ctx.stroke();
   }else if(e.type==='snake'){
-    ctx.rotate(e.angle||0);const sway=frame===0?-4:frame===1?4:0;
-    // soft S-shaped body; the smiling head is always at the leading end (+x)
-    ctx.strokeStyle='#171713';ctx.lineWidth=17;ctx.beginPath();ctx.moveTo(-35,7);ctx.bezierCurveTo(-24,-11+sway,-10,16-sway,4,1);ctx.bezierCurveTo(11,-6,18,-3,23,0);ctx.stroke();
-    ctx.strokeStyle='#73b86e';ctx.lineWidth=11;ctx.stroke();
-    ctx.fillStyle='#8bd383';ctx.strokeStyle='#171713';ctx.lineWidth=3.2;ctx.beginPath();ctx.ellipse(31,0,15,13,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#e9f7bd';ctx.beginPath();ctx.ellipse(34,4,10,6,0,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(29,-5,3.5,0,Math.PI*2);ctx.arc(37,-4,3.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#171713';ctx.beginPath();ctx.arc(30,-5,1.5,0,Math.PI*2);ctx.arc(38,-4,1.5,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#315f35';ctx.lineWidth=1.7;ctx.beginPath();ctx.arc(34,3,5,.15,Math.PI-.2);ctx.stroke();
-    ctx.strokeStyle='#dc5570';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(45,3);ctx.lineTo(51,3);ctx.moveTo(51,3);ctx.lineTo(55,0);ctx.moveTo(51,3);ctx.lineTo(55,6);ctx.stroke();
-    ctx.fillStyle='rgba(225,245,170,.72)';for(let i=-25;i<16;i+=10){ctx.beginPath();ctx.arc(i,Math.sin(i*.24+frame)*3,2.4,0,Math.PI*2);ctx.fill()}
+    ctx.rotate(e.angle||0);
+    if(e.flee){
+      // 逃走時は、進行方向へ細長く伸びた一枚姿。
+      // +x が進行方向、頭は必ず先頭側に置く。
+      ctx.strokeStyle='#171713';ctx.lineCap='round';ctx.lineJoin='round';
+      ctx.lineWidth=13;ctx.beginPath();ctx.moveTo(-38,8);ctx.bezierCurveTo(-27,-2,-25,12,-15,1);ctx.bezierCurveTo(-7,-8,-5,7,4,-1);ctx.bezierCurveTo(11,-7,17,-3,22,0);ctx.stroke();
+      ctx.strokeStyle='#73b86e';ctx.lineWidth=8;ctx.stroke();
+      // 逃げる勢いで尾が細く交差して見える線
+      ctx.strokeStyle='#171713';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-34,5);ctx.quadraticCurveTo(-43,-4,-47,9);ctx.moveTo(-33,8);ctx.quadraticCurveTo(-43,17,-47,4);ctx.stroke();
+      ctx.strokeStyle='#73b86e';ctx.lineWidth=2.5;ctx.stroke();
+      // 大きめのデフォルメ頭
+      ctx.fillStyle='#8bd383';ctx.strokeStyle='#171713';ctx.lineWidth=3.2;ctx.beginPath();ctx.ellipse(31,0,15,14,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#e9f7bd';ctx.beginPath();ctx.ellipse(34,5,10,6,0,0,Math.PI*2);ctx.fill();
+      // 逃走専用の慌て顔
+      ctx.strokeStyle='#171713';ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(26,-7);ctx.lineTo(31,-2);ctx.moveTo(31,-7);ctx.lineTo(26,-2);ctx.moveTo(35,-7);ctx.lineTo(40,-2);ctx.moveTo(40,-7);ctx.lineTo(35,-2);ctx.stroke();
+      ctx.strokeStyle='#dc5570';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(44,3);ctx.lineTo(51,3);ctx.moveTo(51,3);ctx.lineTo(55,0);ctx.moveTo(51,3);ctx.lineTo(55,6);ctx.stroke();
+    }else{
+      // 通常時は胴体前半を安定させ、しっぽ側だけを左右に入れ替える2コマ風。
+      const tailSide=frame===1?1:-1;
+      ctx.strokeStyle='#171713';ctx.lineWidth=17;ctx.beginPath();
+      ctx.moveTo(-38,tailSide*10);
+      ctx.bezierCurveTo(-31,tailSide*17,-24,-tailSide*9,-14,-tailSide*3);
+      ctx.bezierCurveTo(-5,tailSide*4,4,-4,13,-1);
+      ctx.bezierCurveTo(18,1,21,1,24,0);ctx.stroke();
+      ctx.strokeStyle='#73b86e';ctx.lineWidth=11;ctx.stroke();
+      // しっぽ先を左右へ振っていることが分かる小さなカーブ
+      ctx.strokeStyle='#171713';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(-37,tailSide*9);ctx.quadraticCurveTo(-46,tailSide*18,-49,tailSide*4);ctx.stroke();
+      ctx.strokeStyle='#73b86e';ctx.lineWidth=4.5;ctx.stroke();
+      // 頭は進行方向の先頭に固定
+      ctx.fillStyle='#8bd383';ctx.strokeStyle='#171713';ctx.lineWidth=3.2;ctx.beginPath();ctx.ellipse(32,0,16,14,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#e9f7bd';ctx.beginPath();ctx.ellipse(35,5,10.5,6,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(29,-5,3.7,0,Math.PI*2);ctx.arc(38,-4,3.7,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#171713';ctx.beginPath();ctx.arc(30,-5,1.5,0,Math.PI*2);ctx.arc(39,-4,1.5,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#315f35';ctx.lineWidth=1.7;ctx.beginPath();ctx.arc(35,3,5,.15,Math.PI-.2);ctx.stroke();
+      ctx.strokeStyle='#dc5570';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(46,3);ctx.lineTo(52,3);ctx.moveTo(52,3);ctx.lineTo(56,0);ctx.moveTo(52,3);ctx.lineTo(56,6);ctx.stroke();
+      ctx.fillStyle='rgba(225,245,170,.72)';for(let i=-24;i<15;i+=10){ctx.beginPath();ctx.arc(i,Math.sin(i*.24+frame)*2.5,2.4,0,Math.PI*2);ctx.fill()}
+    }
   }else{
     const isFox=e.type==='fox',c=isFox?'#dc7b32':'#777d84',leg=frame===0?3:frame===1?-2:0;
     ctx.fillStyle=c;ctx.beginPath();ctx.ellipse(-2,3,17,10,-.05,0,Math.PI*2);ctx.fill();ctx.stroke();
