@@ -93,7 +93,7 @@ function fireWindDown(){cast('windDown',{type:'windDown',x:fairy.x,y:fairy.y+12,
 function fireWaterUp(){cast('waterUp',{type:'waterUp',x:fairy.x,y:fairy.y-10,vx:0,vy:-210,t:0,life:.76,r:12,height:36})}
 function fireWaterDown(){cast('waterDown',{type:'waterDown',x:fairy.x,y:fairy.y+8,vx:0,vy:46,t:0,life:.38,r:13,height:20})}
 function spawnEnemy(y=-60){const air=Math.random()<.38;const type=air?'bird':['fox','cat','snake'][Math.floor(Math.random()*3)];enemies.push({type,air,x:42+Math.random()*(W-84),y,r:air?20:(type==='snake'?25:18),vx:(Math.random()-.5)*18,vy:air?44:30,hp:1,cool:0,anim:Math.random()*10,angle:Math.PI/2})}
-function spawnObstacle(y=-70){const p=Math.random();let type=p<.24?'twigs':p<.49?'ledge':p<.72?'water':'sproutWater';let w=type==='twigs'?78+Math.random()*42:type==='ledge'?92+Math.random()*70:90+Math.random()*65;let h=type==='ledge'?30:48+Math.random()*18;let x=w/2+18+Math.random()*Math.max(20,W-w-36);obstacles.push({type,x,y,w,h,done:false,hit:false,growing:false,growth:0,seed:Math.random()*1000})}
+function spawnObstacle(y=-70){const p=Math.random();let type=p<.30?'leafPile':p<.56?'ledge':'sproutWater';let w=type==='leafPile'?92+Math.random()*48:type==='ledge'?105+Math.random()*72:112+Math.random()*70;let h=type==='ledge'?30:48+Math.random()*18;let x=w/2+18+Math.random()*Math.max(20,W-w-36);obstacles.push({type,x,y,w,h,done:false,hit:false,growing:false,growth:0,seed:Math.random()*1000})}
 function update(dt){worldT+=dt;for(const k in cooldown)cooldown[k]=Math.max(0,cooldown[k]-dt);distance-=dt*6;if(distance<=0){finish();return}
  let ix=input.x+(keys.arrowleft?-1:0)+(keys.arrowright?1:0),iy=input.y+(keys.arrowup?-1:0)+(keys.arrowdown?1:0);let m=Math.hypot(ix,iy);if(m>0){ix/=m;iy/=m}fairy.x+=ix*fairy.speed*dt;fairy.y+=iy*fairy.speed*dt;fairy.x=Math.max(18,Math.min(W-18,fairy.x));fairy.y=Math.max(55,Math.min(H-26,fairy.y));
  const scroll=38;spawnT+=dt;if(spawnT>2.15){spawnT=0;(Math.random()<.38?spawnEnemy:spawnObstacle)()}
@@ -105,12 +105,12 @@ function update(dt){worldT+=dt;for(const k in cooldown)cooldown[k]=Math.max(0,co
  chick.bounce+=dt*9;
  if(chick.stuck){chick.vx=chick.vy=0;const o=chick.stuck;if(o.done)chick.stuck=null}
  else{chick.x+=chick.vx*dt;chick.y+=chick.vy*dt;chick.x=Math.max(16,Math.min(W-16,chick.x));chick.y=Math.max(H*.58,Math.min(H-18,chick.y))}
- for(const o of obstacles){if(o.done)continue;const near=chick.x>o.x-o.w/2&&chick.x<o.x+o.w/2&&Math.abs(chick.y-o.y)<20;if(near){if(o.type==='ledge'){chick.stuck=o; if(!o.hit){o.hit=true;addMinus(25,'段差で足止め')}}else if(o.type==='water'||o.type==='sproutWater'){chick.vy=Math.abs(chick.vy)+20;if(!o.hit){o.hit=true;addMinus(45,'水辺で足止め')}}else if(o.type==='twigs'&&!o.hit){o.hit=true;addMinus(30,'小枝に接触')}}}
+ for(const o of obstacles){if(o.done)continue;const near=chick.x>o.x-o.w/2&&chick.x<o.x+o.w/2&&Math.abs(chick.y-o.y)<20;if(near){if(o.type==='ledge'){chick.stuck=o; if(!o.hit){o.hit=true;addMinus(25,'段差で足止め')}}else if(o.type==='sproutWater'){chick.vy=Math.abs(chick.vy)+20;if(!o.hit){o.hit=true;addMinus(45,'水辺で足止め')}}else if(o.type==='leafPile'&&!o.hit){o.hit=true;addMinus(30,'葉っぱの山に接触')}}}
  // shots
  for(const s of shots){s.t+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;if(s.type==='waterUp'||s.type==='waterDown')s.height=Math.max(0,s.height-75*dt);if(s.type==='windDown')s.r+=35*dt;
    for(const e of enemies){if(e.dead)continue;const canAir=s.type!=='waterDown';if(e.air&&!canAir)continue;if(Math.hypot(s.x-e.x,s.y-e.y)<s.r+e.r+((s.type==='windUp'||s.type==='windDown')?16:4)){e.dead=true;addPlus(e.air?60:45,'敵を追い払った');explodeShot(s,s.type.startsWith('water')?'water':'wind');s.t=s.life}}
    for(const o of obstacles){if(o.done)continue;const hit=Math.abs(s.x-o.x)<o.w/2+s.r&&Math.abs(s.y-o.y)<o.h/2+s.r;if(!hit)continue;
-    if(s.type.startsWith('wind')&&o.type==='twigs'){o.done=true;addPlus(35,'小枝を除去');explodeShot(s,'wind');burst(o.x,o.y,'wind');s.t=s.life}
+    if(s.type.startsWith('wind')&&o.type==='leafPile'){o.done=true;addPlus(35,'葉っぱの山を吹き払った');explodeShot(s,'wind');burst(o.x,o.y,'wind');s.t=s.life}
     if(s.type==='windDown'&&o.type==='ledge'&&chick.stuck===o){o.done=true;chick.stuck=null;chick.y-=32;addPlus(80,'段差をジャンプ');explodeShot(s,'wind');burst(chick.x,chick.y,'wind');s.t=s.life}
     if(s.type.startsWith('water')&&o.type==='sproutWater'&&!o.growing){o.growing=true;o.growth=.02;addPlus(120,'緑の橋を作った');burst(o.x,o.y+o.h/2,'leaf');explodeShot(s,'water');s.t=s.life}
    }
@@ -170,18 +170,31 @@ function drawEnemy(e){
   const frame=Math.floor((worldT*7+e.anim)%3),bob=Math.sin(worldT*8+e.anim)*1.5;
   ctx.save();ctx.translate(e.x,e.y+bob);ctx.strokeStyle='#171713';ctx.lineWidth=3.4;ctx.lineJoin='round';ctx.lineCap='round';
   if(e.air){
-    const wing=frame===0?-13:frame===1?-2:10;ctx.fillStyle='#5a4230';
-    ctx.beginPath();ctx.moveTo(0,5);ctx.quadraticCurveTo(-15,wing-8,-31,wing);ctx.quadraticCurveTo(-16,wing+7,0,9);ctx.quadraticCurveTo(16,wing+7,31,wing);ctx.quadraticCurveTo(15,wing-8,0,5);ctx.closePath();ctx.fill();ctx.stroke();
-    ctx.fillStyle='#7d5d3c';ctx.beginPath();ctx.ellipse(0,2,8,12,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#d8aa3c';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(11,3);ctx.lineTo(0,6);ctx.closePath();ctx.fill();ctx.stroke();
+    const wingLift=frame===0?-14:frame===1?-5:5;
+    // round, friendly little bird with a soft face and flapping wings
+    ctx.fillStyle='#f1c86b';
+    ctx.beginPath();ctx.ellipse(0,3,13,15,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#f8dc92';
+    ctx.beginPath();ctx.arc(0,-8,10,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#d89a55';
+    ctx.beginPath();ctx.moveTo(-7,0);ctx.quadraticCurveTo(-19,wingLift-7,-27,wingLift+1);ctx.quadraticCurveTo(-16,wingLift+10,-5,9);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.moveTo(7,0);ctx.quadraticCurveTo(19,wingLift-7,27,wingLift+1);ctx.quadraticCurveTo(16,wingLift+10,5,9);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle='#fff7dc';ctx.beginPath();ctx.ellipse(0,5,8,9,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#171713';ctx.beginPath();ctx.arc(-3,-10,1.4,0,Math.PI*2);ctx.arc(3,-10,1.4,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#171713';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(-3,-8,2.2,.1,Math.PI-.1);ctx.stroke();
+    ctx.fillStyle='#e99a43';ctx.strokeStyle='#171713';ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(0,-6);ctx.lineTo(7,-3);ctx.lineTo(0,0);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle='#d89a55';ctx.strokeStyle='#171713';ctx.beginPath();ctx.moveTo(-5,16);ctx.lineTo(0,23);ctx.lineTo(5,16);ctx.closePath();ctx.fill();ctx.stroke();
   }else if(e.type==='snake'){
-    ctx.rotate(e.angle||0);const sway=frame===0?-5:frame===1?5:0;
-    // tail trails behind, head is always at the movement-leading end (+x)
-    ctx.strokeStyle='#171713';ctx.lineWidth=15;ctx.beginPath();ctx.moveTo(-34,6);ctx.bezierCurveTo(-24,-12+sway,-10,17-sway,4,1);ctx.bezierCurveTo(12,-7,18,-3,22,0);ctx.stroke();
-    ctx.strokeStyle='#438f4f';ctx.lineWidth=10;ctx.stroke();
-    ctx.fillStyle='#58ad60';ctx.strokeStyle='#171713';ctx.lineWidth=3.4;ctx.beginPath();ctx.ellipse(27,0,10,8,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#f4edb5';ctx.beginPath();ctx.arc(30,-3,1.6,0,Math.PI*2);ctx.arc(30,3,1.6,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#cf4050';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(36,0);ctx.lineTo(43,0);ctx.moveTo(43,0);ctx.lineTo(47,-4);ctx.moveTo(43,0);ctx.lineTo(47,4);ctx.stroke();
-    ctx.strokeStyle='rgba(235,245,170,.72)';ctx.lineWidth=1.2;for(let i=-24;i<14;i+=10){ctx.beginPath();ctx.arc(i,Math.sin(i*.25+frame)*3,3,0,Math.PI);ctx.stroke()}
+    ctx.rotate(e.angle||0);const sway=frame===0?-4:frame===1?4:0;
+    // soft S-shaped body; the smiling head is always at the leading end (+x)
+    ctx.strokeStyle='#171713';ctx.lineWidth=17;ctx.beginPath();ctx.moveTo(-35,7);ctx.bezierCurveTo(-24,-11+sway,-10,16-sway,4,1);ctx.bezierCurveTo(11,-6,18,-3,23,0);ctx.stroke();
+    ctx.strokeStyle='#73b86e';ctx.lineWidth=11;ctx.stroke();
+    ctx.fillStyle='#84ca7d';ctx.strokeStyle='#171713';ctx.lineWidth=3.2;ctx.beginPath();ctx.ellipse(29,0,11,9,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#dff2b0';ctx.beginPath();ctx.ellipse(31,3,7,4,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#171713';ctx.beginPath();ctx.arc(31,-3.5,1.5,0,Math.PI*2);ctx.arc(35,-2.5,1.5,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#315f35';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(33,2,3,.15,Math.PI-.2);ctx.stroke();
+    ctx.strokeStyle='#dc5570';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(39,2);ctx.lineTo(44,2);ctx.moveTo(44,2);ctx.lineTo(47,-1);ctx.moveTo(44,2);ctx.lineTo(47,5);ctx.stroke();
+    ctx.fillStyle='rgba(225,245,170,.72)';for(let i=-25;i<16;i+=10){ctx.beginPath();ctx.arc(i,Math.sin(i*.24+frame)*3,2.4,0,Math.PI*2);ctx.fill()}
   }else{
     const isFox=e.type==='fox',c=isFox?'#dc7b32':'#777d84',leg=frame===0?3:frame===1?-2:0;
     ctx.fillStyle=c;ctx.beginPath();ctx.ellipse(-2,3,17,10,-.05,0,Math.PI*2);ctx.fill();ctx.stroke();
@@ -209,10 +222,11 @@ function drawObstacle(o){
     ctx.restore();return;
   }
   if(o.done){ctx.restore();return}
-  if(o.type==='twigs'){
-    ctx.fillStyle='rgba(65,47,30,.18)';ctx.beginPath();ctx.ellipse(0,8,o.w*.48,13,0,0,Math.PI*2);ctx.fill();
-    const n=9;for(let i=0;i<n;i++){const a=-.7+i*.17,off=(i-n/2)*7;ctx.strokeStyle='#4c2f1d';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(off-18,12);ctx.lineTo(off+18,-9+Math.sin(i)*5);ctx.stroke();ctx.strokeStyle='#9a673d';ctx.lineWidth=3.8;ctx.stroke();}
-    ctx.fillStyle='#7d9b4c';for(let i=0;i<5;i++){ctx.beginPath();ctx.ellipse(-o.w*.35+i*18,-5+(i%2)*9,7,3,.6,0,Math.PI*2);ctx.fill()}
+  if(o.type==='leafPile'){
+    ctx.fillStyle='rgba(48,55,28,.18)';ctx.beginPath();ctx.ellipse(0,10,o.w*.48,16,0,0,Math.PI*2);ctx.fill();
+    const leafColors=['#719f45','#8aad4e','#b69d47','#c47d3f','#5f8d42'];
+    for(let i=0;i<24;i++){const a=i*2.399+o.seed,r=(i%6)*o.w*.055+6,px=Math.cos(a)*r,py=Math.sin(a)*r*.34+4-(i%4)*2;ctx.save();ctx.translate(px,py);ctx.rotate(a*.7);ctx.fillStyle=leafColors[i%leafColors.length];ctx.strokeStyle='rgba(55,65,28,.65)';ctx.lineWidth=1.1;ctx.beginPath();ctx.ellipse(0,0,8+(i%3),4+(i%2),0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(-6,0);ctx.lineTo(6,0);ctx.stroke();ctx.restore()}
+    ctx.strokeStyle='#765139';ctx.lineWidth=3.2;for(let i=0;i<4;i++){const ox=-o.w*.25+i*o.w*.17;ctx.beginPath();ctx.moveTo(ox-8,10+i%2*3);ctx.lineTo(ox+12,-5+i*2);ctx.stroke()}
   }else if(o.type==='ledge'){
     ctx.fillStyle='rgba(50,40,25,.22)';ctx.beginPath();ctx.ellipse(0,10,o.w*.52,14,0,0,Math.PI*2);ctx.fill();
     ctx.fillStyle='#765335';ctx.beginPath();ctx.roundRect(-o.w/2,-7,o.w,25,8);ctx.fill();
@@ -235,8 +249,10 @@ function drawShot(s){
     const g=ctx.createRadialGradient(-s.r*.25,-s.r*.3,1,0,0,s.r*1.2);g.addColorStop(0,'rgba(255,255,255,.9)');g.addColorStop(.45,'rgba(145,255,195,.62)');g.addColorStop(1,'rgba(65,210,135,.08)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,s.r*1.25,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='rgba(225,255,235,.9)';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(0,0,s.r*.72,-.3,Math.PI*1.55);ctx.stroke();
   }else{
-    const y=-s.height,g=ctx.createRadialGradient(-4,y-5,1,0,y,s.r*1.35);g.addColorStop(0,'rgba(255,255,255,.98)');g.addColorStop(.35,'rgba(100,215,255,.95)');g.addColorStop(1,'rgba(30,125,220,.16)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,y,s.r*1.25,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='rgba(25,95,145,.18)';ctx.beginPath();ctx.ellipse(0,3,s.r*.9,s.r*.32,0,0,Math.PI*2);ctx.fill();
+    const y=-s.height,drop=s.r*1.25,g=ctx.createRadialGradient(-drop*.28,y-drop*.34,1,0,y,drop*1.15);g.addColorStop(0,'rgba(255,255,255,.98)');g.addColorStop(.22,'rgba(210,248,255,.94)');g.addColorStop(.58,'rgba(78,188,235,.86)');g.addColorStop(1,'rgba(20,105,175,.30)');ctx.fillStyle=g;
+    ctx.beginPath();ctx.moveTo(0,y-drop*1.35);ctx.bezierCurveTo(drop*.82,y-drop*.48,drop*.92,y+drop*.28,0,y+drop*.95);ctx.bezierCurveTo(-drop*.92,y+drop*.28,-drop*.82,y-drop*.48,0,y-drop*1.35);ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.72)';ctx.beginPath();ctx.ellipse(-drop*.28,y-drop*.35,drop*.22,drop*.38,-.45,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(30,90,125,.16)';ctx.beginPath();ctx.ellipse(0,3,drop*.85,drop*.28,0,0,Math.PI*2);ctx.fill();
   }
   ctx.restore();ctx.globalCompositeOperation='source-over';
 }
