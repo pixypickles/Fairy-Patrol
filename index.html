@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.1.2</title>
+  <title>Fairy Guardian v3.1.7</title>
   <style>
 :root {
   color-scheme: light;
@@ -178,6 +178,7 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
 .action-button > span { position: relative; z-index: 1; }
 .action-button .symbol { display: block; font-size: 21px; line-height: 1; margin-bottom: 3px; }
 .action-button.wind.charging { box-shadow: 0 0 18px rgba(126,255,169,.9), 0 5px 0 rgba(42,65,47,.25); }
+.action-button.water.charging { box-shadow: 0 0 20px rgba(70,183,255,.95), 0 5px 0 rgba(42,65,47,.25); }
 .action-button:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(42,65,47,.25); }
 .action-button.wind { background: linear-gradient(135deg, #f8fff2, #aee7af); }
 .action-button.water { background: linear-gradient(135deg, #effcff, #75c8ff); }
@@ -1484,35 +1485,73 @@ class MeadowFlower {
   constructor(width, height) {
     this.width = width;
     this.screenHeight = height;
-    this.x = 55 + Math.random() * (width - 110);
-    this.y = -60;
+    this.x = 70 + Math.random() * (width - 140);
+    this.y = -70;
     this.speed = 39;
-    this.radius = 25;
-    this.state = 'bud';
-    this.growth = 0;
     this.dead = false;
-    this.scored = false;
     this.seed = Math.random() * Math.PI * 2;
     this.palette = Math.floor(Math.random() * 3);
+    // Single flowers still appear, but many patches contain three buds.
+    this.variant = Math.random() < .68 ? (Math.random() < .52 ? 'row' : 'bouquet') : 'single';
+    const offsets = this.variant === 'single' ? [0] : [-30, 0, 30];
+    this.buds = offsets.map((offset, i) => ({
+      offset,
+      growth: 0,
+      delay: 0,
+      state: 'bud',
+      palette: (this.palette + i) % 3
+    }));
+    this.radius = this.variant === 'single' ? 25 : 58;
   }
 
   update(dt) {
     this.y += this.speed * dt;
-    if (this.state === 'blooming') {
-      this.growth = Math.min(1, this.growth + dt / .72);
-      if (this.growth >= 1) this.state = 'bloomed';
+    for (const bud of this.buds) {
+      if (bud.state === 'waiting') {
+        bud.delay -= dt;
+        if (bud.delay <= 0) {
+          bud.state = 'blooming';
+          bud.growth = .01;
+        }
+      } else if (bud.state === 'blooming') {
+        bud.growth = Math.min(1, bud.growth + dt / .68);
+        if (bud.growth >= 1) bud.state = 'bloomed';
+      }
     }
-    if (this.y > this.screenHeight + 75) this.dead = true;
+    if (this.y > this.screenHeight + 90) this.dead = true;
   }
 
   waterHit(x, y, radius = 22) {
-    if (this.state !== 'bud') return false;
-    if (Math.hypot(x - this.x, y - this.y) < radius + this.radius) {
-      this.state = 'blooming';
-      this.growth = .01;
-      return true;
+    let nearest = -1;
+    let nearestDistance = Infinity;
+    for (let i = 0; i < this.buds.length; i++) {
+      const bud = this.buds[i];
+      if (bud.state !== 'bud') continue;
+      const bx = this.x + bud.offset;
+      const by = this.y + (this.variant === 'bouquet' ? Math.abs(bud.offset) * .12 : 0);
+      const d = Math.hypot(x - bx, y - by);
+      if (d < radius + 23 && d < nearestDistance) {
+        nearest = i;
+        nearestDistance = d;
+      }
     }
-    return false;
+    if (nearest < 0) return 0;
+
+    // A hit starts a little blooming wave. The struck bud opens first,
+    // followed by its neighbours from left to right or outward.
+    const order = this.variant === 'bouquet'
+      ? [nearest, ...this.buds.map((_, i) => i).filter(i => i !== nearest).sort((a,b) => Math.abs(a-nearest)-Math.abs(b-nearest))]
+      : this.buds.map((_, i) => i);
+    let started = 0;
+    for (let n = 0; n < order.length; n++) {
+      const bud = this.buds[order[n]];
+      if (bud.state !== 'bud') continue;
+      bud.state = n === 0 ? 'blooming' : 'waiting';
+      bud.delay = n * .19;
+      bud.growth = n === 0 ? .01 : 0;
+      started++;
+    }
+    return started;
   }
 
   drawPetal(ctx, angle, distance, length, width, color, alpha = 1) {
@@ -1531,29 +1570,23 @@ class MeadowFlower {
     ctx.restore();
   }
 
-  draw(ctx, time) {
+  drawBud(ctx, bud, index, time) {
+    const bouquetDrop = this.variant === 'bouquet' ? Math.abs(bud.offset) * .12 : 0;
     ctx.save();
-    ctx.translate(this.x, this.y);
-    const sway = Math.sin(time * 2.1 + this.seed) * .05;
-    ctx.rotate(sway);
-
-    ctx.fillStyle = 'rgba(41,71,38,.16)';
-    ctx.beginPath(); ctx.ellipse(0, 20, 19, 7, 0, 0, Math.PI * 2); ctx.fill();
-
-    const g = this.state === 'bud' ? 0 : Math.max(.04, this.growth);
-    const stemH = 22 + g * 18;
+    ctx.translate(bud.offset, bouquetDrop);
+    const g = bud.state === 'bud' || bud.state === 'waiting' ? 0 : Math.max(.04, bud.growth);
+    const stemH = 22 + g * 18 + (this.variant === 'bouquet' ? (index === 1 ? 8 : 0) : 0);
     ctx.strokeStyle = '#3e8c45';
     ctx.lineWidth = 5;
     ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(0, 18); ctx.quadraticCurveTo(-2, 4, 0, 18 - stemH); ctx.stroke();
-
     ctx.fillStyle = '#62ad54';
     ctx.beginPath(); ctx.ellipse(-8, 7, 10, 5, -.55, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.ellipse(8, 2, 10, 5, .55, 0, Math.PI * 2); ctx.fill();
-
-    const flowerY = 18 - stemH;
-    ctx.translate(0, flowerY);
-    if (this.state === 'bud') {
+    ctx.translate(0, 18 - stemH);
+    if (bud.state === 'bud' || bud.state === 'waiting') {
+      const pulse = bud.state === 'waiting' ? 1 + Math.sin(time * 12 + index) * .07 : 1;
+      ctx.scale(pulse, pulse);
       ctx.fillStyle = '#78b85a';
       ctx.beginPath(); ctx.ellipse(0, 0, 8, 11, 0, 0, Math.PI * 2); ctx.fill();
       ctx.fillStyle = '#e7a8c6';
@@ -1561,7 +1594,7 @@ class MeadowFlower {
     } else {
       const eased = 1 - Math.pow(1 - g, 3);
       const colors = ['#ef8fc2', '#a891ef', '#f5a65b'];
-      const color = colors[this.palette];
+      const color = colors[bud.palette];
       ctx.save();
       ctx.scale(.35 + eased * .65, .35 + eased * .65);
       for (let i = 0; i < 6; i++) {
@@ -1572,9 +1605,9 @@ class MeadowFlower {
       ctx.fillStyle = 'rgba(255,255,255,.9)';
       ctx.beginPath(); ctx.arc(-2, -2, 2, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-      if (this.state === 'blooming') {
+      if (bud.state === 'blooming') {
         for (let i = 0; i < 5; i++) {
-          const a = i * Math.PI * .4 + this.seed;
+          const a = i * Math.PI * .4 + this.seed + index;
           const d = 18 + eased * 18;
           ctx.fillStyle = `rgba(255,248,174,${.85 * (1 - g)})`;
           ctx.beginPath(); ctx.arc(Math.cos(a) * d, Math.sin(a) * d, 2.5, 0, Math.PI * 2); ctx.fill();
@@ -1583,8 +1616,17 @@ class MeadowFlower {
     }
     ctx.restore();
   }
-}
 
+  draw(ctx, time) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(Math.sin(time * 2.1 + this.seed) * .045);
+    ctx.fillStyle = 'rgba(41,71,38,.16)';
+    ctx.beginPath(); ctx.ellipse(0, 22, this.variant === 'single' ? 19 : 58, 9, 0, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < this.buds.length; i++) this.drawBud(ctx, this.buds[i], i, time);
+    ctx.restore();
+  }
+}
 
 class Game {
   constructor(canvas, input, hud) {
@@ -1634,24 +1676,31 @@ class Game {
   cast(kind, chargeSeconds = 0) {
     if (!this.running || this.cooldowns[kind] > 0) return;
     const isWater = kind === 'water';
-    const charge = isWater ? 0 : Math.min(1, Math.max(0, chargeSeconds / 0.9));
-    this.cooldowns[kind] = isWater ? 0.62 : 0.52 + charge * 0.18;
-    this.effects.push({
-      x: this.fairy.x,
-      y: this.fairy.y - 24,
-      startX: this.fairy.x,
-      startY: this.fairy.y - 24,
-      age: 0,
-      // Wind already travels a little farther than water. Holding the button
-      // briefly extends its range and makes the burst wider.
-      travel: isWater ? 0.54 : 0.56 + charge * 0.34,
-      burst: isWater ? 0.38 : 0.34 + charge * 0.10,
-      speed: isWater ? 225 : 270,
-      power: isWater ? 1 : 1 + charge * 0.7,
-      charge,
-      kind,
-      phase: 'travel'
-    });
+    const charge = Math.min(1, Math.max(0, chargeSeconds / 0.9));
+    this.cooldowns[kind] = isWater ? 0.60 + charge * .25 : 0.52 + charge * 0.18;
+
+    // Charged water behaves like a small sprinkler. A tap remains one precise
+    // water ball, while a hold releases 3–7 balls in a soft fan.
+    const count = isWater ? (charge < .18 ? 1 : charge < .58 ? 3 : charge < .9 ? 5 : 7) : 1;
+    for (let i = 0; i < count; i++) {
+      const centered = i - (count - 1) / 2;
+      const spread = isWater ? centered * (42 + charge * 22) : 0;
+      this.effects.push({
+        x: this.fairy.x,
+        y: this.fairy.y - 24,
+        startX: this.fairy.x,
+        startY: this.fairy.y - 24,
+        age: 0,
+        travel: isWater ? 0.54 + charge * .12 : 0.56 + charge * 0.34,
+        burst: isWater ? 0.38 + charge * .06 : 0.34 + charge * 0.10,
+        speed: isWater ? 225 : 270,
+        vx: spread,
+        power: isWater ? 1 + charge * .32 : 1 + charge * 0.7,
+        charge,
+        kind,
+        phase: 'travel'
+      });
+    }
   }
 
   update(dt) {
@@ -1687,9 +1736,9 @@ class Game {
     for (const can of this.cans) {
       if (can.update(dt, this.chick) === 'bump') this.minus += 12;
     }
-    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < 3) {
+    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < 4) {
       this.flowers.push(new MeadowFlower(this.width, this.height));
-      this.flowerSpawnTimer = 7.5 + Math.random() * 5.5;
+      this.flowerSpawnTimer = 6.4 + Math.random() * 4.6;
     }
     for (const flower of this.flowers) flower.update(dt);
     for (const river of this.rivers) river.update(dt, this.chick);
@@ -1740,7 +1789,7 @@ class Game {
       e.age += dt;
       if (e.phase === 'travel') {
         e.y -= e.speed * dt;
-        e.x += Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
+        e.x += (e.vx || 0) * dt + Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
         if (e.kind === 'water') {
           for (const river of this.rivers) {
             const grown = river.waterHit(e.x, e.y, 18);
@@ -1753,8 +1802,9 @@ class Game {
           }
           if (e.phase === 'travel') {
             for (const flower of this.flowers) {
-              if (flower.waterHit(e.x, e.y, 20)) {
-                this.plus += 40;
+              const bloomed = flower.waterHit(e.x, e.y, 20);
+              if (bloomed) {
+                this.plus += 40 * bloomed;
                 e.phase = 'burst';
                 e.age = 0;
                 break;
@@ -1818,7 +1868,7 @@ class Game {
         }
       } else {
         const t = e.age / e.burst;
-        const radius = e.kind === 'wind' ? 18 + t * 65 * (e.power || 1) : 13 + t * 56;
+        const radius = e.kind === 'wind' ? 18 + t * 65 * (e.power || 1) : 13 + t * 56 * (e.power || 1);
         if (e.kind === 'wind') {
           for (const pile of this.leafPiles) {
             if (pile.windHit(e.x, e.y, radius * .62)) this.plus += 30;
@@ -1832,7 +1882,8 @@ class Game {
           }
         } else {
           for (const flower of this.flowers) {
-            if (flower.waterHit(e.x, e.y, radius * .62)) this.plus += 40;
+            const bloomed = flower.waterHit(e.x, e.y, radius * .62);
+            if (bloomed) this.plus += 40 * bloomed;
           }
           for (const river of this.rivers) {
             const grown = river.waterHit(e.x, e.y, radius * .55);
@@ -1903,7 +1954,7 @@ class Game {
   }
 
   drawWaterTravel(ctx, e) {
-    const r = 18;
+    const r = 18 + (e.charge || 0) * 4;
     const g = ctx.createRadialGradient(-6, -7, 2, 0, 0, r);
     g.addColorStop(0, 'rgba(255,255,255,1)');
     g.addColorStop(.22, 'rgba(95,205,255,.98)');
@@ -1949,7 +2000,7 @@ class Game {
         ctx.beginPath(); ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d, 5, 2, a, 0, Math.PI * 2); ctx.fill();
       }
     } else {
-      const r = 13 + t * 56;
+      const r = 13 + t * 56 * (e.power || 1);
       ctx.strokeStyle = `rgba(43,157,255,${0.88 - t * 0.65})`;
       ctx.lineWidth = 7 * (1 - t) + 1;
       ctx.beginPath(); ctx.ellipse(0, 5, r, r * 0.48, 0, 0, Math.PI * 2); ctx.stroke();
@@ -2061,10 +2112,38 @@ windButton.addEventListener('pointerdown', (e) => {
 });
 windButton.addEventListener('pointerup', releaseWind);
 windButton.addEventListener('pointercancel', releaseWind);
-document.querySelector('#waterButton').addEventListener('pointerdown', (e) => {
+const waterButton = document.querySelector('#waterButton');
+let waterChargeStarted = 0;
+let waterChargeFrame = 0;
+
+function updateWaterChargeMeter() {
+  if (!waterChargeStarted) return;
+  const ratio = Math.min(1, (performance.now() - waterChargeStarted) / 900);
+  waterButton.style.setProperty('--charge', ratio.toFixed(3));
+  waterChargeFrame = requestAnimationFrame(updateWaterChargeMeter);
+}
+
+function releaseWater(e) {
+  if (!waterChargeStarted) return;
+  e?.preventDefault();
+  const seconds = Math.min(.9, (performance.now() - waterChargeStarted) / 1000);
+  waterChargeStarted = 0;
+  cancelAnimationFrame(waterChargeFrame);
+  waterButton.classList.remove('charging');
+  waterButton.style.setProperty('--charge', '0');
+  game.cast('water', seconds);
+}
+
+waterButton.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  game.cast('water');
+  if (waterChargeStarted) return;
+  waterChargeStarted = performance.now();
+  waterButton.classList.add('charging');
+  waterButton.setPointerCapture?.(e.pointerId);
+  updateWaterChargeMeter();
 });
+waterButton.addEventListener('pointerup', releaseWater);
+waterButton.addEventListener('pointercancel', releaseWater);
 document.querySelector('#chickLeftButton').addEventListener('pointerdown', (e) => {
   e.preventDefault();
   game.guideChick(-1);
@@ -2076,7 +2155,7 @@ document.querySelector('#chickRightButton').addEventListener('pointerdown', (e) 
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'j' && !e.repeat) game.cast('wind', 0.35);
-  if (e.key === 'k') game.cast('water');
+  if (e.key === 'k' && !e.repeat) game.cast('water', .5);
   if (e.key === 'q') game.guideChick(-1);
   if (e.key === 'e') game.guideChick(1);
 });
