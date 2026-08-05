@@ -3,6 +3,7 @@ export class Fairy {
     this.x = width * 0.5;
     this.y = height * 0.62;
     this.speed = 300;
+    this.bank = 0;
   }
 
   update(dt, input, width, height) {
@@ -10,6 +11,7 @@ export class Fairy {
     this.y += input.y * this.speed * dt;
     this.x = Math.max(48, Math.min(width - 48, this.x));
     this.y = Math.max(115, Math.min(height - 54, this.y));
+    this.bank += (input.x * 0.12 - this.bank) * Math.min(1, dt * 7);
   }
 
   drawWing(ctx, side, upper, time) {
@@ -66,13 +68,17 @@ export class Fairy {
     ctx.restore();
   }
 
-  draw(ctx, time) {
+  draw(ctx, time, target = null) {
     const hover = Math.sin(time * 3.2) * 2.4;
-    const sway = Math.sin(time * 2.1) * .035;
+    const targetAngle = target
+      ? Math.atan2(target.y - this.y, target.x - this.x) - Math.PI / 2
+      : 0;
+
     ctx.save();
     ctx.translate(this.x, this.y + hover);
-    ctx.rotate(sway);
+    ctx.rotate(targetAngle + this.bank);
 
+    // The wings are seen from behind, where their rainbow pattern is clearest.
     this.drawWing(ctx, -1, true, time);
     this.drawWing(ctx, 1, true, time);
     this.drawWing(ctx, -1, false, time);
@@ -81,17 +87,20 @@ export class Fairy {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
-    // Legs and slippers.
+    // Legs and slippers, pointing toward the chick.
     ctx.strokeStyle = '#765042';
     ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(-5, 20); ctx.lineTo(-7, 33);
-    ctx.moveTo(5, 20); ctx.lineTo(7, 33);
+    ctx.moveTo(-5, 20); ctx.lineTo(-7, 34);
+    ctx.moveTo(5, 20); ctx.lineTo(7, 34);
     ctx.stroke();
     ctx.fillStyle = '#d968a7';
-    ctx.beginPath(); ctx.ellipse(-8, 34, 5, 2.7, -.2, 0, Math.PI * 2); ctx.ellipse(8, 34, 5, 2.7, .2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(-8, 35, 5, 2.7, -.2, 0, Math.PI * 2);
+    ctx.ellipse(8, 35, 5, 2.7, .2, 0, Math.PI * 2);
+    ctx.fill();
 
-    // Dress/body.
+    // Back of the dress, with a small bow so the orientation is unmistakable.
     ctx.strokeStyle = '#42313d';
     ctx.lineWidth = 3.5;
     const dressGrad = ctx.createLinearGradient(0, -7, 0, 24);
@@ -99,67 +108,65 @@ export class Fairy {
     dressGrad.addColorStop(1, '#d96cac');
     ctx.fillStyle = dressGrad;
     ctx.beginPath();
-    ctx.moveTo(-10, -7); ctx.quadraticCurveTo(0, -13, 10, -7);
+    ctx.moveTo(-10, -7); ctx.quadraticCurveTo(0, -12, 10, -7);
     ctx.lineTo(16, 18);
-    ctx.quadraticCurveTo(11, 25, 5, 20);
-    ctx.quadraticCurveTo(0, 27, -5, 20);
-    ctx.quadraticCurveTo(-11, 25, -16, 18);
+    ctx.quadraticCurveTo(10, 25, 0, 21);
+    ctx.quadraticCurveTo(-10, 25, -16, 18);
     ctx.closePath();
     ctx.fill(); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
-    ctx.beginPath(); ctx.ellipse(-3, 5, 4.5, 11, -.18, 0, Math.PI * 2); ctx.fill();
 
-    // Arms and hands.
-    const armSwing = Math.sin(time * 4.2) * 1.8;
+    ctx.fillStyle = '#f7d6ec';
+    ctx.beginPath();
+    ctx.ellipse(-5, -3, 6, 4, -.25, 0, Math.PI * 2);
+    ctx.ellipse(5, -3, 6, 4, .25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#bd5791';
+    ctx.beginPath(); ctx.arc(0, -3, 3.2, 0, Math.PI * 2); ctx.fill();
+
+    // Arms reach slightly toward the protected chick.
+    const armSwing = Math.sin(time * 4.2) * 1.4;
     ctx.strokeStyle = '#765042';
     ctx.lineWidth = 3.4;
     ctx.beginPath();
-    ctx.moveTo(-9, 0); ctx.lineTo(-21, 9 + armSwing);
-    ctx.moveTo(9, 0); ctx.lineTo(21, 9 - armSwing);
+    ctx.moveTo(-9, 0); ctx.lineTo(-19, 10 + armSwing);
+    ctx.moveTo(9, 0); ctx.lineTo(19, 10 - armSwing);
     ctx.stroke();
     ctx.fillStyle = '#ffd9c1';
-    ctx.beginPath(); ctx.arc(-21, 9 + armSwing, 3, 0, Math.PI * 2); ctx.arc(21, 9 - armSwing, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(-19, 10 + armSwing, 3, 0, Math.PI * 2);
+    ctx.arc(19, 10 - armSwing, 3, 0, Math.PI * 2);
+    ctx.fill();
 
-    // Head and hair.
+    // Back of head and flowing hair: no face is drawn.
     ctx.strokeStyle = '#42313d';
     ctx.lineWidth = 3.5;
-    ctx.fillStyle = '#ffd9c1';
-    ctx.beginPath(); ctx.arc(0, -25, 15, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-
-    const hair = ctx.createLinearGradient(-12, -39, 13, -11);
-    hair.addColorStop(0, '#f3d27a');
-    hair.addColorStop(1, '#b97732');
+    const hair = ctx.createLinearGradient(-13, -42, 13, -7);
+    hair.addColorStop(0, '#f5d984');
+    hair.addColorStop(.55, '#d59b48');
+    hair.addColorStop(1, '#9a5f2d');
     ctx.fillStyle = hair;
     ctx.beginPath();
-    ctx.arc(0, -29, 16.2, Math.PI, Math.PI * 2);
-    ctx.quadraticCurveTo(17, -23, 11, -9);
-    ctx.quadraticCurveTo(5, -16, 1, -10);
-    ctx.quadraticCurveTo(-4, -17, -10, -10);
-    ctx.quadraticCurveTo(-17, -19, -14, -29);
+    ctx.arc(0, -25, 16, 0, Math.PI * 2);
+    ctx.quadraticCurveTo(18, -10, 11, 3);
+    ctx.quadraticCurveTo(5, -2, 0, 4);
+    ctx.quadraticCurveTo(-5, -2, -11, 3);
+    ctx.quadraticCurveTo(-18, -10, -16, -25);
     ctx.closePath();
     ctx.fill(); ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-11, -17); ctx.quadraticCurveTo(-18, -4, -10, 2);
-    ctx.moveTo(10, -17); ctx.quadraticCurveTo(18, -4, 10, 2);
-    ctx.stroke();
 
-    // Flower hair ornament.
+    // A tiny visible neck reinforces that this is the back view.
+    ctx.fillStyle = '#ffd9c1';
+    ctx.fillRect(-4, -11, 8, 6);
+
+    // Flower hair ornament remains visible from behind.
     ctx.fillStyle = '#fff4a8';
     for (let i = 0; i < 5; i++) {
       const a = i * Math.PI * 2 / 5;
       ctx.beginPath(); ctx.arc(-10 + Math.cos(a) * 4, -35 + Math.sin(a) * 4, 2.7, 0, Math.PI * 2); ctx.fill();
     }
-    ctx.fillStyle = '#f39b5e'; ctx.beginPath(); ctx.arc(-10, -35, 2.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f39b5e';
+    ctx.beginPath(); ctx.arc(-10, -35, 2.3, 0, Math.PI * 2); ctx.fill();
 
-    // Face.
-    ctx.fillStyle = '#3f3037';
-    ctx.beginPath(); ctx.arc(-5, -25, 1.6, 0, Math.PI * 2); ctx.arc(5, -25, 1.6, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(244,120,148,.5)';
-    ctx.beginPath(); ctx.arc(-8, -20, 2.2, 0, Math.PI * 2); ctx.arc(8, -20, 2.2, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = '#934f63'; ctx.lineWidth = 1.6;
-    ctx.beginPath(); ctx.moveTo(-2, -19); ctx.quadraticCurveTo(0, -16.5, 2, -19); ctx.stroke();
-
-    // Fairy dust.
     for (let i = 0; i < 8; i++) {
       const a = time * 1.5 + i * Math.PI / 4;
       const rx = 35 + (i % 2) * 8;

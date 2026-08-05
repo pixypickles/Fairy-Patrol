@@ -165,7 +165,7 @@ export class Game {
     this.stage.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
     for (const e of this.effects) this.drawEffect(e);
-    this.fairy.draw(this.ctx, this.elapsed);
+    this.fairy.draw(this.ctx, this.elapsed, this.chick);
   }
 
   loop(now) {
