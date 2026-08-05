@@ -1,184 +1,415 @@
 :root {
-  color-scheme: light;
-  font-family: ui-rounded, "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
-  background: #edf6e8;
-  color: #203327;
+  color-scheme: dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #11151d;
   touch-action: none;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --ink: #080b11;
+  --deck: #171e2a;
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; min-height: 100%; overflow: hidden; }
-body {
-  min-height: 100svh;
-  display: grid;
-  place-items: center;
-  background:
-    radial-gradient(circle at 20% 10%, rgba(255,255,255,.9), transparent 26%),
-    linear-gradient(#edf8e8, #d9ecd2);
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #11151d;
 }
-button { font: inherit; -webkit-tap-highlight-color: transparent; }
+body {
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+button {
+  font: inherit;
+  color: white;
+  border: 3px solid var(--ink);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
 
-.app-shell {
-  width: min(100vw, 590px);
+/*
+  上段はゲーム、下段は操作盤。
+  100svh を優先してブラウザのアドレスバーがあっても操作盤を画面外へ出さない。
+*/
+#gameWrap {
+  width: 100%;
+  height: 100vh;
   height: 100svh;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-  gap: 8px;
-  padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
-}
-
-.game-frame {
-  position: relative;
-  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) clamp(190px, 31svh, 280px);
   overflow: hidden;
-  border-radius: 24px;
-  background: #7dab5f;
-  box-shadow: 0 12px 40px rgba(39,74,40,.2);
+  background: #11151d;
 }
 
-canvas {
+#stageArea {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: max(4px, var(--safe-top)) max(4px, var(--safe-right)) 4px max(4px, var(--safe-left));
+  overflow: hidden;
+  background: #11151d;
+}
+
+#stageFrame {
+  position: relative;
+  width: min(100%, calc(100% * 16 / 9));
+  height: 100%;
+  max-width: calc(100% - 2px);
+  max-height: 100%;
+  aspect-ratio: 16 / 9;
+  background: #202735;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+@supports (height: 1cqh) {
+  #stageArea { container-type: size; }
+  #stageFrame {
+    width: min(100cqw, calc(100cqh * 16 / 9));
+    height: min(100cqh, calc(100cqw * 9 / 16));
+  }
+}
+
+#game {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  background: #7aaa5c;
+  image-rendering: pixelated;
+  touch-action: none;
 }
 
-.screen-overlay {
+#hud {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: linear-gradient(rgba(239,251,232,.58), rgba(224,244,215,.78));
-  backdrop-filter: blur(3px);
-}
-
-.title-card {
-  width: min(100%, 390px);
-  padding: 28px 24px;
-  text-align: center;
-  border: 2px solid rgba(255,255,255,.9);
-  border-radius: 28px;
-  background: rgba(255,255,255,.82);
-  box-shadow: 0 18px 45px rgba(46,78,47,.2);
-}
-.eyebrow { margin: 0 0 8px; color: #588c65; font-weight: 800; letter-spacing: .08em; }
-h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
-.title-card p { line-height: 1.7; }
-.primary-button {
-  border: 0;
-  border-radius: 999px;
-  padding: 14px 26px;
-  color: white;
-  font-weight: 900;
-  background: linear-gradient(#70bd7a, #4c9d60);
-  box-shadow: 0 7px 0 #347943, 0 10px 25px rgba(43,105,55,.25);
-}
-.primary-button:active { transform: translateY(4px); box-shadow: 0 3px 0 #347943; }
-
-.hud {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  right: 10px;
-  display: grid;
-  grid-template-columns: 1fr auto auto;
+  inset: 8px 8px auto 8px;
+  display: flex;
   gap: 8px;
+  align-items: center;
+  justify-content: space-between;
   pointer-events: none;
 }
-.hud > div {
+#message {
   min-width: 0;
+  max-width: 72%;
+  padding: 7px 10px;
+  border: 3px solid var(--ink);
+  border-radius: 11px;
+  background: rgba(25, 31, 43, .92);
+  font-weight: 850;
+  font-size: clamp(11px, 2.3vmin, 18px);
+  text-shadow: 0 2px #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#resetBtn {
+  flex: 0 0 auto;
+  pointer-events: auto;
   padding: 7px 11px;
-  border: 2px solid rgba(30,50,35,.72);
-  border-radius: 14px;
-  background: rgba(255,255,255,.82);
-  box-shadow: 0 3px 0 rgba(30,50,35,.18);
+  border-radius: 11px;
+  background: #60708e;
+  box-shadow: 0 4px 0 var(--ink);
+  font-size: clamp(11px, 2.3vmin, 18px);
 }
-.hud-label { margin-right: 5px; font-size: 12px; font-weight: 900; color: #56705d; }
-.hud-label.plus { color: #27865b; }
-.hud-label.minus { color: #b64f5d; }
-.hidden { display: none !important; }
 
-.controls {
+#controlDeck {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  padding: 12px max(14px, var(--safe-right)) max(12px, var(--safe-bottom)) max(14px, var(--safe-left));
   display: grid;
-  grid-template-columns: 152px minmax(0, 1fr);
+  grid-template-columns: minmax(130px, 1fr) minmax(230px, 1.4fr);
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid rgba(77,110,71,.2);
-  border-radius: 22px;
-  background: rgba(255,255,255,.76);
-  box-shadow: 0 8px 24px rgba(52,83,52,.12);
-}
-
-.stick {
-  position: relative;
-  width: 138px;
-  aspect-ratio: 1;
-  border-radius: 50%;
+  gap: clamp(18px, 6vw, 90px);
+  border-top: 4px solid var(--ink);
+  background: var(--deck);
+  overflow: hidden;
   touch-action: none;
-  user-select: none;
-}
-.stick-ring {
-  position: absolute;
-  inset: 9px;
-  border: 4px solid rgba(51,76,56,.72);
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255,255,255,.9), rgba(203,225,199,.82));
-  box-shadow: inset 0 4px 12px rgba(57,86,57,.14);
-}
-.stick-knob {
-  position: absolute;
-  width: 60px;
-  height: 60px;
-  left: 39px;
-  top: 39px;
-  border: 3px solid #304c37;
-  border-radius: 50%;
-  background: linear-gradient(#fff, #cfe4ca);
-  box-shadow: 0 5px 12px rgba(43,70,48,.25);
-  transform: translate(0,0);
+  z-index: 20;
 }
 
-.action-grid {
+#joystick {
+  position: relative;
+  justify-self: start;
+  width: clamp(132px, 23vh, 176px);
+  height: clamp(132px, 23vh, 176px);
+  max-width: 42vw;
+  max-height: calc(100% - 4px);
+  aspect-ratio: 1;
+  border: 5px solid var(--ink);
+  border-radius: 50%;
+  background: radial-gradient(circle, #43516a 0 34%, #303b50 35% 66%, #222b3b 67%);
+  box-shadow: inset 0 0 0 4px rgba(255,255,255,.08), 0 6px 0 var(--ink);
+  touch-action: none;
+}
+.stick-guide {
+  position: absolute;
+  inset: 19%;
+  border: 3px solid rgba(255,255,255,.13);
+  border-radius: 50%;
+  pointer-events: none;
+}
+#stickKnob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 47%;
+  height: 47%;
+  translate: -50% -50%;
+  border: 5px solid var(--ink);
+  border-radius: 50%;
+  background: linear-gradient(#7385a3, #52627e);
+  box-shadow: 0 5px 0 var(--ink), inset 0 5px 8px rgba(255,255,255,.16);
+  pointer-events: none;
+  will-change: transform;
+}
+#joystick.active #stickKnob { filter: brightness(1.14); }
+
+.actions {
+  justify-self: end;
+  width: min(100%, 460px);
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(74px, 118px));
+  align-items: center;
+  justify-content: end;
+  gap: clamp(8px, 2.2vw, 22px);
+}
+.action {
+  width: 100%;
+  aspect-ratio: 1;
+  max-height: 118px;
+  border-radius: 50%;
+  box-shadow: 0 7px 0 var(--ink);
+  font-weight: 900;
+  font-size: clamp(13px, 2.2vw, 20px);
+}
+.action:active, .action.pressed {
+  transform: translateY(4px);
+  box-shadow: 0 3px 0 var(--ink);
+  filter: brightness(1.2);
+}
+.action.dash { background: #159ed8; }
+.action.jump { background: #f2a014; }
+.action.stick { background: #b945bd; }
+
+/* 通常スマホ・折りたたんだ細長い画面 */
+@media (max-aspect-ratio: 3 / 4) {
+  #gameWrap {
+    grid-template-rows: minmax(0, 1fr) clamp(220px, 34svh, 300px);
+  }
+  #controlDeck {
+    grid-template-columns: minmax(120px, .9fr) minmax(190px, 1.25fr);
+    gap: 10px;
+    padding-top: 10px;
+  }
+  #joystick {
+    width: min(38vw, 164px);
+    height: min(38vw, 164px);
+  }
+  .actions {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(70px, 104px));
+    grid-template-rows: repeat(2, minmax(70px, 104px));
+    justify-content: end;
+    align-content: center;
+    gap: 8px;
+  }
+  .action { max-height: 104px; font-size: clamp(12px, 3.4vw, 17px); }
+  .action.jump { grid-column: 2; grid-row: 1; }
+  .action.dash { grid-column: 1; grid-row: 2; }
+  .action.stick { grid-column: 2; grid-row: 2; }
+}
+
+/* 開いた折りたたみ・横持ち。操作盤は薄く、横一列。 */
+@media (orientation: landscape) {
+  #gameWrap {
+    grid-template-rows: minmax(0, 1fr) clamp(122px, 24svh, 178px);
+  }
+  #controlDeck {
+    grid-template-columns: minmax(120px, 1fr) minmax(310px, 1.3fr);
+    padding-top: 7px;
+    gap: 20px;
+  }
+  #joystick {
+    width: min(20vh, 142px);
+    height: min(20vh, 142px);
+    min-width: 106px;
+    min-height: 106px;
+  }
+  .actions {
+    grid-template-columns: repeat(3, minmax(72px, 108px));
+  }
+  .action { max-height: 106px; font-size: clamp(12px, 1.8vw, 18px); }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  #gameWrap { grid-template-rows: minmax(0, 1fr) 116px; }
+  #controlDeck { padding-top: 5px; padding-bottom: max(7px, var(--safe-bottom)); }
+  #joystick { width: 96px; height: 96px; min-width: 96px; min-height: 96px; border-width: 4px; }
+  #stickKnob { border-width: 4px; }
+  .actions { grid-template-columns: repeat(3, 82px); }
+  .action { max-height: 82px; font-size: 12px; }
+}
+
+
+#titleScreen {
+  position: absolute; inset: 0; z-index: 40; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 35%, rgba(74,102,96,.82), rgba(10,13,18,.97) 68%);
+  pointer-events: auto; transition: opacity .2s ease;
+}
+#titleScreen.hidden { opacity: 0; pointer-events: none; }
+.title-card { width: min(78%, 470px); text-align: center; padding: 24px 28px; border: 4px solid #080b11;
+  border-radius: 18px; background: rgba(24,30,38,.92); box-shadow: 0 10px 0 #080b11; }
+.title-kicker { margin: 0 0 4px; color: #f4cf55; font-size: clamp(10px,1.8vmin,15px); font-weight: 900; letter-spacing: .2em; }
+.title-card h1 { margin: 0; font-size: clamp(42px,9vmin,78px); line-height: .82; text-transform: uppercase;
+  color: #ecfff8; text-shadow: 0 5px 0 #080b11; }
+.title-card h1 span { color: #5ee4cf; }
+.title-copy { margin: 16px 0 18px; font-weight: 800; font-size: clamp(12px,2.2vmin,18px); }
+.title-card button { width: 100%; margin-top: 9px; padding: 10px 16px; border-radius: 12px; background: #159ed8;
+  box-shadow: 0 5px 0 #080b11; font-weight: 900; font-size: clamp(14px,2.6vmin,21px); }
+.title-card button + button { background: #b945bd; }
+.title-card button:disabled { opacity: .38; filter: grayscale(.65); }
+#saveStatus { margin: 12px 0 0; color: #cfd8e7; font-size: clamp(10px,1.8vmin,14px); font-weight: 700; }
+
+/* v2.7 タイトル内の操作ガイド */
+.title-card .how-to-button { background: #d28a21; }
+#howToScreen {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: clamp(8px, 2vmin, 18px);
+  background: rgba(7, 10, 15, .96);
+  transition: opacity .18s ease;
+  pointer-events: auto;
+}
+#howToScreen.hidden { opacity: 0; pointer-events: none; }
+.how-to-card {
+  width: min(94%, 860px);
+  max-height: 94%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  border: 4px solid var(--ink);
+  border-radius: 18px;
+  background: #202936;
+  box-shadow: 0 9px 0 var(--ink);
+}
+.how-to-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 3px solid var(--ink);
+  background: #17202b;
+}
+.how-to-header h2 { margin: 0; font-size: clamp(25px, 5vmin, 42px); line-height: 1; }
+#howToCloseBtn {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: 11px;
+  background: #60708e;
+  box-shadow: 0 4px 0 var(--ink);
+  font-weight: 900;
+}
+.how-to-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 16px 20px;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+.guide-section { margin: 0 0 16px; }
+.guide-section h3 {
+  margin: 0 0 8px;
+  color: #67ead4;
+  font-size: clamp(17px, 3vmin, 25px);
+  text-shadow: 0 2px #000;
+}
+.guide-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 9px;
 }
-.action-button {
-  --charge: 0;
-  position: relative;
-  overflow: hidden;
-  min-height: 62px;
-  border: 3px solid #2c4733;
-  border-radius: 18px;
-  color: #233629;
-  font-size: 13px;
-  font-weight: 900;
-  box-shadow: 0 5px 0 rgba(42,65,47,.25);
+.guide-grid article {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 2px solid #090d13;
+  border-radius: 11px;
+  background: #2b3747;
 }
-.action-button::before {
-  content: '';
-  position: absolute;
-  inset: auto 0 0 0;
-  height: calc(var(--charge) * 100%);
-  background: rgba(255,255,255,.42);
-  pointer-events: none;
-  transition: height .04s linear;
+.guide-grid b { display: block; margin-bottom: 4px; color: #ffd66b; font-size: clamp(13px, 2.2vmin, 18px); }
+.guide-grid span, .warning-guide p { display: block; margin: 0; color: #edf5ff; font-size: clamp(11px, 1.85vmin, 15px); line-height: 1.55; font-weight: 700; }
+.warning-guide { padding: 11px 13px; border: 2px solid #8f3d2a; border-radius: 12px; background: #432723; }
+.warning-guide h3 { color: #ffad78; }
+@media (max-width: 650px), (max-height: 560px) {
+  .guide-grid { grid-template-columns: 1fr; }
+  .how-to-card { width: 97%; max-height: 97%; }
+  .how-to-header { padding: 9px 11px; }
+  .how-to-scroll { padding: 10px 11px 16px; }
+  .guide-section { margin-bottom: 12px; }
 }
-.action-button > span { position: relative; z-index: 1; }
-.action-button .symbol { display: block; font-size: 21px; line-height: 1; margin-bottom: 3px; }
-.action-button.wind.charging { box-shadow: 0 0 18px rgba(126,255,169,.9), 0 5px 0 rgba(42,65,47,.25); }
-.action-button:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(42,65,47,.25); }
-.action-button.wind { background: linear-gradient(135deg, #f8fff2, #aee7af); }
-.action-button.water { background: linear-gradient(135deg, #effcff, #75c8ff); }
-.action-button.chick { background: linear-gradient(135deg, #fffceb, #ffe17b); }
 
-@media (max-height: 700px) {
-  .app-shell { gap: 4px; }
-  .controls { grid-template-columns: 120px 1fr; padding: 6px 8px; }
-  .stick { width: 112px; }
-  .stick-knob { width: 48px; height: 48px; left: 32px; top: 32px; }
-  .action-button { min-height: 50px; }
+/* v2.9 縦長端末のタイトルメニュー表示修正 */
+#titleScreen {
+  display: block;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+  padding: clamp(8px, 2.2vmin, 18px);
+  scrollbar-gutter: stable both-edges;
+}
+.title-card {
+  margin: auto;
+  max-height: none;
+}
+.title-card button {
+  touch-action: manipulation;
+}
+
+/* 実際のゲーム画面領域が低い時は、ロゴと余白を圧縮して3ボタンを優先する。 */
+@container (max-height: 470px) {
+  #titleScreen { padding: 7px; }
+  .title-card {
+    width: min(82%, 430px);
+    margin: 7px auto;
+    padding: 12px 18px 14px;
+    border-width: 3px;
+    border-radius: 14px;
+    box-shadow: 0 6px 0 #080b11;
+  }
+  .title-kicker { font-size: 9px; margin-bottom: 2px; }
+  .title-card h1 { font-size: clamp(34px, 8cqh, 54px); line-height: .84; }
+  .title-copy { margin: 8px 0 9px; font-size: 12px; }
+  .title-card button {
+    margin-top: 6px;
+    padding: 7px 12px;
+    font-size: 14px;
+    box-shadow: 0 4px 0 #080b11;
+  }
+  #saveStatus { margin-top: 8px; font-size: 10px; }
+}
+
+@container (max-height: 365px) {
+  .title-card {
+    width: min(86%, 405px);
+    padding: 8px 14px 10px;
+  }
+  .title-kicker { display: none; }
+  .title-card h1 { font-size: clamp(29px, 7.6cqh, 43px); }
+  .title-copy { margin: 5px 0 6px; font-size: 10px; }
+  .title-card button { margin-top: 4px; padding: 5px 10px; font-size: 12px; }
+  #saveStatus { margin-top: 6px; font-size: 9px; }
 }
