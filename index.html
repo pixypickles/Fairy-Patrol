@@ -2,9 +2,12 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.1.7</title>
+  <title>Fairy Guardian v3.1.8b -  v3.1.8</title>
   <style>
 :root {
   color-scheme: light;
@@ -1399,88 +1402,6 @@ class LeafPile {
 }
 
 
-class RollingCan {
-  constructor(width, height) {
-    this.width = width;
-    this.screenHeight = height;
-    this.x = 60 + Math.random() * (width - 120);
-    this.y = -55;
-    this.speed = 40;
-    this.radius = 22;
-    this.state = 'rest';
-    this.roll = 0;
-    this.vx = 0;
-    this.vy = 0;
-    this.dead = false;
-    this.bumped = false;
-    this.blownTime = 0;
-    this.tint = Math.random() < .5 ? '#8bc6d9' : '#f2a66f';
-  }
-
-  update(dt, chick) {
-    if (this.state === 'rest') {
-      this.y += this.speed * dt;
-      this.roll += dt * 1.6;
-      if (!this.bumped && Math.hypot(this.x - chick.x, this.y - chick.y) < 32) {
-        this.bumped = true;
-        return 'bump';
-      }
-    } else {
-      this.blownTime += dt;
-      this.x += this.vx * dt;
-      this.y += this.vy * dt;
-      this.vy += 52 * dt;
-      // Keep enough sideways momentum to leave the screen cleanly.
-      const direction = Math.sign(this.vx) || 1;
-      this.vx = direction * Math.max(175, Math.abs(this.vx) * Math.pow(.997, dt * 60));
-      this.roll += dt * 13.5;
-      if (this.blownTime > 1.35) this.dead = true;
-    }
-    if (this.y > this.screenHeight + 80 || this.x < -55 || this.x > this.width + 55) this.dead = true;
-    return null;
-  }
-
-  windHit(x, y, radius = 24) {
-    if (this.state !== 'rest') return false;
-    if (Math.hypot(x - this.x, y - this.y) < radius + this.radius) {
-      this.state = 'blown';
-      this.blownTime = 0;
-      const dir = this.x < this.width / 2 ? -1 : 1;
-      this.vx = dir * (180 + Math.random() * 70);
-      this.vy = -90 - Math.random() * 45;
-      return true;
-    }
-    return false;
-  }
-
-  draw(ctx) {
-    ctx.save();
-    ctx.translate(this.x, this.y);
-    ctx.rotate(this.roll);
-    ctx.fillStyle = 'rgba(52,63,55,.18)';
-    ctx.beginPath(); ctx.ellipse(3, 15, 25, 8, 0, 0, Math.PI * 2); ctx.fill();
-    const grad = ctx.createLinearGradient(-17, 0, 17, 0);
-    grad.addColorStop(0, '#dce8eb');
-    grad.addColorStop(.24, this.tint);
-    grad.addColorStop(.72, this.tint);
-    grad.addColorStop(1, '#8aa0a8');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.roundRect(-18, -13, 36, 26, 7);
-    ctx.fill();
-    ctx.strokeStyle = '#4f5e63';
-    ctx.lineWidth = 3;
-    ctx.stroke();
-    ctx.fillStyle = '#c8d4d8';
-    ctx.beginPath(); ctx.ellipse(-18, 0, 5, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.ellipse(18, 0, 5, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.68)';
-    ctx.fillRect(-7, -9, 5, 18);
-    ctx.restore();
-  }
-}
-
-
 class MeadowFlower {
   constructor(width, height) {
     this.width = width;
@@ -1654,8 +1575,6 @@ class Game {
     this.ledgeSpawnTimer = 22.0;
     this.leafPiles = [];
     this.leafPileSpawnTimer = 7.5;
-    this.cans = [];
-    this.canSpawnTimer = 13.0;
     this.flowers = [];
     this.flowerSpawnTimer = 3.8;
     this.stage = new Stage(this.width, this.height);
@@ -1679,23 +1598,32 @@ class Game {
     const charge = Math.min(1, Math.max(0, chargeSeconds / 0.9));
     this.cooldowns[kind] = isWater ? 0.60 + charge * .25 : 0.52 + charge * 0.18;
 
-    // Charged water behaves like a small sprinkler. A tap remains one precise
-    // water ball, while a hold releases 3–7 balls in a soft fan.
+    // A tap remains one precise water ball. Charged water becomes a gentle
+    // sprinkler arc: every small droplet lands on the same radius from the fairy.
+    const chargedWater = isWater && charge >= .18;
     const count = isWater ? (charge < .18 ? 1 : charge < .58 ? 3 : charge < .9 ? 5 : 7) : 1;
     for (let i = 0; i < count; i++) {
       const centered = i - (count - 1) / 2;
-      const spread = isWater ? centered * (42 + charge * 22) : 0;
+      const fanRatio = count > 1 ? centered / ((count - 1) / 2) : 0;
+      const startX = this.fairy.x;
+      const startY = this.fairy.y - 24;
+      const waterRadius = 176;
+      const angle = -Math.PI / 2 + fanRatio * (Math.PI * .31);
       this.effects.push({
-        x: this.fairy.x,
-        y: this.fairy.y - 24,
-        startX: this.fairy.x,
-        startY: this.fairy.y - 24,
+        x: startX,
+        y: startY,
+        startX,
+        startY,
+        targetX: chargedWater ? startX + Math.cos(angle) * waterRadius : null,
+        targetY: chargedWater ? startY + Math.sin(angle) * waterRadius : null,
+        fixedTarget: chargedWater,
+        spreadShot: chargedWater,
         age: 0,
-        travel: isWater ? 0.54 + charge * .12 : 0.56 + charge * 0.34,
-        burst: isWater ? 0.38 + charge * .06 : 0.34 + charge * 0.10,
-        speed: isWater ? 225 : 270,
-        vx: spread,
-        power: isWater ? 1 + charge * .32 : 1 + charge * 0.7,
+        travel: isWater ? (chargedWater ? .62 : .54) : 0.60 + charge * 0.40,
+        burst: isWater ? (chargedWater ? .30 : .38) : 0.36 + charge * 0.12,
+        speed: isWater ? 225 : 282,
+        vx: 0,
+        power: isWater ? (chargedWater ? .62 : 1) : 1 + charge * 0.95,
         charge,
         kind,
         phase: 'travel'
@@ -1710,7 +1638,6 @@ class Game {
     this.riverSpawnTimer -= dt;
     this.ledgeSpawnTimer -= dt;
     this.leafPileSpawnTimer -= dt;
-    this.canSpawnTimer -= dt;
     this.flowerSpawnTimer -= dt;
     const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
     if (!terrainPresent && this.riverSpawnTimer <= 0) {
@@ -1728,13 +1655,6 @@ class Game {
     }
     for (const pile of this.leafPiles) {
       if (pile.update(dt, this.chick) === 'bump') this.minus += 15;
-    }
-    if (this.canSpawnTimer <= 0 && this.cans.filter(c => c.state === 'rest').length < 1) {
-      this.cans.push(new RollingCan(this.width, this.height));
-      this.canSpawnTimer = 15 + Math.random() * 8;
-    }
-    for (const can of this.cans) {
-      if (can.update(dt, this.chick) === 'bump') this.minus += 12;
     }
     if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < 4) {
       this.flowers.push(new MeadowFlower(this.width, this.height));
@@ -1788,11 +1708,18 @@ class Game {
     for (const e of this.effects) {
       e.age += dt;
       if (e.phase === 'travel') {
-        e.y -= e.speed * dt;
-        e.x += (e.vx || 0) * dt + Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
+        if (e.fixedTarget) {
+          const p = Math.min(1, e.age / e.travel);
+          const eased = 1 - Math.pow(1 - p, 2);
+          e.x = e.startX + (e.targetX - e.startX) * eased;
+          e.y = e.startY + (e.targetY - e.startY) * eased - Math.sin(p * Math.PI) * 14;
+        } else {
+          e.y -= e.speed * dt;
+          e.x += (e.vx || 0) * dt + Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
+        }
         if (e.kind === 'water') {
           for (const river of this.rivers) {
-            const grown = river.waterHit(e.x, e.y, 18);
+            const grown = river.waterHit(e.x, e.y, e.spreadShot ? 12 : 18);
             if (grown) {
               this.plus += 100;
               e.phase = 'burst';
@@ -1802,7 +1729,7 @@ class Game {
           }
           if (e.phase === 'travel') {
             for (const flower of this.flowers) {
-              const bloomed = flower.waterHit(e.x, e.y, 20);
+              const bloomed = flower.waterHit(e.x, e.y, e.spreadShot ? 13 : 20);
               if (bloomed) {
                 this.plus += 40 * bloomed;
                 e.phase = 'burst';
@@ -1814,7 +1741,7 @@ class Game {
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
           for (const pile of this.leafPiles) {
-            if (pile.windHit(e.x, e.y, 18 + (e.charge || 0) * 12)) {
+            if (pile.windHit(e.x, e.y, 18 + (e.charge || 0) * 16)) {
               this.plus += 30;
               e.phase = 'burst';
               e.age = 0;
@@ -1823,18 +1750,8 @@ class Game {
           }
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
-          for (const can of this.cans) {
-            if (can.windHit(e.x, e.y, 18 + (e.charge || 0) * 12)) {
-              this.plus += 35;
-              e.phase = 'burst';
-              e.age = 0;
-              break;
-            }
-          }
-        }
-        if (e.phase === 'travel' && e.kind === 'wind') {
           for (const ledge of this.ledges) {
-            const carved = ledge.windHit(e.x, e.y, 18 + (e.charge || 0) * 10);
+            const carved = ledge.windHit(e.x, e.y, 18 + (e.charge || 0) * 14);
             if (carved) {
               this.plus += 100;
               e.phase = 'burst';
@@ -1868,13 +1785,10 @@ class Game {
         }
       } else {
         const t = e.age / e.burst;
-        const radius = e.kind === 'wind' ? 18 + t * 65 * (e.power || 1) : 13 + t * 56 * (e.power || 1);
+        const radius = e.kind === 'wind' ? 20 + t * 72 * (e.power || 1) : 11 + t * 42 * (e.power || 1);
         if (e.kind === 'wind') {
           for (const pile of this.leafPiles) {
             if (pile.windHit(e.x, e.y, radius * .62)) this.plus += 30;
-          }
-          for (const can of this.cans) {
-            if (can.windHit(e.x, e.y, radius * .62)) this.plus += 35;
           }
           for (const ledge of this.ledges) {
             const carved = ledge.windHit(e.x, e.y, radius * .55);
@@ -1908,7 +1822,6 @@ class Game {
     this.rivers = this.rivers.filter(river => !river.dead);
     this.ledges = this.ledges.filter(ledge => !ledge.dead);
     this.leafPiles = this.leafPiles.filter(pile => !pile.dead);
-    this.cans = this.cans.filter(can => !can.dead);
     this.flowers = this.flowers.filter(flower => !flower.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
@@ -1920,7 +1833,7 @@ class Game {
     // quickly inside a stable cone, so the last frame never stretches into
     // a long feather-like shape.
     const charge = e.charge || 0;
-    const scale = 1 + charge * .28;
+    const scale = 1 + charge * .42;
     ctx.scale(scale, scale);
     ctx.rotate(Math.sin(e.age * 18) * .025);
     ctx.globalCompositeOperation = 'lighter';
@@ -1954,7 +1867,7 @@ class Game {
   }
 
   drawWaterTravel(ctx, e) {
-    const r = 18 + (e.charge || 0) * 4;
+    const r = e.spreadShot ? 12.5 : 18;
     const g = ctx.createRadialGradient(-6, -7, 2, 0, 0, r);
     g.addColorStop(0, 'rgba(255,255,255,1)');
     g.addColorStop(.22, 'rgba(95,205,255,.98)');
@@ -1972,7 +1885,7 @@ class Game {
     const t = e.age / e.burst;
     ctx.globalAlpha = Math.max(0, 1 - t);
     if (e.kind === 'wind') {
-      const r = 18 + t * 65 * (e.power || 1);
+      const r = 20 + t * 72 * (e.power || 1);
       ctx.strokeStyle = `rgba(207,255,220,${0.9 - t * 0.6})`;
       ctx.lineWidth = 6 * (1 - t) + 1;
       ctx.lineCap = 'round';
@@ -2000,14 +1913,14 @@ class Game {
         ctx.beginPath(); ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d, 5, 2, a, 0, Math.PI * 2); ctx.fill();
       }
     } else {
-      const r = 13 + t * 56 * (e.power || 1);
+      const r = 11 + t * 42 * (e.power || 1);
       ctx.strokeStyle = `rgba(43,157,255,${0.88 - t * 0.65})`;
       ctx.lineWidth = 7 * (1 - t) + 1;
       ctx.beginPath(); ctx.ellipse(0, 5, r, r * 0.48, 0, 0, Math.PI * 2); ctx.stroke();
       for (let i = 0; i < 10; i++) {
         const a = i * Math.PI * 2 / 10;
-        const d = 12 + t * 62;
-        const drop = 4 + (i % 3) * 2;
+        const d = 9 + t * 39;
+        const drop = 2.8 + (i % 3) * 1.2;
         ctx.fillStyle = `rgba(${i % 2 ? '64,177,255' : '129,218,255'},${0.9 - t * 0.7})`;
         ctx.beginPath(); ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d * 0.58, drop, drop * 1.5, a, 0, Math.PI * 2); ctx.fill();
       }
@@ -2034,7 +1947,6 @@ class Game {
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
     for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
     for (const pile of this.leafPiles) pile.draw(this.ctx, this.elapsed);
-    for (const can of this.cans) can.draw(this.ctx);
     for (const flower of this.flowers) flower.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
@@ -2161,5 +2073,7 @@ window.addEventListener('keydown', (e) => {
 });
 
 </script>
+
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.1.8b</div>
 </body>
 </html>
