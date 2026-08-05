@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.1.9</title>
+  <title>Fairy Guardian v3.2.3</title>
   <style>
 :root {
   color-scheme: light;
@@ -17,7 +17,17 @@
   touch-action: none;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+button, canvas, .controls, .game-frame {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
 html, body { margin: 0; min-height: 100%; overflow: hidden; }
 body {
   min-height: 100svh;
@@ -1090,6 +1100,7 @@ class River {
     this.blockTime = 0;
     this.rescueDone = false;
     this.rescueRequest = null;
+    this.freezeY = null;
     this.lanes = [width * 0.25, width * 0.5, width * 0.75];
     const count = seed < 0.55 ? 1 : 2;
     const choices = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, count);
@@ -1103,10 +1114,14 @@ class River {
     this.blocking = nearChick && !aligned;
 
     if (!this.blocking) {
+      this.freezeY = null;
       this.y += this.speed * dt;
       this.blockTime = 0;
     } else {
-      this.y = Math.min(this.y, chick.y - this.height * 0.5 - 22);
+      // Freeze the terrain at the exact world position where it blocked the chick.
+      // Only the chick may move sideways during guidance/auto-rescue.
+      if (this.freezeY == null) this.freezeY = this.y;
+      this.y = this.freezeY;
       if (complete.length) {
         this.blockTime += dt;
         if (this.blockTime > 1.15 && !this.rescueDone) {
@@ -1295,6 +1310,7 @@ class Ledge {
     this.blockTime = 0;
     this.rescueDone = false;
     this.rescueRequest = null;
+    this.freezeY = null;
     this.lanes = [width * 0.25, width * 0.5, width * 0.75];
     const count = seed < 0.58 ? 1 : 2;
     const choices = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, count);
@@ -1308,10 +1324,14 @@ class Ledge {
     this.blocking = nearChick && !aligned;
 
     if (!this.blocking) {
+      this.freezeY = null;
       this.y += this.speed * dt;
       this.blockTime = 0;
     } else {
-      this.y = Math.min(this.y, chick.y - this.height * 0.5 - 22);
+      // Freeze the terrain at the exact world position where it blocked the chick.
+      // Only the chick may move sideways during guidance/auto-rescue.
+      if (this.freezeY == null) this.freezeY = this.y;
+      this.y = this.freezeY;
       if (complete.length) {
         this.blockTime += dt;
         if (this.blockTime > 1.15 && !this.rescueDone) {
@@ -1848,8 +1868,6 @@ class Game {
     this.leafPileSpawnTimer = 7.5;
     this.flowers = [];
     this.flowerSpawnTimer = 3.8;
-    this.barePatches = [];
-    this.barePatchSpawnTimer = 5.5;
     this.dandelions = [];
     this.dandelionSpawnTimer = 9.0;
     this.leftHintButton = document.querySelector('#chickLeftButton');
@@ -1917,7 +1935,6 @@ class Game {
     this.ledgeSpawnTimer -= dt;
     this.leafPileSpawnTimer -= dt;
     this.flowerSpawnTimer -= dt;
-    this.barePatchSpawnTimer -= dt;
     this.dandelionSpawnTimer -= dt;
     const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
     if (!terrainPresent && this.riverSpawnTimer <= 0) {
@@ -1941,11 +1958,6 @@ class Game {
       this.flowerSpawnTimer = 6.4 + Math.random() * 4.6;
     }
     for (const flower of this.flowers) flower.update(dt);
-    if (this.barePatchSpawnTimer <= 0 && this.barePatches.filter(p => !p.dead).length < 2) {
-      this.barePatches.push(new BarePatch(this.width, this.height));
-      this.barePatchSpawnTimer = 10 + Math.random() * 8;
-    }
-    for (const patch of this.barePatches) patch.update(dt);
     if (this.dandelionSpawnTimer <= 0 && this.dandelions.filter(d => !d.dead).length < 2) {
       this.dandelions.push(new Dandelion(this.width, this.height));
       this.dandelionSpawnTimer = 12 + Math.random() * 9;
@@ -2060,14 +2072,6 @@ class Game {
               }
             }
           }
-          if (e.phase === 'travel') {
-            for (const patch of this.barePatches) {
-              if (patch.waterHit(e.x, e.y, e.spreadShot ? 12 : 20)) {
-                this.plus += 55;
-                e.phase = 'burst'; e.age = 0; break;
-              }
-            }
-          }
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
           for (const pile of this.leafPiles) {
@@ -2139,9 +2143,6 @@ class Game {
             const bloomed = flower.waterHit(e.x, e.y, radius * .62);
             if (bloomed) this.plus += 40 * bloomed;
           }
-          for (const patch of this.barePatches) {
-            if (patch.waterHit(e.x, e.y, radius * .55)) this.plus += 55;
-          }
           for (const river of this.rivers) {
             const grown = river.waterHit(e.x, e.y, radius * .55);
             if (grown) {
@@ -2170,7 +2171,6 @@ class Game {
     this.ledges = this.ledges.filter(ledge => !ledge.dead);
     this.leafPiles = this.leafPiles.filter(pile => !pile.dead);
     this.flowers = this.flowers.filter(flower => !flower.dead);
-    this.barePatches = this.barePatches.filter(p => !p.dead);
     this.dandelions = this.dandelions.filter(d => !d.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
@@ -2308,7 +2308,6 @@ class Game {
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
     for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
     for (const pile of this.leafPiles) pile.draw(this.ctx, this.elapsed);
-    for (const patch of this.barePatches) patch.draw(this.ctx, this.elapsed);
     for (const flower of this.flowers) flower.draw(this.ctx, this.elapsed);
     for (const d of this.dandelions) d.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
@@ -2428,6 +2427,11 @@ document.querySelector('#chickRightButton').addEventListener('pointerdown', (e) 
   game.guideChick(1);
 });
 
+// Prevent mobile long-press selection/callout menus on the game UI.
+document.addEventListener('contextmenu', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('selectstart', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('dragstart', (e) => e.preventDefault(), { passive: false });
+
 window.addEventListener('keydown', (e) => {
   if (e.key === 'j' && !e.repeat) game.cast('wind', 0.35);
   if (e.key === 'k' && !e.repeat) game.cast('water', .5);
@@ -2437,6 +2441,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.2</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.3</div>
 </body>
 </html>
