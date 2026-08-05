@@ -393,5 +393,5 @@ function drawParticle(p){ctx.save();ctx.globalAlpha=1-p.t/p.life;ctx.translate(p
 function loop(t){if(!running)return;const dt=Math.min((t-last)/1000,.033);last=t;update(dt);draw();requestAnimationFrame(loop)}
 draw();
 </script>
-</body>
+<div style='position:fixed;bottom:4px;left:4px;font-size:10px;color:#666;background:#fff8;padding:4px;border-radius:4px'>v2.14: ギミック間隔調整・空き缶・花・タンポポ追加(試作)</div></body>
 </html>
