@@ -1660,21 +1660,32 @@ class BarePatch {
   }
   draw(ctx, time) {
     ctx.save(); ctx.translate(this.x, this.y);
-    ctx.fillStyle = 'rgba(70,55,32,.18)';
-    ctx.beginPath(); ctx.ellipse(0, 7, this.rx+4, this.ry+3, -.08, 0, Math.PI*2); ctx.fill();
-    const soil = ctx.createRadialGradient(-8,-5,3,0,0,this.rx);
-    soil.addColorStop(0,'#b88755'); soil.addColorStop(1,'#7f5738');
-    ctx.fillStyle=soil; ctx.beginPath(); ctx.ellipse(0,0,this.rx,this.ry,-.08,0,Math.PI*2); ctx.fill();
-    for(let i=0;i<9;i++){
-      const a=i*2.41+this.seed, d=(.2+(i%4)/5)*this.rx;
-      ctx.fillStyle=i%2?'#6a4730':'#c59a69';
-      ctx.beginPath(); ctx.ellipse(Math.cos(a)*d,Math.sin(a)*d*.52,3+(i%3),2,(i%5)*.3,0,Math.PI*2);ctx.fill();
+    const pathPatch = (scale = 1) => {
+      ctx.beginPath();
+      const points = 18;
+      for (let i = 0; i <= points; i++) {
+        const a = i / points * Math.PI * 2;
+        const wobble = 1 + Math.sin(a * 3 + this.seed) * .12 + Math.sin(a * 5 - this.seed * .7) * .07;
+        const x = Math.cos(a) * this.rx * wobble * scale;
+        const y = Math.sin(a) * this.ry * (1 + Math.cos(a * 4 + this.seed) * .08) * scale;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+    };
+    const soil = ctx.createRadialGradient(-10,-7,2,0,0,this.rx*1.05);
+    soil.addColorStop(0,'#a9784b'); soil.addColorStop(.62,'#8a603c'); soil.addColorStop(1,'#745035');
+    ctx.fillStyle=soil; pathPatch(); ctx.fill();
+    ctx.strokeStyle='rgba(91,63,39,.22)'; ctx.lineWidth=1.2; pathPatch(.985); ctx.stroke();
+    for(let i=0;i<11;i++){
+      const a=i*2.17+this.seed, d=(.16+(i%5)/6)*this.rx;
+      ctx.fillStyle=i%2?'rgba(98,67,43,.72)':'rgba(197,154,105,.72)';
+      ctx.beginPath(); ctx.ellipse(Math.cos(a)*d,Math.sin(a)*d*.55,2.5+(i%3),1.6,(i%5)*.3,0,Math.PI*2);ctx.fill();
     }
     if(this.growth>0){
       const g=this.growth;
-      ctx.globalAlpha=.25+.75*g;
+      ctx.globalAlpha=.2+.8*g;
       ctx.fillStyle='#64ad4f';
-      ctx.beginPath();ctx.ellipse(0,0,this.rx*g,this.ry*g,-.08,0,Math.PI*2);ctx.fill();
+      ctx.save(); ctx.scale(g, g); pathPatch(.96); ctx.fill(); ctx.restore();
       ctx.globalAlpha=1;
       for(let i=0;i<18;i++){
         const a=i*2.17+this.seed, d=(.15+(i%7)/8)*this.rx*g;
@@ -1708,12 +1719,29 @@ class Dandelion {
     ctx.strokeStyle='#4d8e3c';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,25);ctx.quadraticCurveTo(Math.sin(time*2+this.seed)*4,8,0,-7);ctx.stroke();
     ctx.fillStyle='#69aa4d';ctx.beginPath();ctx.ellipse(-7,13,10,4,-.45,0,Math.PI*2);ctx.ellipse(7,17,10,4,.45,0,Math.PI*2);ctx.fill();
     if(this.state==='rest'){
-      ctx.fillStyle='rgba(255,255,246,.95)';
-      for(const f of this.fluffs){const x=Math.cos(f.a)*(11+f.d*.35),y=-10+Math.sin(f.a)*(11+f.d*.35);ctx.beginPath();ctx.arc(x,y,2.1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(180,180,155,.65)';ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(0,-10);ctx.lineTo(x,y);ctx.stroke();}
-      ctx.fillStyle='#d4b75a';ctx.beginPath();ctx.arc(0,-10,3,0,Math.PI*2);ctx.fill();
+      // One soft, round seed head rather than scattered white petals.
+      const glow = ctx.createRadialGradient(-4,-15,2,0,-10,18);
+      glow.addColorStop(0,'rgba(255,255,255,.98)');
+      glow.addColorStop(.62,'rgba(250,252,246,.92)');
+      glow.addColorStop(1,'rgba(235,239,225,.34)');
+      ctx.fillStyle=glow; ctx.beginPath(); ctx.arc(0,-10,17,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(184,190,169,.5)';ctx.lineWidth=.65;
+      for(const f of this.fluffs){const x=Math.cos(f.a)*(11+f.d*.22),y=-10+Math.sin(f.a)*(11+f.d*.22);ctx.beginPath();ctx.moveTo(0,-10);ctx.lineTo(x,y);ctx.stroke();ctx.fillStyle='rgba(255,255,250,.95)';ctx.beginPath();ctx.arc(x,y,1.35,0,Math.PI*2);ctx.fill();}
+      ctx.fillStyle='#c8aa4f';ctx.beginPath();ctx.arc(0,-10,2.7,0,Math.PI*2);ctx.fill();
     }else{
-      const t=Math.min(1,this.age/1.15);
-      for(let i=0;i<this.fluffs.length;i++){const f=this.fluffs[i];const dist=12+t*(55+f.d*3);const x=Math.cos(f.a)*dist+t*36*f.drift;const y=-10+Math.sin(f.a)*dist*.55-t*(18+i%4*5);ctx.globalAlpha=1-t*.72;ctx.fillStyle='#fffef2';ctx.beginPath();ctx.arc(x,y,2.2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(180,180,155,.55)';ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(x-5,y+4);ctx.lineTo(x,y);ctx.stroke();}
+      const t=Math.min(1,this.age/1.25);
+      for(let i=0;i<this.fluffs.length;i++){
+        const f=this.fluffs[i];
+        const side=(i%2?1:-1)*(8+i%5*2);
+        const x=Math.cos(f.a)*12 + t*(side + 34*f.drift) + Math.sin(this.age*5+i)*3;
+        const y=-10 + Math.sin(f.a)*7 - t*(42+i%4*7) - t*t*26;
+        const fade=Math.max(0,1-t*.78);
+        ctx.globalAlpha=fade;
+        ctx.strokeStyle='rgba(190,194,174,.62)';ctx.lineWidth=.7;
+        ctx.beginPath();ctx.moveTo(x-4,y+5);ctx.lineTo(x,y);ctx.stroke();
+        ctx.fillStyle='rgba(255,255,250,.98)';ctx.beginPath();ctx.arc(x,y,3.2,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='rgba(255,255,255,.55)';ctx.beginPath();ctx.arc(x-1.1,y-1.1,1.1,0,Math.PI*2);ctx.fill();
+      }
       ctx.globalAlpha=1;ctx.fillStyle='#b89a49';ctx.beginPath();ctx.arc(0,-10,3,0,Math.PI*2);ctx.fill();
     }
     ctx.restore();
@@ -2326,6 +2354,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.0</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.1</div>
 </body>
 </html>
