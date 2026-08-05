@@ -186,6 +186,14 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
 .action-button.wind { background: linear-gradient(135deg, #f8fff2, #aee7af); }
 .action-button.water { background: linear-gradient(135deg, #effcff, #75c8ff); }
 .action-button.chick { background: linear-gradient(135deg, #fffceb, #ffe17b); }
+.action-button.chick.hint {
+  animation: chickHint 1s ease-in-out infinite;
+  box-shadow: 0 0 0 4px rgba(255,218,63,.32), 0 0 24px rgba(255,202,42,.9), 0 5px 0 rgba(42,65,47,.25);
+}
+@keyframes chickHint {
+  0%,100% { transform: translateY(0) scale(1); filter: brightness(1); }
+  50% { transform: translateY(-2px) scale(1.035); filter: brightness(1.12); }
+}
 
 @media (max-height: 700px) {
   .app-shell { gap: 4px; }
@@ -1613,6 +1621,105 @@ class MeadowFlower {
   }
 }
 
+
+class BarePatch {
+  constructor(width, height) {
+    this.screenHeight = height;
+    this.x = 75 + Math.random() * (width - 150);
+    this.y = -80;
+    this.speed = 42;
+    this.rx = 34 + Math.random() * 20;
+    this.ry = 22 + Math.random() * 10;
+    this.growth = 0;
+    this.growing = false;
+    this.complete = false;
+    this.dead = false;
+    this.seed = Math.random() * 10;
+    this.flowers = Array.from({length: 7}, (_, i) => ({
+      a: i / 7 * Math.PI * 2 + Math.random() * .45,
+      d: .25 + Math.random() * .7,
+      hue: [330, 45, 280, 205][i % 4]
+    }));
+  }
+  update(dt) {
+    this.y += this.speed * dt;
+    if (this.growing && !this.complete) {
+      this.growth = Math.min(1, this.growth + dt / .72);
+      if (this.growth >= 1) this.complete = true;
+    }
+    if (this.y - this.ry > this.screenHeight + 80) this.dead = true;
+  }
+  waterHit(x, y, radius=20) {
+    if (this.growing || this.complete) return false;
+    if (Math.hypot(x-this.x, y-this.y) < radius + Math.max(this.rx,this.ry)*.72) {
+      this.growing = true;
+      this.growth = .02;
+      return true;
+    }
+    return false;
+  }
+  draw(ctx, time) {
+    ctx.save(); ctx.translate(this.x, this.y);
+    ctx.fillStyle = 'rgba(70,55,32,.18)';
+    ctx.beginPath(); ctx.ellipse(0, 7, this.rx+4, this.ry+3, -.08, 0, Math.PI*2); ctx.fill();
+    const soil = ctx.createRadialGradient(-8,-5,3,0,0,this.rx);
+    soil.addColorStop(0,'#b88755'); soil.addColorStop(1,'#7f5738');
+    ctx.fillStyle=soil; ctx.beginPath(); ctx.ellipse(0,0,this.rx,this.ry,-.08,0,Math.PI*2); ctx.fill();
+    for(let i=0;i<9;i++){
+      const a=i*2.41+this.seed, d=(.2+(i%4)/5)*this.rx;
+      ctx.fillStyle=i%2?'#6a4730':'#c59a69';
+      ctx.beginPath(); ctx.ellipse(Math.cos(a)*d,Math.sin(a)*d*.52,3+(i%3),2,(i%5)*.3,0,Math.PI*2);ctx.fill();
+    }
+    if(this.growth>0){
+      const g=this.growth;
+      ctx.globalAlpha=.25+.75*g;
+      ctx.fillStyle='#64ad4f';
+      ctx.beginPath();ctx.ellipse(0,0,this.rx*g,this.ry*g,-.08,0,Math.PI*2);ctx.fill();
+      ctx.globalAlpha=1;
+      for(let i=0;i<18;i++){
+        const a=i*2.17+this.seed, d=(.15+(i%7)/8)*this.rx*g;
+        const h=(5+(i%4)*4)*g;
+        ctx.strokeStyle=i%3?'#4e9842':'#78bd59';ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.moveTo(Math.cos(a)*d,Math.sin(a)*d*.5);ctx.lineTo(Math.cos(a)*d+Math.sin(a)*3,Math.sin(a)*d*.5-h);ctx.stroke();
+      }
+      for(let i=0;i<this.flowers.length;i++){
+        const f=this.flowers[i]; const open=Math.max(0,Math.min(1,(g-.42-i*.045)/.28)); if(open<=0) continue;
+        const fx=Math.cos(f.a)*f.d*this.rx, fy=Math.sin(f.a)*f.d*this.ry*.7;
+        ctx.save();ctx.translate(fx,fy-3);ctx.scale(open,open);
+        ctx.fillStyle=`hsl(${f.hue} 80% 73%)`;
+        for(let k=0;k<5;k++){const aa=k*Math.PI*2/5;ctx.beginPath();ctx.ellipse(Math.cos(aa)*4,Math.sin(aa)*4,3.5,2.2,aa,0,Math.PI*2);ctx.fill();}
+        ctx.fillStyle='#ffe78a';ctx.beginPath();ctx.arc(0,0,2,0,Math.PI*2);ctx.fill();ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+class Dandelion {
+  constructor(width,height){
+    this.screenHeight=height; this.x=65+Math.random()*(width-130); this.y=-70; this.speed=42;
+    this.state='rest'; this.age=0; this.dead=false; this.seed=Math.random()*10;
+    this.fluffs=Array.from({length:16},(_,i)=>({a:i/16*Math.PI*2+Math.random()*.35, d:Math.random()*10, drift:.65+Math.random()*.75, spin:(Math.random()-.5)*2}));
+  }
+  update(dt){this.y+=this.speed*dt;if(this.state==='blow'){this.age+=dt;if(this.age>1.35)this.dead=true;}if(this.y>this.screenHeight+90)this.dead=true;}
+  windHit(x,y,radius=24){if(this.state!=='rest')return false;if(Math.hypot(x-this.x,y-this.y)<radius+28){this.state='blow';this.age=.01;return true;}return false;}
+  draw(ctx,time){
+    ctx.save();ctx.translate(this.x,this.y);
+    ctx.strokeStyle='#4d8e3c';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,25);ctx.quadraticCurveTo(Math.sin(time*2+this.seed)*4,8,0,-7);ctx.stroke();
+    ctx.fillStyle='#69aa4d';ctx.beginPath();ctx.ellipse(-7,13,10,4,-.45,0,Math.PI*2);ctx.ellipse(7,17,10,4,.45,0,Math.PI*2);ctx.fill();
+    if(this.state==='rest'){
+      ctx.fillStyle='rgba(255,255,246,.95)';
+      for(const f of this.fluffs){const x=Math.cos(f.a)*(11+f.d*.35),y=-10+Math.sin(f.a)*(11+f.d*.35);ctx.beginPath();ctx.arc(x,y,2.1,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(180,180,155,.65)';ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(0,-10);ctx.lineTo(x,y);ctx.stroke();}
+      ctx.fillStyle='#d4b75a';ctx.beginPath();ctx.arc(0,-10,3,0,Math.PI*2);ctx.fill();
+    }else{
+      const t=Math.min(1,this.age/1.15);
+      for(let i=0;i<this.fluffs.length;i++){const f=this.fluffs[i];const dist=12+t*(55+f.d*3);const x=Math.cos(f.a)*dist+t*36*f.drift;const y=-10+Math.sin(f.a)*dist*.55-t*(18+i%4*5);ctx.globalAlpha=1-t*.72;ctx.fillStyle='#fffef2';ctx.beginPath();ctx.arc(x,y,2.2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(180,180,155,.55)';ctx.lineWidth=.7;ctx.beginPath();ctx.moveTo(x-5,y+4);ctx.lineTo(x,y);ctx.stroke();}
+      ctx.globalAlpha=1;ctx.fillStyle='#b89a49';ctx.beginPath();ctx.arc(0,-10,3,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 class Game {
   constructor(canvas, input, hud) {
     this.canvas = canvas;
@@ -1641,6 +1748,12 @@ class Game {
     this.leafPileSpawnTimer = 7.5;
     this.flowers = [];
     this.flowerSpawnTimer = 3.8;
+    this.barePatches = [];
+    this.barePatchSpawnTimer = 5.5;
+    this.dandelions = [];
+    this.dandelionSpawnTimer = 9.0;
+    this.leftHintButton = document.querySelector('#chickLeftButton');
+    this.rightHintButton = document.querySelector('#chickRightButton');
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -1704,6 +1817,8 @@ class Game {
     this.ledgeSpawnTimer -= dt;
     this.leafPileSpawnTimer -= dt;
     this.flowerSpawnTimer -= dt;
+    this.barePatchSpawnTimer -= dt;
+    this.dandelionSpawnTimer -= dt;
     const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
     if (!terrainPresent && this.riverSpawnTimer <= 0) {
       this.rivers.push(new River(this.width, this.height));
@@ -1726,6 +1841,16 @@ class Game {
       this.flowerSpawnTimer = 6.4 + Math.random() * 4.6;
     }
     for (const flower of this.flowers) flower.update(dt);
+    if (this.barePatchSpawnTimer <= 0 && this.barePatches.filter(p => !p.dead).length < 2) {
+      this.barePatches.push(new BarePatch(this.width, this.height));
+      this.barePatchSpawnTimer = 10 + Math.random() * 8;
+    }
+    for (const patch of this.barePatches) patch.update(dt);
+    if (this.dandelionSpawnTimer <= 0 && this.dandelions.filter(d => !d.dead).length < 2) {
+      this.dandelions.push(new Dandelion(this.width, this.height));
+      this.dandelionSpawnTimer = 12 + Math.random() * 9;
+    }
+    for (const d of this.dandelions) d.update(dt);
     for (const river of this.rivers) river.update(dt, this.chick);
     for (const ledge of this.ledges) ledge.update(dt, this.chick);
     const guideX = [
@@ -1733,6 +1858,20 @@ class Game {
       ...this.ledges.map(l => l.getGuidance(this.chick))
     ].find(x => x !== null && x !== undefined);
     this.chick.setAutoTarget(guideX ?? null);
+    // When a complete crossing exists but the chick is stopped away from it,
+    // softly suggest the useful steering direction without forcing movement.
+    let hintTarget = null;
+    for (const terrain of [...this.rivers, ...this.ledges]) {
+      if (!terrain.blocking) continue;
+      const slots = terrain.slots.filter(s => s.complete);
+      if (!slots.length) continue;
+      const nearest = slots.reduce((a,b) => Math.abs(a.x-this.chick.x) < Math.abs(b.x-this.chick.x) ? a : b);
+      hintTarget = nearest.x;
+      break;
+    }
+    const hintDx = hintTarget == null ? 0 : hintTarget - this.chick.x;
+    this.leftHintButton?.classList.toggle('hint', hintDx < -24);
+    this.rightHintButton?.classList.toggle('hint', hintDx > 24);
     this.fairy.update(dt, this.input.getVector(), this.width, this.height);
     this.chick.update(dt, this.elapsed);
     this.cooldowns.wind = Math.max(0, this.cooldowns.wind - dt);
@@ -1810,6 +1949,14 @@ class Game {
               }
             }
           }
+          if (e.phase === 'travel') {
+            for (const patch of this.barePatches) {
+              if (patch.waterHit(e.x, e.y, e.spreadShot ? 12 : 20)) {
+                this.plus += 55;
+                e.phase = 'burst'; e.age = 0; break;
+              }
+            }
+          }
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
           for (const pile of this.leafPiles) {
@@ -1818,6 +1965,13 @@ class Game {
               e.phase = 'burst';
               e.age = 0;
               break;
+            }
+          }
+        }
+        if (e.phase === 'travel' && e.kind === 'wind') {
+          for (const d of this.dandelions) {
+            if (d.windHit(e.x, e.y, 18 + (e.charge || 0) * 16)) {
+              this.plus += 45; e.phase = 'burst'; e.age = 0; break;
             }
           }
         }
@@ -1866,10 +2020,16 @@ class Game {
             const carved = ledge.windHit(e.x, e.y, radius * .55);
             if (carved) this.plus += 100;
           }
+          for (const d of this.dandelions) {
+            if (d.windHit(e.x, e.y, radius * .55)) this.plus += 45;
+          }
         } else {
           for (const flower of this.flowers) {
             const bloomed = flower.waterHit(e.x, e.y, radius * .62);
             if (bloomed) this.plus += 40 * bloomed;
+          }
+          for (const patch of this.barePatches) {
+            if (patch.waterHit(e.x, e.y, radius * .55)) this.plus += 55;
           }
           for (const river of this.rivers) {
             const grown = river.waterHit(e.x, e.y, radius * .55);
@@ -1899,6 +2059,8 @@ class Game {
     this.ledges = this.ledges.filter(ledge => !ledge.dead);
     this.leafPiles = this.leafPiles.filter(pile => !pile.dead);
     this.flowers = this.flowers.filter(flower => !flower.dead);
+    this.barePatches = this.barePatches.filter(p => !p.dead);
+    this.dandelions = this.dandelions.filter(d => !d.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -2035,7 +2197,9 @@ class Game {
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
     for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
     for (const pile of this.leafPiles) pile.draw(this.ctx, this.elapsed);
+    for (const patch of this.barePatches) patch.draw(this.ctx, this.elapsed);
     for (const flower of this.flowers) flower.draw(this.ctx, this.elapsed);
+    for (const d of this.dandelions) d.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
@@ -2162,6 +2326,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.1.9</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.0</div>
 </body>
 </html>
