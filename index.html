@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.5.3</title>
+  <title>Fairy Guardian v3.5.4</title>
   <style>
 :root {
   color-scheme: light;
@@ -386,6 +386,27 @@ class AudioEngine {
     this.tone(610,.16,{type:'sine',volume:.017,endFreq:390,delay:.025});
     this.tone(430,.30,{type:'sine',volume:.009,endFreq:300,delay:.16});
     this.tone(720,.38,{type:'sine',volume:.006,endFreq:480,delay:.29});
+  }
+  stoneBounce(bounce=0){
+    if(!this.can('stone-bounce',.065))return;
+    const notes=[420,350,295,250];
+    const f=notes[Math.min(notes.length-1,bounce)];
+    this.tone(f,.12,{type:'triangle',volume:.035,endFreq:f*.72});
+    this.tone(f*2.15,.07,{type:'sine',volume:.012,endFreq:f*1.5,delay:.008});
+    if(this.caveMode)this.tone(f*.78,.20,{type:'sine',volume:.007,endFreq:f*.62,delay:.09});
+  }
+  stoneSplash(){
+    if(!this.can('stone-splash',.15))return;
+    this.noise(.15,{volume:.022,highpass:380,lowpass:3300});
+    this.tone(245,.22,{type:'sine',volume:.030,endFreq:135});
+    this.tone(470,.28,{type:'sine',volume:.009,endFreq:280,delay:.13});
+  }
+  crystal(note=0){
+    if(!this.can('crystal-'+note,.09))return;
+    const scale=[392,493.88,587.33,698.46];
+    const f=scale[note%scale.length];
+    this.tone(f,.50,{type:'sine',volume:.025,endFreq:f*1.008});
+    this.tone(f*2.01,.36,{type:'sine',volume:.010,endFreq:f*1.82,delay:.018});
   }
   mushroom(note=0){
     if(!this.can('mushroom-'+note,.05))return;
@@ -2376,6 +2397,71 @@ class CavePuddle {
   }
 }
 
+
+class CavePebble {
+  constructor(x,y,index=0){
+    this.x=x;this.y=y;this.index=index;this.r=11+(index%2)*2;this.state='rest';
+    this.vx=0;this.vy=0;this.spin=0;this.bounces=0;this.maxBounces=2+Math.floor(Math.random()*3);
+    this.cooldown=0;this.dead=false;this.trail=[];
+  }
+  update(dt,puddles,sound){
+    this.cooldown=Math.max(0,this.cooldown-dt);
+    if(this.state==='rest'){
+      this.y+=38*dt;
+      if(this.y>1010){this.y=-130-Math.random()*300;this.x=110+Math.random()*320;}
+      return null;
+    }
+    if(this.state==='fly'){
+      this.x+=this.vx*dt;this.y+=this.vy*dt;this.vy+=18*dt;this.spin+=dt*(7+Math.abs(this.vx)*.025);
+      this.trail.push({x:this.x,y:this.y,age:0});for(const t of this.trail)t.age+=dt;this.trail=this.trail.filter(t=>t.age<.22);
+      const left=78+this.r,right=462-this.r;
+      if((this.x<left&&this.vx<0)||(this.x>right&&this.vx>0)){
+        this.x=Math.max(left,Math.min(right,this.x));this.vx*=-.82;this.vy*=.94;this.bounces++;sound.stoneBounce(this.bounces-1);
+        if(this.bounces>=this.maxBounces){this.vx*=.62;this.vy*=.72;}
+      }
+      for(const p of puddles){
+        if(Math.abs(this.x-p.x)<p.w*.45 && Math.abs(this.y-p.y)<p.h*.65){
+          this.state='sink';this.sink=.48;sound.stoneSplash();p.splash=Math.max(p.splash,.42);return {kind:'splash',puddle:p};
+        }
+      }
+      if(this.y<-50||this.y>1020){this.dead=true;}
+    } else if(this.state==='sink'){
+      this.sink-=dt;this.spin+=dt*4;if(this.sink<=0)this.dead=true;
+    }
+    return null;
+  }
+  windHit(x,y,r,charge=0){
+    if(this.state!=='rest'||this.cooldown>0||Math.hypot(x-this.x,y-this.y)>r+this.r)return false;
+    this.state='fly';this.cooldown=.4;
+    const dx=this.x-x;this.vx=(Math.abs(dx)<8?(Math.random()<.5?-1:1):Math.sign(dx))*(145+charge*105);
+    this.vy=-(205+charge*95);this.bounces=0;return true;
+  }
+  draw(ctx){
+    ctx.save();
+    for(const t of this.trail){ctx.globalAlpha=Math.max(0,.18*(1-t.age/.22));ctx.fillStyle='#b9d3d0';ctx.beginPath();ctx.arc(t.x,t.y,3,0,Math.PI*2);ctx.fill();}
+    ctx.globalAlpha=1;ctx.translate(this.x,this.y);ctx.rotate(this.spin);
+    if(this.state==='sink')ctx.globalAlpha=Math.max(0,this.sink/.48);
+    ctx.fillStyle='rgba(2,18,24,.24)';ctx.beginPath();ctx.ellipse(4,6,this.r*1.05,this.r*.48,0,0,Math.PI*2);ctx.fill();
+    const g=ctx.createRadialGradient(-4,-5,2,0,0,this.r*1.2);g.addColorStop(0,'#bac9c5');g.addColorStop(.55,'#718784');g.addColorStop(1,'#344d50');ctx.fillStyle=g;
+    ctx.strokeStyle='#18353a';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(-this.r*.9,-2);ctx.quadraticCurveTo(-this.r*.55,-this.r,this.r*.25,-this.r*.82);ctx.quadraticCurveTo(this.r*.95,-this.r*.45,this.r*.88,this.r*.3);ctx.quadraticCurveTo(this.r*.3,this.r*.95,-this.r*.65,this.r*.62);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle='rgba(228,242,235,.48)';ctx.beginPath();ctx.ellipse(-4,-5,4,2.5,-.35,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+}
+
+class CaveCrystal {
+  constructor(x,y,note=0){this.x=x;this.y=y;this.note=note;this.glow=0;this.phase=Math.random()*6.28;}
+  update(dt){this.y+=38*dt;this.glow=Math.max(0,this.glow-dt*.55);if(this.y>1015){this.y=-100-Math.random()*280;}}
+  resonate(x,y,r,sound){if(Math.hypot(x-this.x,y-this.y)>r+28)return false;this.glow=1;sound.crystal(this.note);return true;}
+  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);const p=.5+.5*Math.sin(time*2+this.phase);if(this.glow>0){const rg=ctx.createRadialGradient(0,-8,2,0,-8,48);rg.addColorStop(0,`rgba(132,246,255,${.35*this.glow})`);rg.addColorStop(1,'rgba(80,180,255,0)');ctx.fillStyle=rg;ctx.beginPath();ctx.arc(0,-8,48,0,Math.PI*2);ctx.fill();}
+    ctx.strokeStyle='#183d48';ctx.lineWidth=2.5;const colors=['#69e0dc','#75bfff','#b09cff','#74e2b8'];ctx.fillStyle=colors[this.note%colors.length];ctx.beginPath();ctx.moveTo(0,-30);ctx.lineTo(14,-7);ctx.lineTo(8,20);ctx.lineTo(-9,19);ctx.lineTo(-15,-5);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle=`rgba(239,255,255,${.3+.25*p})`;ctx.beginPath();ctx.moveTo(-2,-24);ctx.lineTo(5,-7);ctx.lineTo(1,11);ctx.lineTo(-6,-5);ctx.closePath();ctx.fill();ctx.restore();}
+}
+
+class GlowMoss {
+  constructor(x,y,side=0){this.x=x;this.y=y;this.side=side;this.phase=Math.random()*6.28;}
+  update(dt){this.y+=38*dt;if(this.y>1020)this.y=-80-Math.random()*220;}
+  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);const glow=.36+.16*Math.sin(time*1.3+this.phase);ctx.globalCompositeOperation='screen';for(let i=0;i<7;i++){const px=(i%3)*7+(this.side?-8:-8);const py=Math.floor(i/3)*7;ctx.fillStyle=`rgba(75,245,183,${glow*(.55+(i%2)*.2)})`;ctx.beginPath();ctx.arc(px,py,4+(i%3),0,Math.PI*2);ctx.fill();}ctx.restore();}
+}
+
 class CaveMushroom {
   constructor(x,y,note,groupId,index){
     this.x=x;this.y=y;this.note=note;this.groupId=groupId;this.index=index;
@@ -2408,6 +2494,9 @@ class Game {
     this.mode = 'meadow';
     this.mushrooms = [];
     this.cavePuddles = [];
+    this.cavePebbles = [];
+    this.caveCrystals = [];
+    this.glowMoss = [];
     this.width = canvas.width;
     this.height = canvas.height;
     this.running = false;
@@ -2463,6 +2552,7 @@ class Game {
       this.stage=new CaveStage(this.width,this.height);
       this.mushrooms=[];
       this.cavePuddles=[];
+      this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];
       const notes=[0,1,2,3,4,2,4];
       // At cave entry every mushroom begins ahead of the fairy/chick.
       const rows=[105,285,465];
@@ -2471,6 +2561,9 @@ class Game {
         for(let i=0;i<count;i++)this.mushrooms.push(new CaveMushroom(105+i*(330/(count-1)),rows[row]+(i%2)*18,notes[(i+row)%notes.length],row,i));
       }
       this.cavePuddles=[new CavePuddle(170,205,0),new CavePuddle(382,400,1)];
+      this.cavePebbles=[new CavePebble(135,330,0),new CavePebble(355,565,1),new CavePebble(250,735,2)];
+      this.caveCrystals=[new CaveCrystal(92,245,0),new CaveCrystal(445,340,1),new CaveCrystal(105,650,2),new CaveCrystal(438,780,3)];
+      this.glowMoss=[new GlowMoss(66,170,0),new GlowMoss(465,225,1),new GlowMoss(72,520,0),new GlowMoss(458,690,1),new GlowMoss(75,860,0)];
       this.caveCelebration=0;this.completedMushroomGroups.clear();
       this.birdSpawnTimer=this.catSpawnTimer=this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=99999;
       this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
@@ -2634,7 +2727,14 @@ class Game {
     this.stage.update(dt);
     if(this.mode==='cave') {
       for(const p of this.cavePuddles) p.update(dt);
+      for(const pebble of this.cavePebbles){
+        const ev=pebble.update(dt,this.cavePuddles,this.sound);if(ev?.kind==='splash')this.triggerPuddleSplash(ev.puddle);
+        if(pebble.state==='fly')for(const c of this.caveCrystals)c.resonate(pebble.x,pebble.y,24,this.sound);
+      }
+      for(const c of this.caveCrystals)c.update(dt);
+      for(const moss of this.glowMoss)moss.update(dt);
       for(const m of this.mushrooms) m.update(dt);
+      this.cavePebbles=this.cavePebbles.filter(p=>!p.dead);
     }
     this.riverSpawnTimer -= dt;
     this.ledgeSpawnTimer -= dt;
@@ -2821,6 +2921,14 @@ class Game {
           }
         }
         if (e.phase === 'travel' && e.kind === 'wind' && this.mode==='cave') {
+          for (const pebble of this.cavePebbles) {
+            if (pebble.windHit(e.x,e.y,19+(e.charge||0)*17,e.charge||0)) {
+              for(const c of this.caveCrystals)c.resonate(pebble.x,pebble.y,70,this.sound);
+              e.phase='burst';e.age=0;break;
+            }
+          }
+        }
+        if (e.phase === 'travel' && e.kind === 'wind' && this.mode==='cave') {
           for (const puddle of this.cavePuddles) {
             if (puddle.windHit(e.x,e.y,20+(e.charge||0)*18)) {
               this.triggerPuddleSplash(puddle); e.phase='burst'; e.age=0; break;
@@ -2902,6 +3010,11 @@ class Game {
         const radius = e.kind === 'wind' ? 20 + t * 72 * (e.power || 1) : 11 + t * 42 * (e.power || 1);
         if (e.kind === 'wind') {
           if(this.mode==='cave'){
+            for(const pebble of this.cavePebbles){
+              if(pebble.windHit(e.x,e.y,radius*.5,e.charge||0)){
+                for(const c of this.caveCrystals)c.resonate(pebble.x,pebble.y,72,this.sound);
+              }
+            }
             for(const puddle of this.cavePuddles){
               if(puddle.windHit(e.x,e.y,radius*.58)) this.triggerPuddleSplash(puddle);
             }
@@ -3101,7 +3214,10 @@ class Game {
   draw() {
     this.stage.draw(this.ctx, this.elapsed);
     if(this.mode==='cave') {
+      for(const moss of this.glowMoss)moss.draw(this.ctx,this.elapsed);
       for(const p of this.cavePuddles) p.draw(this.ctx,this.elapsed);
+      for(const c of this.caveCrystals)c.draw(this.ctx,this.elapsed);
+      for(const pebble of this.cavePebbles)pebble.draw(this.ctx);
       for(const m of this.mushrooms) m.draw(this.ctx,this.elapsed);
     }
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
@@ -3277,6 +3393,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.5.3</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.5.4</div>
 </body>
 </html>
