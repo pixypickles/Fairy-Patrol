@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.0.7</title>
+  <title>Fairy Guardian v3.0.8</title>
   <style>
 :root {
   color-scheme: light;
@@ -222,10 +222,10 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
 
       <div class="action-grid">
         <button id="windButton" class="action-button wind" type="button">
-          <span class="symbol">○</span><span>風・上</span>
+          <span class="symbol">○</span><span>風</span>
         </button>
         <button id="waterButton" class="action-button water" type="button">
-          <span class="symbol">●</span><span>水・上</span>
+          <span class="symbol">●</span><span>水</span>
         </button>
         <button id="chickLeftButton" class="action-button chick" type="button">
           <span class="symbol">🐥←</span><span>ヒヨコ左</span>
@@ -1096,8 +1096,9 @@ class Game {
         this.birdSpawnTimer = 7.0 + Math.random() * 4.0;
         this.catSpawnTimer = Math.max(this.catSpawnTimer, 5.5);
       } else if (this.catSpawnTimer <= 0) {
-        // Start with the warm tabby. A grey colour variant can be enabled later.
-        this.cats.push(new Cat(this.width, this.height, 0));
+        // Alternate between warm tabby and soft grey cats.
+        const catVariant = Math.random() < 0.5 ? 0 : 1;
+        this.cats.push(new Cat(this.width, this.height, catVariant));
         this.catSpawnTimer = 9.0 + Math.random() * 5.0;
         this.birdSpawnTimer = Math.max(this.birdSpawnTimer, 5.0);
       }

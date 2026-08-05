@@ -81,8 +81,9 @@ export class Game {
         this.birdSpawnTimer = 7.0 + Math.random() * 4.0;
         this.catSpawnTimer = Math.max(this.catSpawnTimer, 5.5);
       } else if (this.catSpawnTimer <= 0) {
-        // Start with the warm tabby. A grey colour variant can be enabled later.
-        this.cats.push(new Cat(this.width, this.height, 0));
+        // Alternate between warm tabby and soft grey cats.
+        const catVariant = Math.random() < 0.5 ? 0 : 1;
+        this.cats.push(new Cat(this.width, this.height, catVariant));
         this.catSpawnTimer = 9.0 + Math.random() * 5.0;
         this.birdSpawnTimer = Math.max(this.birdSpawnTimer, 5.0);
       }
