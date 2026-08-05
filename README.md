@@ -1,36 +1,25 @@
-# Fairy Guardian v3.0.0
+# Fairy Guardian v3.0.1 Pages Fix
 
-GitHub Pages向けのHTML5 Canvasゲーム土台です。
+画面が白地の通常HTML表示になる場合、`css` と `js` フォルダがGitHubへアップロードされていません。
 
-## 今回入っているもの
+## 推奨アップロード方法
 
-- 縦長Canvas画面
-- タイトル／スタート画面
-- 8方向の円形スティック
-- 人型の妖精と半透明の虹色4枚羽
-- 気まぐれに揺れながら歩くヒヨコ
-- 左・中央・右の段階誘導
-- 草原の縦スクロール
-- 風・水の仮魔法弾
-- プラス点／マイナス点のHUD
-- PCキーボード操作
+このZIPを展開し、ZIPの中身をすべてリポジトリ直下へ置いてください。
 
-## 操作
-
-- スマホ：円形スティック、画面下の4ボタン
-- PC：矢印/WASDで妖精移動
-- J：風
-- K：水
-- Q：ヒヨコ左
-- E：ヒヨコ右
-
-## 起動
-
-ES Modulesを使っているため、ローカルサーバーで起動してください。
-
-```bash
-python3 -m http.server 8000
+```text
+index.html
+.nojekyll
+css/style.css
+js/main.js
+js/game.js
+js/input.js
+js/stage.js
+js/fairy.js
+js/chick.js
 ```
 
-その後 `http://localhost:8000` を開きます。
-GitHub Pagesではそのまま動作します。
+GitHub Pagesの設定は `Deploy from a branch`、対象を `main / (root)` にします。
+
+## すぐ試す方法
+
+フォルダ構成を気にせず確認したい場合は、`single-file.html` を `index.html` に名前変更してアップロードしてください。CSSとJavaScriptが1ファイルに内蔵されています。
