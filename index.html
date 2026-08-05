@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.5.1</title>
+  <title>Fairy Guardian v3.5.2</title>
   <style>
 :root {
   color-scheme: light;
@@ -385,6 +385,14 @@ class AudioEngine {
     this.tone(f,.42,{type:'sine',volume:.045,endFreq:f*1.012});
     this.tone(f*2,.30,{type:'sine',volume:.014,endFreq:f*1.72,delay:.018});
     this.tone(f,.32,{type:'triangle',volume:.010,endFreq:f*.92,delay:.16});
+  }
+  caveChord(){
+    if(!this.can('cave-chord',.75))return;
+    const notes=[523.25,659.25,783.99];
+    notes.forEach((f,i)=>{
+      this.tone(f,.68,{type:'sine',volume:.034,endFreq:f*1.01,delay:i*.025});
+      this.tone(f*2,.42,{type:'sine',volume:.009,endFreq:f*1.82,delay:.04+i*.025});
+    });
   }
   flower(count=1){
     if(!this.can('flower',.07))return;
@@ -2320,12 +2328,22 @@ class CaveStage {
 }
 
 class CaveMushroom {
-  constructor(x,y,note){this.x=x;this.y=y;this.note=note;this.glow=0;this.pulse=Math.random()*6.28;this.dead=false;}
-  update(dt){this.y+=38*dt;this.glow=Math.max(0,this.glow-dt*.11);if(this.y>1010){this.y=-70-Math.random()*260;this.glow=0;}}
-  waterHit(x,y,r){if(Math.hypot(x-this.x,y-this.y)>r+22)return false;this.glow=1;return true;}
-  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);const pulse=.5+.5*Math.sin(time*2.3+this.pulse);if(this.glow>0){const rg=ctx.createRadialGradient(0,-8,3,0,-8,46);rg.addColorStop(0,`rgba(146,255,238,${.44*this.glow})`);rg.addColorStop(1,'rgba(70,220,205,0)');ctx.fillStyle=rg;ctx.beginPath();ctx.arc(0,-8,46,0,Math.PI*2);ctx.fill();}
+  constructor(x,y,note,groupId,index){
+    this.x=x;this.y=y;this.note=note;this.groupId=groupId;this.index=index;
+    this.glow=0;this.activeTimer=0;this.hitCooldown=0;this.pulse=Math.random()*6.28;this.dead=false;
+  }
+  update(dt){
+    this.y+=38*dt;this.glow=Math.max(0,this.glow-dt*.11);
+    this.activeTimer=Math.max(0,this.activeTimer-dt);this.hitCooldown=Math.max(0,this.hitCooldown-dt);
+    if(this.y>1010){this.y=-70-Math.random()*260;this.glow=0;this.activeTimer=0;this.hitCooldown=0;}
+  }
+  waterHit(x,y,r){
+    if(this.hitCooldown>0 || Math.hypot(x-this.x,y-this.y)>r+22)return false;
+    this.glow=1;this.activeTimer=2.35;this.hitCooldown=.24;return true;
+  }
+  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);const pulse=.5+.5*Math.sin(time*2.3+this.pulse);if(this.glow>0||this.activeTimer>0){const strength=Math.max(this.glow,Math.min(1,this.activeTimer));const rg=ctx.createRadialGradient(0,-8,3,0,-8,52);rg.addColorStop(0,`rgba(146,255,238,${.50*strength})`);rg.addColorStop(1,'rgba(70,220,205,0)');ctx.fillStyle=rg;ctx.beginPath();ctx.arc(0,-8,52,0,Math.PI*2);ctx.fill();}
     ctx.strokeStyle='#173136';ctx.lineWidth=3;ctx.fillStyle='#d8f3dc';ctx.beginPath();ctx.roundRect(-6,-2,12,26,6);ctx.fill();ctx.stroke();
-    const hue=[176,198,224,270,306,338,52][this.note%7];ctx.fillStyle=`hsla(${hue},75%,${this.glow?72+8*pulse:48}%,${this.glow?.96:.88})`;ctx.beginPath();ctx.moveTo(-23,0);ctx.quadraticCurveTo(-18,-25,0,-28);ctx.quadraticCurveTo(19,-25,24,0);ctx.quadraticCurveTo(0,10,-23,0);ctx.fill();ctx.stroke();
+    const hue=[176,198,224,270,306,338,52][this.note%7];const lit=this.activeTimer>0||this.glow>0;ctx.fillStyle=`hsla(${hue},75%,${lit?72+8*pulse:48}%,${lit?.97:.88})`;ctx.beginPath();ctx.moveTo(-23,0);ctx.quadraticCurveTo(-18,-25,0,-28);ctx.quadraticCurveTo(19,-25,24,0);ctx.quadraticCurveTo(0,10,-23,0);ctx.fill();ctx.stroke();
     ctx.fillStyle=`rgba(235,255,247,${.65+.25*pulse})`;for(let i=0;i<4;i++){const a=i*1.7+this.pulse;ctx.beginPath();ctx.arc(Math.cos(a)*12,-10+Math.sin(a)*7,2.2,0,Math.PI*2);ctx.fill();}
     ctx.restore();}
 }
@@ -2378,6 +2396,8 @@ class Game {
     this.mushroomNoteTimer = 0;
     this.mushroomNoteStreak = 0;
     this.lastMushroomNote = -1;
+    this.caveCelebration = 0;
+    this.completedMushroomGroups = new Set();
     this.leftHintButton = document.querySelector('#chickLeftButton');
     this.rightHintButton = document.querySelector('#chickRightButton');
     this.stage = new Stage(this.width, this.height);
@@ -2396,8 +2416,9 @@ class Game {
       const rows=[180,390,610,820];
       for(let row=0;row<rows.length;row++){
         const count=row%2?4:5;
-        for(let i=0;i<count;i++)this.mushrooms.push(new CaveMushroom(105+i*(330/(count-1)),rows[row]+(i%2)*18,notes[(i+row)%notes.length]));
+        for(let i=0;i<count;i++)this.mushrooms.push(new CaveMushroom(105+i*(330/(count-1)),rows[row]+(i%2)*18,notes[(i+row)%notes.length],row,i));
       }
+      this.caveCelebration=0;this.completedMushroomGroups.clear();
       this.birdSpawnTimer=this.catSpawnTimer=this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=99999;
       this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
     }
@@ -2418,6 +2439,21 @@ class Game {
     this.mushroomNoteTimer = .82;
     this.lastMushroomNote = note;
     this.chick.reactToMusic(note, this.mushroomNoteStreak);
+  }
+
+
+  registerMushroomHit(mushroom) {
+    this.registerMushroomNote(mushroom.note);
+    const group=this.mushrooms.filter(m=>m.groupId===mushroom.groupId);
+    const allLit=group.length>=3 && group.every(m=>m.activeTimer>0);
+    if(allLit && !this.completedMushroomGroups.has(mushroom.groupId)){
+      this.completedMushroomGroups.add(mushroom.groupId);
+      this.caveCelebration=2.6;
+      this.plus+=100;
+      this.sound.caveChord();
+      this.chick.reactToMusic(4,5);
+      setTimeout(()=>this.completedMushroomGroups.delete(mushroom.groupId),2600);
+    }
   }
 
   cast(kind, chargeSeconds = 0) {
@@ -2510,6 +2546,7 @@ class Game {
     this.distance += dt * 5;
     this.frogCooldown = Math.max(0, this.frogCooldown - dt);
     this.mushroomNoteTimer = Math.max(0, this.mushroomNoteTimer - dt);
+    this.caveCelebration = Math.max(0, this.caveCelebration - dt);
     if (this.mushroomNoteTimer <= 0) this.mushroomNoteStreak = 0;
     this.flowerAdmireCooldown = Math.max(0, this.flowerAdmireCooldown - dt);
     this.butterflySpawnTimer -= dt;
@@ -2685,7 +2722,7 @@ class Game {
         }
         if (e.kind === 'water') {
           if(this.mode==='cave'){
-            for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,e.spreadShot?13:20)){this.plus+=25;this.sound.mushroom(m.note);this.registerMushroomNote(m.note);e.phase='burst';e.age=0;break;}}
+            for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,e.spreadShot?13:20)){this.plus+=25;this.sound.mushroom(m.note);this.registerMushroomHit(m);e.phase='burst';e.age=0;break;}}
           }
           this.tryFrogSplash(e.x,e.y);
           for (const river of this.rivers) {
@@ -2803,7 +2840,7 @@ class Game {
             if (hit) { this.plus += hit === 2 ? 40 : 15; this.sound.rock(hit === 2); } this.sound.rock(hit === 2);
           }
         } else {
-          if(this.mode==='cave'){for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,radius*.62)){this.plus+=25;this.sound.mushroom(m.note);this.registerMushroomNote(m.note);}}}
+          if(this.mode==='cave'){for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,radius*.62)){this.plus+=25;this.sound.mushroom(m.note);this.registerMushroomHit(m);}}}
           if(!e.frogChecked){this.tryFrogSplash(e.x,e.y);e.frogChecked=true;}
           for (const flower of this.flowers) {
             const bloomed = flower.waterHit(e.x, e.y, radius * .62);
@@ -2995,6 +3032,15 @@ class Game {
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
     for (const e of this.effects) this.drawEffect(e);
     if(this.mode==='meadow') this.drawSunbeams(this.ctx);
+    if(this.mode==='cave' && this.caveCelebration>0){
+      const t=Math.min(1,this.caveCelebration/1.1);
+      this.ctx.save();this.ctx.globalCompositeOperation='screen';
+      const g=this.ctx.createRadialGradient(this.width/2,this.height*.52,35,this.width/2,this.height*.52,430);
+      g.addColorStop(0,`rgba(125,255,232,${.17*t})`);g.addColorStop(.55,`rgba(98,210,255,${.09*t})`);g.addColorStop(1,'rgba(70,170,220,0)');
+      this.ctx.fillStyle=g;this.ctx.fillRect(0,0,this.width,this.height);
+      for(let i=0;i<16;i++){const a=i*.9+this.elapsed*.55;const r=55+(i%5)*50;this.ctx.fillStyle=`rgba(215,255,246,${.22*t})`;this.ctx.beginPath();this.ctx.arc(this.width/2+Math.cos(a)*r,this.height*.52+Math.sin(a)*r*.55,1.8+(i%3),0,Math.PI*2);this.ctx.fill();}
+      this.ctx.restore();
+    }
     this.fairy.draw(this.ctx, this.elapsed, this.chick);
   }
 
@@ -3144,6 +3190,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.5.1</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.5.2</div>
 </body>
 </html>
