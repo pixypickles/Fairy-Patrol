@@ -1,0 +1,838 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#dff3d2" />
+  <title>Fairy Guardian v3.0.2</title>
+  <style>
+:root {
+  color-scheme: light;
+  font-family: ui-rounded, "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+  background: #edf6e8;
+  color: #203327;
+  touch-action: none;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; overflow: hidden; }
+body {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 20% 10%, rgba(255,255,255,.9), transparent 26%),
+    linear-gradient(#edf8e8, #d9ecd2);
+}
+button { font: inherit; -webkit-tap-highlight-color: transparent; }
+
+.app-shell {
+  width: min(100vw, 590px);
+  height: 100svh;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom));
+}
+
+.game-frame {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 24px;
+  background: #7dab5f;
+  box-shadow: 0 12px 40px rgba(39,74,40,.2);
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #7aaa5c;
+}
+
+.screen-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: linear-gradient(rgba(239,251,232,.58), rgba(224,244,215,.78));
+  backdrop-filter: blur(3px);
+}
+
+.title-card {
+  width: min(100%, 390px);
+  padding: 28px 24px;
+  text-align: center;
+  border: 2px solid rgba(255,255,255,.9);
+  border-radius: 28px;
+  background: rgba(255,255,255,.82);
+  box-shadow: 0 18px 45px rgba(46,78,47,.2);
+}
+.eyebrow { margin: 0 0 8px; color: #588c65; font-weight: 800; letter-spacing: .08em; }
+h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
+.title-card p { line-height: 1.7; }
+.primary-button {
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 26px;
+  color: white;
+  font-weight: 900;
+  background: linear-gradient(#70bd7a, #4c9d60);
+  box-shadow: 0 7px 0 #347943, 0 10px 25px rgba(43,105,55,.25);
+}
+.primary-button:active { transform: translateY(4px); box-shadow: 0 3px 0 #347943; }
+
+.hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  pointer-events: none;
+}
+.hud > div {
+  min-width: 0;
+  padding: 7px 11px;
+  border: 2px solid rgba(30,50,35,.72);
+  border-radius: 14px;
+  background: rgba(255,255,255,.82);
+  box-shadow: 0 3px 0 rgba(30,50,35,.18);
+}
+.hud-label { margin-right: 5px; font-size: 12px; font-weight: 900; color: #56705d; }
+.hud-label.plus { color: #27865b; }
+.hud-label.minus { color: #b64f5d; }
+.hidden { display: none !important; }
+
+.controls {
+  display: grid;
+  grid-template-columns: 152px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(77,110,71,.2);
+  border-radius: 22px;
+  background: rgba(255,255,255,.76);
+  box-shadow: 0 8px 24px rgba(52,83,52,.12);
+}
+
+.stick {
+  position: relative;
+  width: 138px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  touch-action: none;
+  user-select: none;
+}
+.stick-ring {
+  position: absolute;
+  inset: 9px;
+  border: 4px solid rgba(51,76,56,.72);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.9), rgba(203,225,199,.82));
+  box-shadow: inset 0 4px 12px rgba(57,86,57,.14);
+}
+.stick-knob {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  left: 39px;
+  top: 39px;
+  border: 3px solid #304c37;
+  border-radius: 50%;
+  background: linear-gradient(#fff, #cfe4ca);
+  box-shadow: 0 5px 12px rgba(43,70,48,.25);
+  transform: translate(0,0);
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+.action-button {
+  min-height: 62px;
+  border: 3px solid #2c4733;
+  border-radius: 18px;
+  color: #233629;
+  font-size: 13px;
+  font-weight: 900;
+  box-shadow: 0 5px 0 rgba(42,65,47,.25);
+}
+.action-button .symbol { display: block; font-size: 21px; line-height: 1; margin-bottom: 3px; }
+.action-button:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(42,65,47,.25); }
+.action-button.wind { background: linear-gradient(135deg, #f8fff2, #aee7af); }
+.action-button.water { background: linear-gradient(135deg, #effcff, #75c8ff); }
+.action-button.chick { background: linear-gradient(135deg, #fffceb, #ffe17b); }
+
+@media (max-height: 700px) {
+  .app-shell { gap: 4px; }
+  .controls { grid-template-columns: 120px 1fr; padding: 6px 8px; }
+  .stick { width: 112px; }
+  .stick-knob { width: 48px; height: 48px; left: 32px; top: 32px; }
+  .action-button { min-height: 50px; }
+}
+
+</style>
+</head>
+<body>
+  <main class="app-shell">
+    <section class="game-frame" aria-label="Fairy Guardian game">
+      <canvas id="gameCanvas" width="540" height="960"></canvas>
+
+      <div id="titleScreen" class="screen-overlay">
+        <div class="title-card">
+          <p class="eyebrow">Fairy Guardian</p>
+          <h1>妖精とヒヨコの<br>森のおさんぽ</h1>
+          <p>風と水の力で、ヒヨコをそっと見守ろう。</p>
+          <button id="startButton" class="primary-button" type="button">おさんぽを始める</button>
+        </div>
+      </div>
+
+      <div id="hud" class="hud hidden" aria-live="polite">
+        <div><span class="hud-label">距離</span><strong id="distanceText">0 m</strong></div>
+        <div><span class="hud-label plus">＋</span><strong id="plusScore">0</strong></div>
+        <div><span class="hud-label minus">－</span><strong id="minusScore">0</strong></div>
+      </div>
+    </section>
+
+    <section id="controls" class="controls hidden" aria-label="操作パネル">
+      <div id="stick" class="stick" aria-label="8方向移動スティック">
+        <div class="stick-ring"></div>
+        <div id="stickKnob" class="stick-knob"></div>
+      </div>
+
+      <div class="action-grid">
+        <button id="windButton" class="action-button wind" type="button">
+          <span class="symbol">○</span><span>風・上</span>
+        </button>
+        <button id="waterButton" class="action-button water" type="button">
+          <span class="symbol">●</span><span>水・上</span>
+        </button>
+        <button id="chickLeftButton" class="action-button chick" type="button">
+          <span class="symbol">🐥←</span><span>ヒヨコ左</span>
+        </button>
+        <button id="chickRightButton" class="action-button chick" type="button">
+          <span class="symbol">🐥→</span><span>ヒヨコ右</span>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+// stage.js
+class Stage {
+  constructor(width, height) {
+    this.width = width;
+    this.height = height;
+    this.offset = 0;
+    this.speed = 44;
+    this.patches = this.createPatches();
+  }
+
+  createPatches() {
+    const patches = [];
+    let seed = 1337;
+    const rnd = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+    for (let i = 0; i < 110; i++) {
+      patches.push({
+        x: rnd() * this.width,
+        y: rnd() * (this.height + 220),
+        r: 10 + rnd() * 34,
+        type: rnd(),
+        phase: rnd() * Math.PI * 2
+      });
+    }
+    return patches;
+  }
+
+  update(dt) { this.offset = (this.offset + this.speed * dt) % (this.height + 220); }
+
+  draw(ctx, time) {
+    ctx.fillStyle = '#7ca85d';
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    const bg = ctx.createLinearGradient(0, 0, this.width, this.height);
+    bg.addColorStop(0, 'rgba(190,215,130,.18)');
+    bg.addColorStop(.5, 'rgba(42,108,52,.06)');
+    bg.addColorStop(1, 'rgba(230,220,135,.11)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    for (const p of this.patches) {
+      let y = (p.y + this.offset) % (this.height + 220) - 110;
+      if (p.type < .42) {
+        ctx.fillStyle = p.type < .2 ? 'rgba(91,137,67,.24)' : 'rgba(190,180,96,.15)';
+        ctx.beginPath(); ctx.ellipse(p.x, y, p.r * 1.4, p.r, p.phase, 0, Math.PI*2); ctx.fill();
+      } else if (p.type < .76) {
+        ctx.strokeStyle = 'rgba(39,104,47,.43)';
+        ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.moveTo(p.x, y + 4); ctx.quadraticCurveTo(p.x - 4, y - 5, p.x - 2, y - 10);
+        ctx.moveTo(p.x + 2, y + 4); ctx.quadraticCurveTo(p.x + 7, y - 3, p.x + 6, y - 9);
+        ctx.stroke();
+      } else if (p.type < .9) {
+        ctx.fillStyle = 'rgba(110,105,82,.42)';
+        ctx.beginPath(); ctx.ellipse(p.x, y, 3 + p.r*.08, 2 + p.r*.05, p.phase, 0, Math.PI*2); ctx.fill();
+      } else {
+        const sway = Math.sin(time * 2 + p.phase) * 1.5;
+        ctx.fillStyle = '#f6df75';
+        ctx.beginPath(); ctx.arc(p.x + sway, y, 2.5, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.75)';
+        ctx.beginPath(); ctx.arc(p.x - 3 + sway, y, 2.2, 0, Math.PI*2); ctx.arc(p.x + 3 + sway, y, 2.2, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+}
+
+
+// fairy.js
+class Fairy {
+  constructor(width, height) {
+    this.x = width * 0.5;
+    this.y = height * 0.62;
+    this.speed = 300;
+    this.radius = 25;
+  }
+
+  update(dt, input, width, height) {
+    this.x += input.x * this.speed * dt;
+    this.y += input.y * this.speed * dt;
+    this.x = Math.max(40, Math.min(width - 40, this.x));
+    this.y = Math.max(105, Math.min(height - 48, this.y));
+  }
+
+  drawWing(ctx, side, upper, time) {
+    const flap = Math.sin(time * 8.5 + (upper ? 0 : 0.55));
+    ctx.save();
+    ctx.scale(side, 1);
+    ctx.rotate((upper ? -0.34 : 0.43) + flap * (upper ? 0.11 : 0.08));
+
+    const length = upper ? 57 : 48;
+    const height = upper ? 36 : 29;
+    const g = ctx.createLinearGradient(2, -height, length, height);
+    g.addColorStop(0.00, 'rgba(255,110,160,.48)');
+    g.addColorStop(0.16, 'rgba(255,175,86,.43)');
+    g.addColorStop(0.32, 'rgba(255,238,112,.40)');
+    g.addColorStop(0.48, 'rgba(104,225,151,.40)');
+    g.addColorStop(0.64, 'rgba(87,198,255,.43)');
+    g.addColorStop(0.82, 'rgba(147,124,255,.41)');
+    g.addColorStop(1.00, 'rgba(236,126,245,.42)');
+
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(3, 0);
+    ctx.bezierCurveTo(15, upper ? -30 : 25, 43, upper ? -43 : 34, length, upper ? -8 : 7);
+    ctx.bezierCurveTo(length + 4, upper ? 8 : 18, 31, upper ? 26 : 26, 3, 0);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255,255,255,.86)';
+    ctx.lineWidth = 1.7;
+    ctx.stroke();
+
+    // Fine butterfly-like veins.
+    ctx.strokeStyle = 'rgba(92,83,160,.25)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(7, 0); ctx.quadraticCurveTo(28, upper ? -12 : 12, length - 5, upper ? -6 : 7);
+    ctx.moveTo(14, upper ? -4 : 4); ctx.quadraticCurveTo(28, upper ? -27 : 23, length - 12, upper ? -27 : 24);
+    ctx.moveTo(20, upper ? 8 : -6); ctx.quadraticCurveTo(34, upper ? 14 : -14, length - 15, upper ? 8 : -5);
+    ctx.stroke();
+
+    // Tiny iridescent dots.
+    for (let i = 0; i < 4; i++) {
+      const px = 19 + i * 8;
+      const py = (upper ? -1 : 1) * (8 + (i % 2) * 7);
+      ctx.fillStyle = `rgba(255,255,255,${0.25 + 0.18 * Math.sin(time * 5 + i)})`;
+      ctx.beginPath(); ctx.arc(px, py, 1.8, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  draw(ctx, time) {
+    const hover = Math.sin(time * 3.5) * 2;
+    ctx.save();
+    ctx.translate(this.x, this.y + hover);
+
+    this.drawWing(ctx, -1, true, time);
+    this.drawWing(ctx, 1, true, time);
+    this.drawWing(ctx, -1, false, time);
+    this.drawWing(ctx, 1, false, time);
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#332937';
+    ctx.lineWidth = 3.6;
+
+    // Legs behind the dress.
+    ctx.strokeStyle = '#6b4b42';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-5, 18); ctx.lineTo(-7, 31);
+    ctx.moveTo(5, 18); ctx.lineTo(7, 31);
+    ctx.stroke();
+
+    // Dress with a small petal hem.
+    ctx.strokeStyle = '#332937';
+    ctx.fillStyle = '#f4a7d5';
+    ctx.beginPath();
+    ctx.moveTo(-8, -6);
+    ctx.quadraticCurveTo(0, -10, 8, -6);
+    ctx.lineTo(14, 17);
+    ctx.quadraticCurveTo(8, 22, 3, 18);
+    ctx.quadraticCurveTo(0, 24, -3, 18);
+    ctx.quadraticCurveTo(-8, 22, -14, 17);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.52)';
+    ctx.beginPath(); ctx.ellipse(-3, 4, 4, 10, -.2, 0, Math.PI * 2); ctx.fill();
+
+    // Arms and tiny hands.
+    ctx.strokeStyle = '#6b4b42';
+    ctx.lineWidth = 3.4;
+    ctx.beginPath();
+    ctx.moveTo(-8, 1); ctx.lineTo(-19, 9);
+    ctx.moveTo(8, 1); ctx.lineTo(19, 9);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd8bd';
+    ctx.beginPath(); ctx.arc(-19, 9, 2.7, 0, Math.PI * 2); ctx.arc(19, 9, 2.7, 0, Math.PI * 2); ctx.fill();
+
+    // Head and ears.
+    ctx.strokeStyle = '#332937';
+    ctx.lineWidth = 3.6;
+    ctx.fillStyle = '#ffd8bd';
+    ctx.beginPath(); ctx.arc(0, -23, 13.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-12.2, -23, 2.7, 0, Math.PI * 2); ctx.arc(12.2, -23, 2.7, 0, Math.PI * 2); ctx.fill();
+
+    // Hair silhouette and side locks.
+    ctx.fillStyle = '#d39a47';
+    ctx.beginPath();
+    ctx.arc(-1, -27, 14.7, Math.PI, Math.PI * 2);
+    ctx.quadraticCurveTo(15, -22, 10, -9);
+    ctx.quadraticCurveTo(6, -14, 3, -10);
+    ctx.quadraticCurveTo(-1, -15, -8, -10);
+    ctx.quadraticCurveTo(-14, -17, -13, -25);
+    ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-10, -15); ctx.quadraticCurveTo(-16, -5, -10, 1);
+    ctx.moveTo(9, -15); ctx.quadraticCurveTo(15, -5, 10, 1);
+    ctx.stroke();
+
+    // Face.
+    ctx.fillStyle = '#3f3037';
+    ctx.beginPath(); ctx.arc(-4.5, -23, 1.45, 0, Math.PI * 2); ctx.arc(4.5, -23, 1.45, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(244,120,148,.48)';
+    ctx.beginPath(); ctx.arc(-7.5, -19, 2, 0, Math.PI * 2); ctx.arc(7.5, -19, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#8b4b59';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(-2, -18); ctx.quadraticCurveTo(0, -16, 2, -18); ctx.stroke();
+
+    // Orbiting fairy dust.
+    for (let i = 0; i < 6; i++) {
+      const a = time * 1.8 + i * Math.PI / 3;
+      const rx = 31 + (i % 2) * 5;
+      const ry = 25 + (i % 3) * 3;
+      const twinkle = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(time * 6 + i));
+      ctx.fillStyle = `rgba(255,255,235,${twinkle})`;
+      ctx.beginPath(); ctx.arc(Math.cos(a) * rx, Math.sin(a) * ry, 1.5 + (i % 2), 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+
+// chick.js
+class Chick {
+  constructor(width, height) {
+    this.lanes = [width * 0.25, width * 0.5, width * 0.75];
+    this.lane = 1;
+    this.targetX = this.lanes[this.lane];
+    this.x = this.targetX;
+    this.y = height * 0.82;
+  }
+
+  guide(direction) {
+    this.lane = Math.max(0, Math.min(2, this.lane + direction));
+    this.targetX = this.lanes[this.lane];
+  }
+
+  update(dt, time) {
+    const desire = this.targetX + Math.sin(time * 1.55) * 7 + Math.sin(time * 0.71) * 4;
+    this.x += (desire - this.x) * Math.min(1, dt * 1.55);
+  }
+
+  draw(ctx, time) {
+    const walk = Math.sin(time * 7.5);
+    const bob = Math.abs(walk) * 3.4;
+    const tilt = Math.sin(time * 3.2) * 0.035;
+    ctx.save();
+    ctx.translate(this.x, this.y - bob);
+    ctx.rotate(tilt);
+    ctx.strokeStyle = '#2e2a1f';
+    ctx.lineWidth = 3.8;
+    ctx.lineJoin = 'round';
+
+    // Tiny feet behind the body.
+    ctx.strokeStyle = '#d98326';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-6, 19); ctx.lineTo(-8 + walk * 4, 25);
+    ctx.moveTo(6, 19); ctx.lineTo(8 - walk * 4, 25);
+    ctx.stroke();
+
+    // Rounded fluffy body.
+    ctx.strokeStyle = '#2e2a1f';
+    ctx.fillStyle = '#ffd84f';
+    ctx.beginPath();
+    ctx.ellipse(0, 5, 16.5, 19, 0, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+
+    // Side wings.
+    ctx.fillStyle = '#f2bd31';
+    ctx.beginPath();
+    ctx.ellipse(-14, 6 + walk, 6, 9, -.5, 0, Math.PI * 2);
+    ctx.ellipse(14, 6 - walk, 6, 9, .5, 0, Math.PI * 2);
+    ctx.fill(); ctx.stroke();
+
+    // Head, tuft and cheeks.
+    ctx.fillStyle = '#ffe36b';
+    ctx.beginPath(); ctx.arc(0, -12, 14.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-4, -26); ctx.quadraticCurveTo(-1, -32, 1, -26);
+    ctx.quadraticCurveTo(4, -31, 5, -24);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = '#2e2a1f';
+    ctx.beginPath(); ctx.arc(-4.8, -14, 2, 0, Math.PI * 2); ctx.arc(4.8, -14, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,124,103,.52)';
+    ctx.beginPath(); ctx.arc(-8.5, -9.5, 2.5, 0, Math.PI * 2); ctx.arc(8.5, -9.5, 2.5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#f19b2b';
+    ctx.beginPath();
+    ctx.moveTo(0, -10); ctx.lineTo(-6, -5); ctx.lineTo(6, -5); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+
+// input.js
+class InputController {
+  constructor(stick, knob) {
+    this.stick = stick;
+    this.knob = knob;
+    this.vector = { x: 0, y: 0 };
+    this.pointerId = null;
+    this.maxRadius = 42;
+    this.keys = new Set();
+    this.bind();
+  }
+
+  bind() {
+    this.stick.addEventListener('pointerdown', (e) => {
+      this.pointerId = e.pointerId;
+      this.stick.setPointerCapture(e.pointerId);
+      this.updatePointer(e);
+    });
+    this.stick.addEventListener('pointermove', (e) => {
+      if (e.pointerId === this.pointerId) this.updatePointer(e);
+    });
+    const end = (e) => {
+      if (e.pointerId !== this.pointerId) return;
+      this.pointerId = null;
+      this.vector.x = 0;
+      this.vector.y = 0;
+      this.knob.style.transform = 'translate(0px, 0px)';
+    };
+    this.stick.addEventListener('pointerup', end);
+    this.stick.addEventListener('pointercancel', end);
+
+    window.addEventListener('keydown', (e) => this.keys.add(e.key));
+    window.addEventListener('keyup', (e) => this.keys.delete(e.key));
+  }
+
+  updatePointer(e) {
+    const rect = this.stick.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    let dx = e.clientX - cx;
+    let dy = e.clientY - cy;
+    const length = Math.hypot(dx, dy);
+    const max = rect.width * 0.31;
+    if (length > max) {
+      dx = dx / length * max;
+      dy = dy / length * max;
+    }
+    const nx = dx / max;
+    const ny = dy / max;
+    const dead = 0.18;
+    if (Math.hypot(nx, ny) < dead) {
+      this.vector.x = 0;
+      this.vector.y = 0;
+    } else {
+      const angle = Math.atan2(ny, nx);
+      const step = Math.PI / 4;
+      const snapped = Math.round(angle / step) * step;
+      this.vector.x = Math.cos(snapped);
+      this.vector.y = Math.sin(snapped);
+    }
+    this.knob.style.transform = `translate(${dx}px, ${dy}px)`;
+  }
+
+  getVector() {
+    let x = this.vector.x;
+    let y = this.vector.y;
+    if (this.keys.has('ArrowLeft') || this.keys.has('a')) x -= 1;
+    if (this.keys.has('ArrowRight') || this.keys.has('d')) x += 1;
+    if (this.keys.has('ArrowUp') || this.keys.has('w')) y -= 1;
+    if (this.keys.has('ArrowDown') || this.keys.has('s')) y += 1;
+    const length = Math.hypot(x, y);
+    return length > 1 ? { x: x / length, y: y / length } : { x, y };
+  }
+}
+
+
+// game.js
+
+
+
+class Game {
+  constructor(canvas, input, hud) {
+    this.canvas = canvas;
+    this.ctx = canvas.getContext('2d');
+    this.input = input;
+    this.hud = hud;
+    this.width = canvas.width;
+    this.height = canvas.height;
+    this.running = false;
+    this.lastTime = 0;
+    this.elapsed = 0;
+    this.distance = 0;
+    this.plus = 0;
+    this.minus = 0;
+    this.effects = [];
+    this.cooldowns = { wind: 0, water: 0 };
+    this.stage = new Stage(this.width, this.height);
+    this.fairy = new Fairy(this.width, this.height);
+    this.chick = new Chick(this.width, this.height);
+    this.loop = this.loop.bind(this);
+  }
+
+  start() {
+    if (this.running) return;
+    this.running = true;
+    this.lastTime = performance.now();
+    requestAnimationFrame(this.loop);
+  }
+
+  guideChick(direction) { this.chick.guide(direction); }
+
+  cast(kind) {
+    if (!this.running || this.cooldowns[kind] > 0) return;
+    const isWater = kind === 'water';
+    this.cooldowns[kind] = isWater ? 0.62 : 0.48;
+    this.effects.push({
+      x: this.fairy.x,
+      y: this.fairy.y - 24,
+      startX: this.fairy.x,
+      startY: this.fairy.y - 24,
+      age: 0,
+      travel: isWater ? 0.54 : 0.46,
+      burst: isWater ? 0.38 : 0.32,
+      speed: isWater ? 225 : 255,
+      kind,
+      phase: 'travel'
+    });
+  }
+
+  update(dt) {
+    this.elapsed += dt;
+    this.distance += dt * 5;
+    this.stage.update(dt);
+    this.fairy.update(dt, this.input.getVector(), this.width, this.height);
+    this.chick.update(dt, this.elapsed);
+    this.cooldowns.wind = Math.max(0, this.cooldowns.wind - dt);
+    this.cooldowns.water = Math.max(0, this.cooldowns.water - dt);
+
+    for (const e of this.effects) {
+      e.age += dt;
+      if (e.phase === 'travel') {
+        e.y -= e.speed * dt;
+        e.x += Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
+        if (e.age >= e.travel) {
+          e.phase = 'burst';
+          e.age = 0;
+        }
+      }
+    }
+    this.effects = this.effects.filter(e => e.phase !== 'burst' || e.age < e.burst);
+    this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
+    this.hud.plus.textContent = this.plus;
+    this.hud.minus.textContent = this.minus;
+  }
+
+  drawWindTravel(ctx, e) {
+    const pulse = 1 + Math.sin(e.age * 22) * 0.08;
+    ctx.scale(pulse, pulse);
+    const r = 18;
+    const g = ctx.createRadialGradient(-5, -6, 2, 0, 0, r);
+    g.addColorStop(0, 'rgba(255,255,255,.98)');
+    g.addColorStop(.42, 'rgba(200,255,218,.83)');
+    g.addColorStop(1, 'rgba(76,213,140,.08)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(237,255,242,.82)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 12, -0.2, Math.PI * 1.55);
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      const a = e.age * 7 + i * Math.PI * 2 / 3;
+      ctx.fillStyle = 'rgba(210,255,222,.68)';
+      ctx.beginPath(); ctx.arc(Math.cos(a) * 23, Math.sin(a) * 12, 2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  drawWaterTravel(ctx, e) {
+    const r = 18;
+    const g = ctx.createRadialGradient(-6, -7, 2, 0, 0, r);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(.22, 'rgba(95,205,255,.98)');
+    g.addColorStop(.68, 'rgba(0,123,239,.94)');
+    g.addColorStop(1, 'rgba(0,63,170,.62)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.82)';
+    ctx.beginPath(); ctx.ellipse(-6, -7, 5, 3, -.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(71,183,255,.65)';
+    ctx.beginPath(); ctx.arc(10, 9, 3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  drawBurst(ctx, e) {
+    const t = e.age / e.burst;
+    ctx.globalAlpha = Math.max(0, 1 - t);
+    if (e.kind === 'wind') {
+      const r = 18 + t * 65;
+      ctx.strokeStyle = `rgba(207,255,220,${0.9 - t * 0.6})`;
+      ctx.lineWidth = 7 * (1 - t) + 1;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${0.7 - t * 0.55})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 7; i++) {
+        const a = i * Math.PI * 2 / 7 + e.age * 2;
+        const d = 14 + t * 58;
+        ctx.fillStyle = `rgba(187,247,202,${0.7 - t * 0.55})`;
+        ctx.beginPath(); ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d, 5, 2, a, 0, Math.PI * 2); ctx.fill();
+      }
+    } else {
+      const r = 13 + t * 56;
+      ctx.strokeStyle = `rgba(43,157,255,${0.88 - t * 0.65})`;
+      ctx.lineWidth = 7 * (1 - t) + 1;
+      ctx.beginPath(); ctx.ellipse(0, 5, r, r * 0.48, 0, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 10; i++) {
+        const a = i * Math.PI * 2 / 10;
+        const d = 12 + t * 62;
+        const drop = 4 + (i % 3) * 2;
+        ctx.fillStyle = `rgba(${i % 2 ? '64,177,255' : '129,218,255'},${0.9 - t * 0.7})`;
+        ctx.beginPath(); ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d * 0.58, drop, drop * 1.5, a, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = `rgba(220,247,255,${0.65 - t * 0.5})`;
+      ctx.beginPath(); ctx.ellipse(0, 5, r * .65, r * .23, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  drawEffect(e) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.translate(e.x, e.y);
+    if (e.phase === 'travel') {
+      if (e.kind === 'wind') this.drawWindTravel(ctx, e);
+      else this.drawWaterTravel(ctx, e);
+    } else {
+      this.drawBurst(ctx, e);
+    }
+    ctx.restore();
+  }
+
+  draw() {
+    this.stage.draw(this.ctx, this.elapsed);
+    this.chick.draw(this.ctx, this.elapsed);
+    for (const e of this.effects) this.drawEffect(e);
+    this.fairy.draw(this.ctx, this.elapsed);
+  }
+
+  loop(now) {
+    if (!this.running) return;
+    const dt = Math.min(.033, (now - this.lastTime) / 1000);
+    this.lastTime = now;
+    this.update(dt);
+    this.draw();
+    requestAnimationFrame(this.loop);
+  }
+}
+
+
+// main.js
+
+
+const canvas = document.querySelector('#gameCanvas');
+const titleScreen = document.querySelector('#titleScreen');
+const startButton = document.querySelector('#startButton');
+const controls = document.querySelector('#controls');
+const hudElement = document.querySelector('#hud');
+
+const input = new InputController(
+  document.querySelector('#stick'),
+  document.querySelector('#stickKnob')
+);
+
+const game = new Game(canvas, input, {
+  distance: document.querySelector('#distanceText'),
+  plus: document.querySelector('#plusScore'),
+  minus: document.querySelector('#minusScore')
+});
+
+startButton.addEventListener('click', () => {
+  titleScreen.classList.add('hidden');
+  controls.classList.remove('hidden');
+  hudElement.classList.remove('hidden');
+  game.start();
+});
+
+document.querySelector('#windButton').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  game.cast('wind');
+});
+document.querySelector('#waterButton').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  game.cast('water');
+});
+document.querySelector('#chickLeftButton').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  game.guideChick(-1);
+});
+document.querySelector('#chickRightButton').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  game.guideChick(1);
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'j') game.cast('wind');
+  if (e.key === 'k') game.cast('water');
+  if (e.key === 'q') game.guideChick(-1);
+  if (e.key === 'e') game.guideChick(1);
+});
+
+</script>
+</body>
+</html>

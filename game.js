@@ -17,6 +17,7 @@ export class Game {
     this.plus = 0;
     this.minus = 0;
     this.effects = [];
+    this.cooldowns = { wind: 0, water: 0 };
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -24,6 +25,7 @@ export class Game {
   }
 
   start() {
+    if (this.running) return;
     this.running = true;
     this.lastTime = performance.now();
     requestAnimationFrame(this.loop);
@@ -32,14 +34,20 @@ export class Game {
   guideChick(direction) { this.chick.guide(direction); }
 
   cast(kind) {
-    if (!this.running) return;
+    if (!this.running || this.cooldowns[kind] > 0) return;
     const isWater = kind === 'water';
+    this.cooldowns[kind] = isWater ? 0.62 : 0.48;
     this.effects.push({
       x: this.fairy.x,
-      y: this.fairy.y - 16,
+      y: this.fairy.y - 24,
+      startX: this.fairy.x,
+      startY: this.fairy.y - 24,
       age: 0,
-      life: .65,
-      kind: isWater ? 'water' : 'wind'
+      travel: isWater ? 0.54 : 0.46,
+      burst: isWater ? 0.38 : 0.32,
+      speed: isWater ? 225 : 255,
+      kind,
+      phase: 'travel'
     });
   }
 
@@ -49,43 +57,106 @@ export class Game {
     this.stage.update(dt);
     this.fairy.update(dt, this.input.getVector(), this.width, this.height);
     this.chick.update(dt, this.elapsed);
+    this.cooldowns.wind = Math.max(0, this.cooldowns.wind - dt);
+    this.cooldowns.water = Math.max(0, this.cooldowns.water - dt);
+
     for (const e of this.effects) {
       e.age += dt;
-      e.y -= dt * 220;
+      if (e.phase === 'travel') {
+        e.y -= e.speed * dt;
+        e.x += Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
+        if (e.age >= e.travel) {
+          e.phase = 'burst';
+          e.age = 0;
+        }
+      }
     }
-    this.effects = this.effects.filter(e => e.age < e.life);
+    this.effects = this.effects.filter(e => e.phase !== 'burst' || e.age < e.burst);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
   }
 
+  drawWindTravel(ctx, e) {
+    const pulse = 1 + Math.sin(e.age * 22) * 0.08;
+    ctx.scale(pulse, pulse);
+    const r = 18;
+    const g = ctx.createRadialGradient(-5, -6, 2, 0, 0, r);
+    g.addColorStop(0, 'rgba(255,255,255,.98)');
+    g.addColorStop(.42, 'rgba(200,255,218,.83)');
+    g.addColorStop(1, 'rgba(76,213,140,.08)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(237,255,242,.82)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, 12, -0.2, Math.PI * 1.55);
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      const a = e.age * 7 + i * Math.PI * 2 / 3;
+      ctx.fillStyle = 'rgba(210,255,222,.68)';
+      ctx.beginPath(); ctx.arc(Math.cos(a) * 23, Math.sin(a) * 12, 2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
+  drawWaterTravel(ctx, e) {
+    const r = 18;
+    const g = ctx.createRadialGradient(-6, -7, 2, 0, 0, r);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(.22, 'rgba(95,205,255,.98)');
+    g.addColorStop(.68, 'rgba(0,123,239,.94)');
+    g.addColorStop(1, 'rgba(0,63,170,.62)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.82)';
+    ctx.beginPath(); ctx.ellipse(-6, -7, 5, 3, -.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(71,183,255,.65)';
+    ctx.beginPath(); ctx.arc(10, 9, 3, 0, Math.PI * 2); ctx.fill();
+  }
+
+  drawBurst(ctx, e) {
+    const t = e.age / e.burst;
+    ctx.globalAlpha = Math.max(0, 1 - t);
+    if (e.kind === 'wind') {
+      const r = 18 + t * 65;
+      ctx.strokeStyle = `rgba(207,255,220,${0.9 - t * 0.6})`;
+      ctx.lineWidth = 7 * (1 - t) + 1;
+      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${0.7 - t * 0.55})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 7; i++) {
+        const a = i * Math.PI * 2 / 7 + e.age * 2;
+        const d = 14 + t * 58;
+        ctx.fillStyle = `rgba(187,247,202,${0.7 - t * 0.55})`;
+        ctx.beginPath(); ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d, 5, 2, a, 0, Math.PI * 2); ctx.fill();
+      }
+    } else {
+      const r = 13 + t * 56;
+      ctx.strokeStyle = `rgba(43,157,255,${0.88 - t * 0.65})`;
+      ctx.lineWidth = 7 * (1 - t) + 1;
+      ctx.beginPath(); ctx.ellipse(0, 5, r, r * 0.48, 0, 0, Math.PI * 2); ctx.stroke();
+      for (let i = 0; i < 10; i++) {
+        const a = i * Math.PI * 2 / 10;
+        const d = 12 + t * 62;
+        const drop = 4 + (i % 3) * 2;
+        ctx.fillStyle = `rgba(${i % 2 ? '64,177,255' : '129,218,255'},${0.9 - t * 0.7})`;
+        ctx.beginPath(); ctx.ellipse(Math.cos(a) * d, Math.sin(a) * d * 0.58, drop, drop * 1.5, a, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = `rgba(220,247,255,${0.65 - t * 0.5})`;
+      ctx.beginPath(); ctx.ellipse(0, 5, r * .65, r * .23, 0, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+
   drawEffect(e) {
     const ctx = this.ctx;
-    const t = e.age / e.life;
     ctx.save();
-    ctx.globalAlpha = 1 - t * .7;
     ctx.translate(e.x, e.y);
-    if (e.kind === 'wind') {
-      const r = 17 + t * 8;
-      const g = ctx.createRadialGradient(-5, -6, 2, 0, 0, r);
-      g.addColorStop(0, 'rgba(255,255,255,.95)');
-      g.addColorStop(.45, 'rgba(197,255,210,.75)');
-      g.addColorStop(1, 'rgba(115,226,160,.08)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
-      ctx.strokeStyle = 'rgba(235,255,238,.8)'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(0, 0, r * .72, 0, Math.PI*2); ctx.stroke();
+    if (e.phase === 'travel') {
+      if (e.kind === 'wind') this.drawWindTravel(ctx, e);
+      else this.drawWaterTravel(ctx, e);
     } else {
-      const r = 16 + t * 5;
-      const g = ctx.createRadialGradient(-6, -7, 2, 0, 0, r);
-      g.addColorStop(0, 'rgba(255,255,255,1)');
-      g.addColorStop(.25, 'rgba(89,196,255,.98)');
-      g.addColorStop(.72, 'rgba(0,116,235,.88)');
-      g.addColorStop(1, 'rgba(0,73,180,.35)');
-      ctx.fillStyle = g;
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,.78)';
-      ctx.beginPath(); ctx.ellipse(-6, -7, 5, 3, -.5, 0, Math.PI*2); ctx.fill();
+      this.drawBurst(ctx, e);
     }
     ctx.restore();
   }
