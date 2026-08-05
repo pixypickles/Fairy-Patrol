@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.4.1</title>
+  <title>Fairy Guardian v3.4.2</title>
   <style>
 :root {
   color-scheme: light;
@@ -502,7 +502,7 @@ class Stage {
       seed = (seed * 16807) % 2147483647;
       return (seed - 1) / 2147483646;
     };
-    for (let i = 0; i < 155; i++) {
+    for (let i = 0; i < 205; i++) {
       patches.push({
         x: rnd() * this.width,
         y: rnd() * (this.height + 260),
@@ -521,9 +521,10 @@ class Stage {
 
   draw(ctx, time) {
     const base = ctx.createLinearGradient(0, 0, this.width, this.height);
-    base.addColorStop(0, '#89b86a');
-    base.addColorStop(.5, '#78a85a');
-    base.addColorStop(1, '#6f9e52');
+    base.addColorStop(0, '#8fbd70');
+    base.addColorStop(.28, '#82b364');
+    base.addColorStop(.62, '#76a75a');
+    base.addColorStop(1, '#6b9950');
     ctx.fillStyle = base;
     ctx.fillRect(0, 0, this.width, this.height);
 
@@ -533,7 +534,14 @@ class Stage {
       if (p.type < .28) {
         ctx.fillStyle = p.tone < .5 ? 'rgba(189,213,126,.13)' : 'rgba(45,111,54,.11)';
         ctx.beginPath();
-        ctx.ellipse(p.x, y, p.size * 1.8, p.size, p.phase, 0, Math.PI * 2);
+        for (let n = 0; n <= 14; n++) {
+          const a = n / 14 * Math.PI * 2;
+          const wobble = 1 + Math.sin(a * 3 + p.phase) * .12 + Math.cos(a * 5 - p.phase) * .07;
+          const px = p.x + Math.cos(a) * p.size * 1.8 * wobble;
+          const py = y + Math.sin(a) * p.size * (.88 + .12 * Math.sin(a * 2 + p.phase));
+          if (n === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
         ctx.fill();
       } else if (p.type < .68) {
         const sway = Math.sin(time * 1.7 + p.phase) * 1.5;
@@ -780,6 +788,8 @@ class Chick {
     this.panicTimer = 0;
     this.admireTimer = 0;
     this.admireDirection = 0;
+    this.steerVelocity = 0;
+    this.freeWalkTimer = 0;
   }
 
   guide(direction) {
@@ -828,6 +838,8 @@ class Chick {
     }
     const dx = activeTarget - this.x;
     this.moveDir = Math.abs(dx) > 4 ? Math.sign(dx) : 0;
+    const desiredVelocity = Math.max(-95, Math.min(95, dx * steeringSpeed));
+    this.steerVelocity += (desiredVelocity - this.steerVelocity) * Math.min(1, dt * 3.6);
 
     this.lookTimer -= dt;
     this.turnTime = Math.max(0, this.turnTime - dt);
@@ -841,7 +853,8 @@ class Chick {
 
     const wander = Math.sin(time * 1.45) * 6 + Math.sin(time * .69) * 3.5;
     const assistWobble = this.assistTargetX != null ? Math.sin(time * 9) * 2.4 : 0;
-    this.x += (activeTarget + wander + assistWobble - this.x) * Math.min(1, dt * steeringSpeed);
+    this.x += this.steerVelocity * dt + (wander + assistWobble) * dt * .32;
+    if (Math.abs(dx) < 5) this.steerVelocity *= Math.pow(.08, dt);
   }
 
   draw(ctx, time) {
@@ -1735,18 +1748,20 @@ class MeadowFlower {
     this.speed = 39;
     this.dead = false;
     this.seed = Math.random() * Math.PI * 2;
-    this.palette = Math.floor(Math.random() * 3);
-    // Single flowers still appear, but many patches contain three buds.
-    this.variant = Math.random() < .68 ? (Math.random() < .52 ? 'row' : 'bouquet') : 'single';
-    const offsets = this.variant === 'single' ? [0] : [-30, 0, 30];
+    this.palette = Math.floor(Math.random() * 6);
+    // Flowers now grow in small, natural colonies. Singles remain for breathing room.
+    const colonyRoll = Math.random();
+    const count = colonyRoll < .22 ? 1 : colonyRoll < .78 ? 3 : 5;
+    this.variant = count === 1 ? 'single' : (Math.random() < .55 ? 'row' : 'bouquet');
+    const offsets = count === 1 ? [0] : count === 3 ? [-29, 0, 29] : [-48, -24, 0, 24, 48];
     this.buds = offsets.map((offset, i) => ({
       offset,
       growth: 0,
       delay: 0,
       state: 'bud',
-      palette: (this.palette + i) % 3
+      palette: (this.palette + i) % 6
     }));
-    this.radius = this.variant === 'single' ? 25 : 58;
+    this.radius = count === 1 ? 25 : count === 3 ? 58 : 82;
   }
 
   update(dt) {
@@ -1838,7 +1853,7 @@ class MeadowFlower {
       ctx.beginPath(); ctx.ellipse(0, -4, 5, 7, 0, 0, Math.PI * 2); ctx.fill();
     } else {
       const eased = 1 - Math.pow(1 - g, 3);
-      const colors = ['#ef8fc2', '#a891ef', '#f5a65b'];
+      const colors = ['#ef8fc2', '#a891ef', '#f5a65b', '#fff4de', '#f3d45d', '#72b9e8'];
       const color = colors[bud.palette];
       ctx.save();
       ctx.scale(.35 + eased * .65, .35 + eased * .65);
@@ -2008,14 +2023,22 @@ class AmbientButterfly {
     this.x=45+Math.random()*(width-90); this.y=-40-Math.random()*180;
     this.baseSpeed=29+Math.random()*10; this.phase=Math.random()*Math.PI*2;
     this.hue=[35,285,195,330][Math.floor(Math.random()*4)];
-    this.gustX=0; this.gustY=0; this.dead=false;
+    this.gustX=0; this.gustY=0; this.dead=false; this.restTimer=0; this.restX=null; this.restY=null;
   }
   update(dt,time,flowers,fairy){
-    this.y += this.baseSpeed*dt + this.gustY*dt;
-    this.x += Math.sin(time*1.7+this.phase)*18*dt + this.gustX*dt;
+    const bloom=flowers.find(f=>!f.dead && f.buds?.some(b=>b.state==='open') && Math.abs(f.y-this.y)<135 && Math.abs(f.x-this.x)<110);
+    if(this.restTimer>0){
+      this.restTimer=Math.max(0,this.restTimer-dt);
+      if(bloom){this.x+=(bloom.x-this.x)*Math.min(1,dt*4);this.y+=(bloom.y-19-this.y)*Math.min(1,dt*4);}
+    } else {
+      this.y += this.baseSpeed*dt + this.gustY*dt;
+      this.x += Math.sin(time*1.7+this.phase)*18*dt + this.gustX*dt;
+      if(bloom){
+        this.x+=(bloom.x-this.x)*dt*.24;
+        if(Math.hypot(bloom.x-this.x,bloom.y-19-this.y)<23 && Math.random()<dt*.7)this.restTimer=.7+Math.random()*1.2;
+      }
+    }
     this.gustX*=Math.pow(.08,dt); this.gustY*=Math.pow(.08,dt);
-    const bloom=flowers.find(f=>!f.dead && f.buds?.some(b=>b.state==='open') && Math.abs(f.y-this.y)<130);
-    if(bloom){this.x+=(bloom.x-this.x)*dt*.18;}
     const dx=this.x-fairy.x,dy=this.y-fairy.y,d=Math.hypot(dx,dy);
     if(d<62&&d>1){this.x+=dx/d*34*dt;this.y+=dy/d*18*dt;}
     if(this.x<20)this.x=20;if(this.x>this.width-20)this.x=this.width-20;
@@ -2023,7 +2046,7 @@ class AmbientButterfly {
   }
   gust(x,y,r){const dx=this.x-x,dy=this.y-y,d=Math.hypot(dx,dy);if(d<r&&d>1){this.gustX+=dx/d*115;this.gustY+=dy/d*70;}}
   draw(ctx,time){
-    const flap=.35+.65*Math.abs(Math.sin(time*8+this.phase));
+    const flap=this.restTimer>0?.24:(.35+.65*Math.abs(Math.sin(time*8+this.phase)));
     ctx.save();ctx.translate(this.x,this.y);ctx.rotate(Math.sin(time*1.9+this.phase)*.28);
     ctx.globalAlpha=.82;ctx.fillStyle=`hsla(${this.hue},78%,72%,.78)`;
     ctx.beginPath();ctx.ellipse(-5,0,7*flap+2,5,-.45,0,Math.PI*2);ctx.ellipse(5,0,7*flap+2,5,.45,0,Math.PI*2);ctx.fill();
@@ -2128,8 +2151,9 @@ class SideBranch {
       // Elevated canopy branch: broad at the unseen trunk, narrowing toward the tip.
       // A soft displaced shadow and slightly slower parallax keep it from reading as a stick on the ground.
       ctx.save();
-      ctx.translate(14, 23);
-      ctx.globalAlpha = .09;
+      ctx.translate(27, 39);
+      ctx.filter = 'blur(5px)';
+      ctx.globalAlpha = .055;
       ctx.fillStyle = '#263a22';
       ctx.beginPath();
       ctx.moveTo(-30, 19);
@@ -2137,6 +2161,7 @@ class SideBranch {
       ctx.bezierCurveTo(this.length*.62, 5+sway, this.length*.23, -13+sway, -30, -9);
       ctx.closePath();
       ctx.fill();
+      ctx.filter = 'none';
       ctx.restore();
 
       const bark = ctx.createLinearGradient(-24,0,this.length,0);
@@ -2162,13 +2187,14 @@ class SideBranch {
       const a=twig.side*(.58+Math.sin(i+this.seed)*.12); const tx=bx+Math.cos(a)*twig.len; const ty=by+Math.sin(a)*twig.len;
       ctx.strokeStyle=this.kind==='leafy'?'#68462b':'#77533a';ctx.lineWidth=this.kind==='leafy'?(5.2-twig.t*2.8):4;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(tx,ty);ctx.stroke();
       if(this.kind==='leafy'&&twig.leaf){
-        this.drawLeaf(ctx,tx,ty,a+twig.side*.3,.9, .92);
-        this.drawLeaf(ctx,bx+(tx-bx)*.62,by+(ty-by)*.62,a-twig.side*.55,.72,.9);
+        const flutter = Math.sin(time * 2.4 + this.seed + i * 1.7) * .075;
+        this.drawLeaf(ctx,tx,ty,a+twig.side*.3+flutter,.9, .92);
+        this.drawLeaf(ctx,bx+(tx-bx)*.62,by+(ty-by)*.62,a-twig.side*.55-flutter,.72,.9);
       }
     }
     if(this.kind==='leafy'){
       for(let i=0;i<5;i++){
-        const q=.18+i*.17; this.drawLeaf(ctx,this.length*q, -9+Math.sin(i+this.seed)*8+sway, (i%2?-.25:.25), .88, .88);
+        const q=.18+i*.17; const flutter=Math.sin(time*2.1+this.seed+i)*.08; this.drawLeaf(ctx,this.length*q, -9+Math.sin(i+this.seed)*8+sway, (i%2?-.25:.25)+flutter, .88, .88);
       }
     } else {
       ctx.strokeStyle='#3e2a20';ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(this.length*.72,-7+sway);ctx.lineTo(this.length*.75,2+sway);ctx.lineTo(this.length*.79,-5+sway);ctx.stroke();
@@ -2191,7 +2217,7 @@ class WindRock {
     this.dead=false;
     this.bumped=false;
     this.seed=Math.random()*Math.PI*2;
-    this.points=Array.from({length:9},(_,i)=>({a:i/9*Math.PI*2,r:.82+Math.random()*.28}));
+    this.points=Array.from({length:10},(_,i)=>({a:i/10*Math.PI*2,r:.88+Math.random()*.18}));
   }
   update(dt,chick){
     this.y+=this.speed*dt;this.hitCooldown=Math.max(0,this.hitCooldown-dt);
@@ -2209,9 +2235,17 @@ class WindRock {
   drawRockShape(ctx,scale=1,alpha=1){
     ctx.globalAlpha=alpha;
     const grad=ctx.createLinearGradient(-25,-28,26,26);grad.addColorStop(0,'#a6a497');grad.addColorStop(.55,'#7f8178');grad.addColorStop(1,'#656a64');
-    ctx.fillStyle=grad;ctx.beginPath();
-    this.points.forEach((p,i)=>{const x=Math.cos(p.a)*34*p.r*scale,y=Math.sin(p.a)*27*p.r*scale;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.closePath();ctx.fill();
-    ctx.strokeStyle='rgba(50,55,51,.72)';ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle=grad;
+    const pts=this.points.map(p=>({x:Math.cos(p.a)*34*p.r*scale,y:Math.sin(p.a)*27*p.r*scale}));
+    ctx.beginPath();
+    const firstMid={x:(pts[0].x+pts[pts.length-1].x)/2,y:(pts[0].y+pts[pts.length-1].y)/2};
+    ctx.moveTo(firstMid.x,firstMid.y);
+    for(let i=0;i<pts.length;i++){
+      const p=pts[i],n=pts[(i+1)%pts.length];
+      ctx.quadraticCurveTo(p.x,p.y,(p.x+n.x)/2,(p.y+n.y)/2);
+    }
+    ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(50,55,51,.58)';ctx.lineWidth=2.6;ctx.stroke();
     ctx.fillStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.ellipse(-9,-11,13,6,-.45,0,Math.PI*2);ctx.fill();
   }
   draw(ctx,time){
@@ -2420,16 +2454,25 @@ class Game {
     for (const pile of this.leafPiles) {
       if (pile.update(dt, this.chick) === 'bump') this.minus += 15;
     }
-    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < 4) {
+    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < 5) {
       const flower = this.spawnScenery(() => new MeadowFlower(this.width, this.height), 54);
       if (flower) this.flowers.push(flower);
-      this.flowerSpawnTimer = flower ? 6.4 + Math.random() * 4.6 : 2.0;
+      this.flowerSpawnTimer = flower ? 5.4 + Math.random() * 3.8 : 2.0;
     }
     for (const flower of this.flowers) flower.update(dt);
     if (this.dandelionSpawnTimer <= 0 && this.dandelions.filter(d => !d.dead).length < 2) {
       const dandelion = this.spawnScenery(() => new Dandelion(this.width, this.height), 54);
-      if (dandelion) this.dandelions.push(dandelion);
-      this.dandelionSpawnTimer = dandelion ? 12 + Math.random() * 9 : 2.0;
+      if (dandelion) {
+        this.dandelions.push(dandelion);
+        // Sometimes a second puff grows nearby, making a tiny colony rather than random confetti.
+        if (Math.random() < .52 && this.dandelions.filter(d => !d.dead).length < 3) {
+          const friend = new Dandelion(this.width, this.height);
+          friend.x = Math.max(48, Math.min(this.width - 48, dandelion.x + (Math.random() < .5 ? -1 : 1) * (34 + Math.random() * 24)));
+          friend.y = dandelion.y + 9 + Math.random() * 15;
+          if (!this.isSceneryBlocked(friend.x, friend.y, 50)) this.dandelions.push(friend);
+        }
+      }
+      this.dandelionSpawnTimer = dandelion ? 13 + Math.random() * 9 : 2.0;
     }
     for (const d of this.dandelions) d.update(dt);
     if (this.sideBranchSpawnTimer <= 0 && this.sideBranches.filter(b => !b.dead).length < 2) {
@@ -2989,6 +3032,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.4.1</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.4.2</div>
 </body>
 </html>
