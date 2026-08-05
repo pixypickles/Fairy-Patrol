@@ -1,4 +1,4 @@
-# Fairy Guardian v3.1.1
+# Fairy Guardian v3.1.2
 
 GitHub Pages向けの縦型Canvasゲームです。
 
@@ -10,3 +10,9 @@ GitHub Pages向けの縦型Canvasゲームです。
 - 川と段差が連続しすぎない間隔調整
 
 GitHubでは `single-file.html` を `index.html` に変更して使う方法が簡単です。
+
+## v3.1.2
+
+- 自然な葉っぱと小枝の山を追加
+- 風魔法で葉がふわっと散り、道を片づけられます
+- 片づけると +30 点、ヒヨコがぶつかると -15 点です

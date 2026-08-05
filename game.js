@@ -5,6 +5,7 @@ import { Bird } from './bird.js';
 import { Cat } from './cat.js';
 import { River } from './river.js';
 import { Ledge } from './ledge.js';
+import { LeafPile } from './leaf-pile.js';
 
 export class Game {
   constructor(canvas, input, hud) {
@@ -30,6 +31,8 @@ export class Game {
     this.riverSpawnTimer = 10.0;
     this.ledges = [];
     this.ledgeSpawnTimer = 22.0;
+    this.leafPiles = [];
+    this.leafPileSpawnTimer = 7.5;
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -74,6 +77,7 @@ export class Game {
     this.stage.update(dt);
     this.riverSpawnTimer -= dt;
     this.ledgeSpawnTimer -= dt;
+    this.leafPileSpawnTimer -= dt;
     const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
     if (!terrainPresent && this.riverSpawnTimer <= 0) {
       this.rivers.push(new River(this.width, this.height));
@@ -83,6 +87,13 @@ export class Game {
       this.ledges.push(new Ledge(this.width, this.height));
       this.ledgeSpawnTimer = 30 + Math.random() * 8;
       this.riverSpawnTimer = Math.max(this.riverSpawnTimer, 15);
+    }
+    if (this.leafPileSpawnTimer <= 0 && this.leafPiles.filter(p => p.state === 'rest').length < 2) {
+      this.leafPiles.push(new LeafPile(this.width, this.height));
+      this.leafPileSpawnTimer = 11 + Math.random() * 7;
+    }
+    for (const pile of this.leafPiles) {
+      if (pile.update(dt, this.chick) === 'bump') this.minus += 15;
     }
     for (const river of this.rivers) river.update(dt, this.chick);
     for (const ledge of this.ledges) ledge.update(dt, this.chick);
@@ -145,6 +156,16 @@ export class Game {
           }
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
+          for (const pile of this.leafPiles) {
+            if (pile.windHit(e.x, e.y, 18 + (e.charge || 0) * 12)) {
+              this.plus += 30;
+              e.phase = 'burst';
+              e.age = 0;
+              break;
+            }
+          }
+        }
+        if (e.phase === 'travel' && e.kind === 'wind') {
           for (const ledge of this.ledges) {
             const carved = ledge.windHit(e.x, e.y, 18 + (e.charge || 0) * 10);
             if (carved) {
@@ -182,6 +203,9 @@ export class Game {
         const t = e.age / e.burst;
         const radius = e.kind === 'wind' ? 18 + t * 65 * (e.power || 1) : 13 + t * 56;
         if (e.kind === 'wind') {
+          for (const pile of this.leafPiles) {
+            if (pile.windHit(e.x, e.y, radius * .62)) this.plus += 30;
+          }
           for (const ledge of this.ledges) {
             const carved = ledge.windHit(e.x, e.y, radius * .55);
             if (carved) this.plus += 100;
@@ -204,6 +228,7 @@ export class Game {
     this.cats = this.cats.filter(cat => !cat.isOffscreen());
     this.rivers = this.rivers.filter(river => !river.dead);
     this.ledges = this.ledges.filter(ledge => !ledge.dead);
+    this.leafPiles = this.leafPiles.filter(pile => !pile.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -297,6 +322,7 @@ export class Game {
     this.stage.draw(this.ctx, this.elapsed);
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
     for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
+    for (const pile of this.leafPiles) pile.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
