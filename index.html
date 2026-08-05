@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.3.0</title>
+  <title>Fairy Guardian v3.3.1</title>
   <style>
 :root {
   color-scheme: light;
@@ -2435,8 +2435,9 @@ class Game {
           }
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
-          for(const b of this.butterflies)b.gust(e.x,e.y,radius*.8);
-          for(const l of this.ladybugs)l.gust(e.x,e.y,radius*.7);
+          const gustRadius = 18 + (e.charge || 0) * 22;
+          for (const b of this.butterflies) b.gust(e.x, e.y, gustRadius * .8);
+          for (const l of this.ladybugs) l.gust(e.x, e.y, gustRadius * .7);
           for (const rock of this.rocks) {
             const hit = rock.windHit(e.x, e.y, 18 + (e.charge || 0) * 16);
             if (hit) {
@@ -2815,6 +2816,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.3.0</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.3.1</div>
 </body>
 </html>
