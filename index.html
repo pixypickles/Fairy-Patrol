@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.2.5b</title>
+  <title>Fairy Guardian v3.2.6</title>
   <style>
 :root {
   color-scheme: light;
@@ -1850,7 +1850,7 @@ class SideBranch {
     this.length = kind === 'leafy' ? 120 + Math.random() * 70 : 105 + Math.random() * 55;
     this.x = this.side === 'left' ? 0 : width;
     this.y = -105;
-    this.speed = 42;
+    this.speed = kind === 'leafy' ? 31 : 42;
     this.state = 'rest';
     this.age = 0;
     this.dead = false;
@@ -1919,13 +1919,43 @@ class SideBranch {
       ctx.restore(); return;
     }
     const branchColor = this.kind === 'leafy' ? '#6f4b2d' : '#77533a';
-    ctx.strokeStyle=branchColor; ctx.lineCap='round'; ctx.lineWidth=this.kind === 'leafy'?13:10;
-    ctx.beginPath(); ctx.moveTo(-18,8); ctx.bezierCurveTo(this.length*.28,-8+sway,this.length*.63,9+sway,this.length,0+sway); ctx.stroke();
-    ctx.strokeStyle='rgba(47,31,20,.48)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,4);ctx.bezierCurveTo(this.length*.3,-10+sway,this.length*.65,6+sway,this.length-4,-2+sway);ctx.stroke();
+    if (this.kind === 'leafy') {
+      // Elevated canopy branch: broad at the unseen trunk, narrowing toward the tip.
+      // A soft displaced shadow and slightly slower parallax keep it from reading as a stick on the ground.
+      ctx.save();
+      ctx.translate(7, 12);
+      ctx.globalAlpha = .16;
+      ctx.fillStyle = '#263a22';
+      ctx.beginPath();
+      ctx.moveTo(-30, 19);
+      ctx.bezierCurveTo(this.length*.22, 5+sway, this.length*.61, 15+sway, this.length+3, 2+sway);
+      ctx.bezierCurveTo(this.length*.62, 5+sway, this.length*.23, -13+sway, -30, -9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      const bark = ctx.createLinearGradient(-24,0,this.length,0);
+      bark.addColorStop(0,'#5b3824');
+      bark.addColorStop(.42,'#775039');
+      bark.addColorStop(1,'#9a6c47');
+      ctx.fillStyle = bark;
+      ctx.beginPath();
+      ctx.moveTo(-30, 17);
+      ctx.bezierCurveTo(this.length*.24, 3+sway, this.length*.62, 13+sway, this.length+2, 1+sway);
+      ctx.bezierCurveTo(this.length*.64, 4+sway, this.length*.25, -11+sway, -30, -8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle='rgba(50,29,18,.72)';ctx.lineWidth=2.3;ctx.stroke();
+      ctx.strokeStyle='rgba(255,224,176,.18)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-18,-2);ctx.bezierCurveTo(this.length*.28,-8+sway,this.length*.68,4+sway,this.length-7,-1+sway);ctx.stroke();
+    } else {
+      ctx.strokeStyle=branchColor; ctx.lineCap='round'; ctx.lineWidth=10;
+      ctx.beginPath(); ctx.moveTo(-18,8); ctx.bezierCurveTo(this.length*.28,-8+sway,this.length*.63,9+sway,this.length,0+sway); ctx.stroke();
+      ctx.strokeStyle='rgba(47,31,20,.48)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,4);ctx.bezierCurveTo(this.length*.3,-10+sway,this.length*.65,6+sway,this.length-4,-2+sway);ctx.stroke();
+    }
     for (let i=0;i<this.twigs.length;i++) {
       const twig=this.twigs[i]; const bx=this.length*twig.t; const by=Math.sin(twig.t*Math.PI*2+this.seed)*4+sway;
       const a=twig.side*(.58+Math.sin(i+this.seed)*.12); const tx=bx+Math.cos(a)*twig.len; const ty=by+Math.sin(a)*twig.len;
-      ctx.strokeStyle=this.kind==='leafy'?'#68462b':'#77533a';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(tx,ty);ctx.stroke();
+      ctx.strokeStyle=this.kind==='leafy'?'#68462b':'#77533a';ctx.lineWidth=this.kind==='leafy'?(5.2-twig.t*2.8):4;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(tx,ty);ctx.stroke();
       if(this.kind==='leafy'&&twig.leaf){
         this.drawLeaf(ctx,tx,ty,a+twig.side*.3,.9, .92);
         this.drawLeaf(ctx,bx+(tx-bx)*.62,by+(ty-by)*.62,a-twig.side*.55,.72,.9);
@@ -2675,6 +2705,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.5b</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.6</div>
 </body>
 </html>
