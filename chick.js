@@ -9,6 +9,7 @@ export class Chick {
     this.lookMode = 'forward';
     this.turnTime = 0;
     this.moveDir = 0;
+    this.autoTargetX = null;
   }
 
   guide(direction) {
@@ -16,8 +17,11 @@ export class Chick {
     this.targetX = this.lanes[this.lane];
   }
 
+  setAutoTarget(x) { this.autoTargetX = x; }
+
   update(dt, time) {
-    const dx = this.targetX - this.x;
+    const activeTarget = this.autoTargetX ?? this.targetX;
+    const dx = activeTarget - this.x;
     this.moveDir = Math.abs(dx) > 4 ? Math.sign(dx) : 0;
 
     this.lookTimer -= dt;
@@ -31,7 +35,7 @@ export class Chick {
     if (this.turnTime <= 0) this.lookMode = 'forward';
 
     const wander = Math.sin(time * 1.45) * 6 + Math.sin(time * .69) * 3.5;
-    this.x += (this.targetX + wander - this.x) * Math.min(1, dt * 1.45);
+    this.x += (activeTarget + wander - this.x) * Math.min(1, dt * 1.45);
   }
 
   draw(ctx, time) {
