@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.2.6</title>
+  <title>Fairy Guardian v3.3.0</title>
   <style>
 :root {
   color-scheme: light;
@@ -627,6 +627,8 @@ class Chick {
     this.assistTargetX = null;
     this.assistTimer = 0;
     this.panicTimer = 0;
+    this.admireTimer = 0;
+    this.admireDirection = 0;
   }
 
   guide(direction) {
@@ -635,6 +637,12 @@ class Chick {
   }
 
   setAutoTarget(x) { this.autoTargetX = x; }
+
+  admireFlower(flowerX) {
+    if (this.panicTimer > 0 || this.assistTimer > 0) return;
+    this.admireTimer = .72;
+    this.admireDirection = Math.sign(flowerX - this.x) || 1;
+  }
 
   assistTo(x) {
     this.assistTargetX = x;
@@ -651,6 +659,7 @@ class Chick {
     // usable crossing, then stops pulling once the chick is safely inside it.
     this.assistTimer = Math.max(0, this.assistTimer - dt);
     this.panicTimer = Math.max(0, this.panicTimer - dt);
+    this.admireTimer = Math.max(0, this.admireTimer - dt);
     let activeTarget = this.targetX;
     let steeringSpeed = 1.45;
     if (this.assistTargetX != null && this.assistTimer > 0) {
@@ -687,7 +696,7 @@ class Chick {
   draw(ctx, time) {
     const walk = Math.sin(time * 6.6);
     const bob = Math.abs(walk) * 3;
-    let facing = this.moveDir < 0 ? 'left' : this.moveDir > 0 ? 'right' : this.lookMode;
+    let facing = this.admireTimer > 0 ? (this.admireDirection < 0 ? 'left' : 'right') : (this.moveDir < 0 ? 'left' : this.moveDir > 0 ? 'right' : this.lookMode);
     if (facing === 'forward') facing = 'up';
 
     ctx.save();
@@ -1841,6 +1850,51 @@ class Dandelion {
 }
 
 
+
+class AmbientButterfly {
+  constructor(width,height){
+    this.width=width; this.screenHeight=height;
+    this.x=45+Math.random()*(width-90); this.y=-40-Math.random()*180;
+    this.baseSpeed=29+Math.random()*10; this.phase=Math.random()*Math.PI*2;
+    this.hue=[35,285,195,330][Math.floor(Math.random()*4)];
+    this.gustX=0; this.gustY=0; this.dead=false;
+  }
+  update(dt,time,flowers,fairy){
+    this.y += this.baseSpeed*dt + this.gustY*dt;
+    this.x += Math.sin(time*1.7+this.phase)*18*dt + this.gustX*dt;
+    this.gustX*=Math.pow(.08,dt); this.gustY*=Math.pow(.08,dt);
+    const bloom=flowers.find(f=>!f.dead && f.buds?.some(b=>b.state==='open') && Math.abs(f.y-this.y)<130);
+    if(bloom){this.x+=(bloom.x-this.x)*dt*.18;}
+    const dx=this.x-fairy.x,dy=this.y-fairy.y,d=Math.hypot(dx,dy);
+    if(d<62&&d>1){this.x+=dx/d*34*dt;this.y+=dy/d*18*dt;}
+    if(this.x<20)this.x=20;if(this.x>this.width-20)this.x=this.width-20;
+    if(this.y>this.screenHeight+55)this.dead=true;
+  }
+  gust(x,y,r){const dx=this.x-x,dy=this.y-y,d=Math.hypot(dx,dy);if(d<r&&d>1){this.gustX+=dx/d*115;this.gustY+=dy/d*70;}}
+  draw(ctx,time){
+    const flap=.35+.65*Math.abs(Math.sin(time*8+this.phase));
+    ctx.save();ctx.translate(this.x,this.y);ctx.rotate(Math.sin(time*1.9+this.phase)*.28);
+    ctx.globalAlpha=.82;ctx.fillStyle=`hsla(${this.hue},78%,72%,.78)`;
+    ctx.beginPath();ctx.ellipse(-5,0,7*flap+2,5,-.45,0,Math.PI*2);ctx.ellipse(5,0,7*flap+2,5,.45,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(73,53,42,.8)';ctx.beginPath();ctx.ellipse(0,1,1.8,5,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='rgba(75,58,45,.65)';ctx.lineWidth=.8;ctx.beginPath();ctx.moveTo(-1,-3);ctx.quadraticCurveTo(-4,-8,-6,-7);ctx.moveTo(1,-3);ctx.quadraticCurveTo(4,-8,6,-7);ctx.stroke();ctx.restore();
+  }
+}
+
+class AmbientLadybug {
+  constructor(width,height){this.width=width;this.screenHeight=height;this.x=35+Math.random()*(width-70);this.y=-30-Math.random()*200;this.speed=39;this.phase=Math.random()*7;this.fly=0;this.vx=0;this.dead=false;}
+  update(dt,time){this.y+=this.speed*dt+(this.fly>0?-34:0)*dt;this.fly=Math.max(0,this.fly-dt);this.x+=Math.sin(time*.9+this.phase)*5*dt+this.vx*dt;this.vx*=Math.pow(.12,dt);if(this.y>this.screenHeight+35)this.dead=true;}
+  gust(x,y,r){if(Math.hypot(this.x-x,this.y-y)<r){this.fly=.8;this.vx+=(this.x<x?-1:1)*65;}}
+  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);ctx.rotate(Math.sin(time*2+this.phase)*.25);ctx.fillStyle='rgba(39,73,26,.18)';ctx.beginPath();ctx.ellipse(0,5,7,3,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#2c241d';ctx.beginPath();ctx.arc(0,-4,3.4,0,Math.PI*2);ctx.fill();ctx.fillStyle='#e64638';ctx.beginPath();ctx.ellipse(0,1,7,6,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#38251f';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(0,-4);ctx.lineTo(0,7);ctx.stroke();ctx.fillStyle='#39231d';for(const q of [[-3,-1],[3,-1],[-3,3],[3,3]]){ctx.beginPath();ctx.arc(q[0],q[1],1.1,0,Math.PI*2);ctx.fill();}ctx.restore();}
+}
+
+class RiverFrog {
+  constructor(x,y){this.x=x;this.y=y;this.age=0;this.life=1.65;this.phase=Math.random()*6;}
+  update(dt){this.age+=dt;}
+  get dead(){return this.age>this.life;}
+  draw(ctx,time){const q=Math.min(1,this.age/.22)*Math.min(1,(this.life-this.age)/.3);ctx.save();ctx.translate(this.x,this.y);ctx.globalAlpha=Math.max(0,q);const bob=Math.sin(this.age*8)*1.5;ctx.fillStyle='#62a94f';ctx.beginPath();ctx.ellipse(0,bob,15,9,0,Math.PI,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(-7,-5+bob,5,0,Math.PI*2);ctx.arc(7,-5+bob,5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-7,-6+bob,2.6,0,Math.PI*2);ctx.arc(7,-6+bob,2.6,0,Math.PI*2);ctx.fill();ctx.fillStyle='#26351f';ctx.beginPath();ctx.arc(-7,-6+bob,1.2,0,Math.PI*2);ctx.arc(7,-6+bob,1.2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#347436';ctx.lineWidth=1.4;ctx.beginPath();ctx.arc(0,0+bob,5,.15,Math.PI-.15);ctx.stroke();ctx.strokeStyle='rgba(215,248,255,.7)';ctx.beginPath();ctx.ellipse(0,5,18+this.age*7,6+this.age*2,0,0,Math.PI*2);ctx.stroke();ctx.restore();}
+}
+
 class SideBranch {
   constructor(width, height, kind = 'leafy') {
     this.width = width;
@@ -1923,8 +1977,8 @@ class SideBranch {
       // Elevated canopy branch: broad at the unseen trunk, narrowing toward the tip.
       // A soft displaced shadow and slightly slower parallax keep it from reading as a stick on the ground.
       ctx.save();
-      ctx.translate(7, 12);
-      ctx.globalAlpha = .16;
+      ctx.translate(14, 23);
+      ctx.globalAlpha = .09;
       ctx.fillStyle = '#263a22';
       ctx.beginPath();
       ctx.moveTo(-30, 19);
@@ -2060,6 +2114,13 @@ class Game {
     this.sideBranchSpawnTimer = 8.0;
     this.rocks = [];
     this.rockSpawnTimer = 13.0;
+    this.butterflies = [];
+    this.butterflySpawnTimer = 2.5;
+    this.ladybugs = [];
+    this.ladybugSpawnTimer = 5.0;
+    this.frogs = [];
+    this.frogCooldown = 0;
+    this.flowerAdmireCooldown = 4.0;
     this.leftHintButton = document.querySelector('#chickLeftButton');
     this.rightHintButton = document.querySelector('#chickRightButton');
     this.stage = new Stage(this.width, this.height);
@@ -2124,6 +2185,25 @@ class Game {
     }
   }
 
+
+  tryFrogSplash(x,y){
+    if(this.frogCooldown>0)return;
+    const river=this.rivers.find(r=>Math.abs(y-r.y)<r.height*.52 && x>18 && x<this.width-18);
+    if(river && Math.random()<.34){this.frogs.push(new RiverFrog(x,river.y+2));this.frogCooldown=3.2;}
+  }
+
+  drawSunbeams(ctx){
+    ctx.save();ctx.globalCompositeOperation='screen';
+    for(let i=0;i<6;i++){
+      const x=(this.width*(.12+i*.19)+Math.sin(this.elapsed*.18+i*1.7)*48)% (this.width+90)-35;
+      const y=90+i*150+Math.cos(this.elapsed*.14+i)*42;
+      const g=ctx.createRadialGradient(x,y,3,x,y,86+i%2*18);
+      g.addColorStop(0,'rgba(255,252,205,.115)');g.addColorStop(.55,'rgba(255,248,190,.055)');g.addColorStop(1,'rgba(255,248,190,0)');
+      ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(x,y,92,56,.22,0,Math.PI*2);ctx.fill();
+    }
+    ctx.restore();
+  }
+
   isSceneryBlocked(x, y, margin = 46) {
     for (const river of this.rivers) {
       if (Math.abs(y - river.y) < river.height * 0.5 + margin) return true;
@@ -2145,6 +2225,21 @@ class Game {
   update(dt) {
     this.elapsed += dt;
     this.distance += dt * 5;
+    this.frogCooldown = Math.max(0, this.frogCooldown - dt);
+    this.flowerAdmireCooldown = Math.max(0, this.flowerAdmireCooldown - dt);
+    this.butterflySpawnTimer -= dt;
+    this.ladybugSpawnTimer -= dt;
+    if (this.butterflySpawnTimer <= 0 && this.butterflies.length < 4) {
+      this.butterflies.push(new AmbientButterfly(this.width, this.height));
+      this.butterflySpawnTimer = 4 + Math.random() * 5;
+    }
+    if (this.ladybugSpawnTimer <= 0 && this.ladybugs.length < 3) {
+      this.ladybugs.push(new AmbientLadybug(this.width, this.height));
+      this.ladybugSpawnTimer = 6 + Math.random() * 7;
+    }
+    for (const butterfly of this.butterflies) butterfly.update(dt, this.elapsed, this.flowers, this.fairy);
+    for (const ladybug of this.ladybugs) ladybug.update(dt, this.elapsed);
+    for (const frog of this.frogs) frog.update(dt);
     this.stage.update(dt);
     this.riverSpawnTimer -= dt;
     this.ledgeSpawnTimer -= dt;
@@ -2234,6 +2329,10 @@ class Game {
     this.rightHintButton?.classList.toggle('hint', hintDx > 24);
     this.fairy.update(dt, this.input.getVector(), this.width, this.height);
     this.chick.update(dt, this.elapsed);
+    if(this.flowerAdmireCooldown<=0 && !this.rivers.some(r=>r.blocking) && !this.ledges.some(l=>l.blocking)){
+      const nearby=this.flowers.find(f=>!f.dead && f.buds?.some(b=>b.state==='open') && Math.abs(f.y-this.chick.y)<48 && Math.abs(f.x-this.chick.x)<92);
+      if(nearby && Math.random()<.018){this.chick.admireFlower(nearby.x);this.flowerAdmireCooldown=5+Math.random()*4;}
+    }
     this.cooldowns.wind = Math.max(0, this.cooldowns.wind - dt);
     this.cooldowns.water = Math.max(0, this.cooldowns.water - dt);
 
@@ -2287,6 +2386,7 @@ class Game {
           e.x += (e.vx || 0) * dt + Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
         }
         if (e.kind === 'water') {
+          this.tryFrogSplash(e.x,e.y);
           for (const river of this.rivers) {
             const grown = river.waterHit(e.x, e.y, e.spreadShot ? 12 : 18);
             if (grown) {
@@ -2335,6 +2435,8 @@ class Game {
           }
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
+          for(const b of this.butterflies)b.gust(e.x,e.y,radius*.8);
+          for(const l of this.ladybugs)l.gust(e.x,e.y,radius*.7);
           for (const rock of this.rocks) {
             const hit = rock.windHit(e.x, e.y, 18 + (e.charge || 0) * 16);
             if (hit) {
@@ -2399,6 +2501,7 @@ class Game {
             if (hit) this.plus += hit === 2 ? 40 : 15;
           }
         } else {
+          if(!e.frogChecked){this.tryFrogSplash(e.x,e.y);e.frogChecked=true;}
           for (const flower of this.flowers) {
             const bloomed = flower.waterHit(e.x, e.y, radius * .62);
             if (bloomed) this.plus += 40 * bloomed;
@@ -2434,6 +2537,9 @@ class Game {
     this.dandelions = this.dandelions.filter(d => !d.dead);
     this.sideBranches = this.sideBranches.filter(b => !b.dead);
     this.rocks = this.rocks.filter(r => !r.dead);
+    this.butterflies=this.butterflies.filter(b=>!b.dead);
+    this.ladybugs=this.ladybugs.filter(l=>!l.dead);
+    this.frogs=this.frogs.filter(f=>!f.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -2568,9 +2674,12 @@ class Game {
   draw() {
     this.stage.draw(this.ctx, this.elapsed);
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
+    for (const frog of this.frogs) frog.draw(this.ctx, this.elapsed);
     for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
     for (const pile of this.leafPiles) pile.draw(this.ctx, this.elapsed);
     for (const flower of this.flowers) flower.draw(this.ctx, this.elapsed);
+    for (const ladybug of this.ladybugs) ladybug.draw(this.ctx, this.elapsed);
+    for (const butterfly of this.butterflies) butterfly.draw(this.ctx, this.elapsed);
     for (const d of this.dandelions) d.draw(this.ctx, this.elapsed);
     for (const branch of this.sideBranches) branch.draw(this.ctx, this.elapsed);
     for (const rock of this.rocks) rock.draw(this.ctx, this.elapsed);
@@ -2578,6 +2687,7 @@ class Game {
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
     for (const e of this.effects) this.drawEffect(e);
+    this.drawSunbeams(this.ctx);
     this.fairy.draw(this.ctx, this.elapsed, this.chick);
   }
 
@@ -2705,6 +2815,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.6</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.3.0</div>
 </body>
 </html>
