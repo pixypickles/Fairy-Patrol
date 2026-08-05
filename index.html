@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.4.2</title>
+  <title>Fairy Guardian v3.5.0</title>
   <style>
 :root {
   color-scheme: light;
@@ -224,6 +224,9 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
   50% { transform: translateY(-2px) scale(1.035); filter: brightness(1.12); }
 }
 
+.cave-choice { margin-top:10px; background:linear-gradient(#73d8d0,#4a9bb3); box-shadow:0 5px 0 #326a82; }
+.cave-choice:active { box-shadow:0 2px 0 #326a82; }
+
 @media (max-height: 700px) {
   .app-shell { gap: 4px; }
   .controls { grid-template-columns: 120px 1fr; padding: 6px 8px; }
@@ -246,6 +249,7 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
           <h1>妖精とヒヨコの<br>森のおさんぽ</h1>
           <p>風と水の力で、ヒヨコをそっと見守ろう。</p>
           <button id="startButton" class="primary-button" type="button">おさんぽを始める</button>
+          <button id="caveButton" class="primary-button cave-choice" type="button">音の洞くつを試す</button>
         </div>
       </div>
 
@@ -286,6 +290,7 @@ class AudioEngine {
     this.master = null;
     this.muted = false;
     this.last = new Map();
+    this.caveMode = false;
   }
   unlock() {
     if (!this.ctx) {
@@ -367,7 +372,19 @@ class AudioEngine {
       this.tone(690,.11,{type:'sine',volume:v*.72,endFreq:410,delay:.018});
       this.noise(.085,{volume:v*.40,highpass:950,lowpass:5200,delay:.014});
       if(!spread)this.tone(980,.075,{type:'sine',volume:.009,endFreq:760,delay:.04});
+      if(this.caveMode){
+        this.tone(520,.22,{type:'sine',volume:.010,endFreq:360,delay:.13});
+        this.tone(760,.28,{type:'sine',volume:.006,endFreq:520,delay:.24});
+      }
     }
+  }
+  mushroom(note=0){
+    if(!this.can('mushroom-'+note,.05))return;
+    const scale=[523.25,587.33,659.25,698.46,783.99,880,987.77];
+    const f=scale[note%scale.length];
+    this.tone(f,.42,{type:'sine',volume:.045,endFreq:f*1.012});
+    this.tone(f*2,.30,{type:'sine',volume:.014,endFreq:f*1.72,delay:.018});
+    this.tone(f,.32,{type:'triangle',volume:.010,endFreq:f*.92,delay:.16});
   }
   flower(count=1){
     if(!this.can('flower',.07))return;
@@ -2265,6 +2282,33 @@ class WindRock {
   }
 }
 
+
+class CaveStage {
+  constructor(width,height){this.width=width;this.height=height;this.offset=0;this.speed=38;this.specks=Array.from({length:90},()=>({x:Math.random()*width,y:Math.random()*height,r:1+Math.random()*5,a:Math.random()*6.28}));}
+  update(dt){this.offset=(this.offset+this.speed*dt)%this.height;}
+  draw(ctx,time){
+    const g=ctx.createLinearGradient(0,0,this.width,this.height);g.addColorStop(0,'#173f48');g.addColorStop(.5,'#235f62');g.addColorStop(1,'#102f3b');ctx.fillStyle=g;ctx.fillRect(0,0,this.width,this.height);
+    ctx.fillStyle='rgba(7,24,32,.55)';ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(72,0);ctx.bezierCurveTo(96,150,62,290,88,430);ctx.bezierCurveTo(110,600,64,760,92,960);ctx.lineTo(0,960);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(this.width,0);ctx.lineTo(this.width-68,0);ctx.bezierCurveTo(this.width-100,170,this.width-62,310,this.width-92,470);ctx.bezierCurveTo(this.width-112,640,this.width-64,790,this.width-92,960);ctx.lineTo(this.width,960);ctx.closePath();ctx.fill();
+    for(const p of this.specks){const y=(p.y+this.offset*.45)%this.height;const glow=.35+.2*Math.sin(time*1.2+p.a);ctx.fillStyle=`rgba(79,210,190,${glow*.25})`;ctx.beginPath();ctx.arc(p.x,y,p.r,0,Math.PI*2);ctx.fill();}
+    // narrow shallow water channels
+    ctx.strokeStyle='rgba(71,190,210,.28)';ctx.lineWidth=24;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(135,-20);ctx.bezierCurveTo(190,190,105,340,180,520);ctx.bezierCurveTo(240,670,155,815,205,990);ctx.stroke();
+    ctx.strokeStyle='rgba(175,245,245,.18)';ctx.lineWidth=3;ctx.setLineDash([12,18]);ctx.lineDashOffset=-time*22;ctx.stroke();ctx.setLineDash([]);
+    const vg=ctx.createRadialGradient(this.width/2,this.height*.55,80,this.width/2,this.height*.55,430);vg.addColorStop(0,'rgba(86,226,201,.08)');vg.addColorStop(1,'rgba(0,0,0,.38)');ctx.fillStyle=vg;ctx.fillRect(0,0,this.width,this.height);
+  }
+}
+
+class CaveMushroom {
+  constructor(x,y,note){this.x=x;this.y=y;this.note=note;this.glow=0;this.pulse=Math.random()*6.28;this.dead=false;}
+  update(dt){this.y+=38*dt;this.glow=Math.max(0,this.glow-dt*.11);if(this.y>1010){this.y=-70-Math.random()*260;this.glow=0;}}
+  waterHit(x,y,r){if(Math.hypot(x-this.x,y-this.y)>r+22)return false;this.glow=1;return true;}
+  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);const pulse=.5+.5*Math.sin(time*2.3+this.pulse);if(this.glow>0){const rg=ctx.createRadialGradient(0,-8,3,0,-8,46);rg.addColorStop(0,`rgba(146,255,238,${.44*this.glow})`);rg.addColorStop(1,'rgba(70,220,205,0)');ctx.fillStyle=rg;ctx.beginPath();ctx.arc(0,-8,46,0,Math.PI*2);ctx.fill();}
+    ctx.strokeStyle='#173136';ctx.lineWidth=3;ctx.fillStyle='#d8f3dc';ctx.beginPath();ctx.roundRect(-6,-2,12,26,6);ctx.fill();ctx.stroke();
+    const hue=[176,198,224,270,306,338,52][this.note%7];ctx.fillStyle=`hsla(${hue},75%,${this.glow?72+8*pulse:48}%,${this.glow?.96:.88})`;ctx.beginPath();ctx.moveTo(-23,0);ctx.quadraticCurveTo(-18,-25,0,-28);ctx.quadraticCurveTo(19,-25,24,0);ctx.quadraticCurveTo(0,10,-23,0);ctx.fill();ctx.stroke();
+    ctx.fillStyle=`rgba(235,255,247,${.65+.25*pulse})`;for(let i=0;i<4;i++){const a=i*1.7+this.pulse;ctx.beginPath();ctx.arc(Math.cos(a)*12,-10+Math.sin(a)*7,2.2,0,Math.PI*2);ctx.fill();}
+    ctx.restore();}
+}
+
 class Game {
   constructor(canvas, input, hud) {
     this.canvas = canvas;
@@ -2273,6 +2317,8 @@ class Game {
     this.hud = hud;
     this.sound = sound;
     this.previousMinus = 0;
+    this.mode = 'meadow';
+    this.mushrooms = [];
     this.width = canvas.width;
     this.height = canvas.height;
     this.running = false;
@@ -2316,8 +2362,21 @@ class Game {
     this.loop = this.loop.bind(this);
   }
 
-  start() {
+  start(mode='meadow') {
     if (this.running) return;
+    this.mode=mode; this.sound.caveMode=mode==='cave';
+    if(mode==='cave'){
+      this.stage=new CaveStage(this.width,this.height);
+      this.mushrooms=[];
+      const notes=[0,1,2,3,4,2,4];
+      const rows=[180,390,610,820];
+      for(let row=0;row<rows.length;row++){
+        const count=row%2?4:5;
+        for(let i=0;i<count;i++)this.mushrooms.push(new CaveMushroom(105+i*(330/(count-1)),rows[row]+(i%2)*18,notes[(i+row)%notes.length]));
+      }
+      this.birdSpawnTimer=this.catSpawnTimer=this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=99999;
+      this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
+    }
     this.running = true;
     this.lastTime = performance.now();
     requestAnimationFrame(this.loop);
@@ -2417,11 +2476,11 @@ class Game {
     this.flowerAdmireCooldown = Math.max(0, this.flowerAdmireCooldown - dt);
     this.butterflySpawnTimer -= dt;
     this.ladybugSpawnTimer -= dt;
-    if (this.butterflySpawnTimer <= 0 && this.butterflies.length < 4) {
+    if (this.mode==='meadow' && this.butterflySpawnTimer <= 0 && this.butterflies.length < 4) {
       this.butterflies.push(new AmbientButterfly(this.width, this.height));
       this.butterflySpawnTimer = 4 + Math.random() * 5;
     }
-    if (this.ladybugSpawnTimer <= 0 && this.ladybugs.length < 3) {
+    if (this.mode==='meadow' && this.ladybugSpawnTimer <= 0 && this.ladybugs.length < 3) {
       this.ladybugs.push(new AmbientLadybug(this.width, this.height));
       this.ladybugSpawnTimer = 6 + Math.random() * 7;
     }
@@ -2429,6 +2488,7 @@ class Game {
     for (const ladybug of this.ladybugs) ladybug.update(dt, this.elapsed);
     for (const frog of this.frogs) frog.update(dt);
     this.stage.update(dt);
+    if(this.mode==='cave') for(const m of this.mushrooms) m.update(dt);
     this.riverSpawnTimer -= dt;
     this.ledgeSpawnTimer -= dt;
     this.leafPileSpawnTimer -= dt;
@@ -2586,6 +2646,9 @@ class Game {
           e.x += (e.vx || 0) * dt + Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
         }
         if (e.kind === 'water') {
+          if(this.mode==='cave'){
+            for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,e.spreadShot?13:20)){this.plus+=25;this.sound.mushroom(m.note);e.phase='burst';e.age=0;break;}}
+          }
           this.tryFrogSplash(e.x,e.y);
           for (const river of this.rivers) {
             const grown = river.waterHit(e.x, e.y, e.spreadShot ? 12 : 18);
@@ -2702,6 +2765,7 @@ class Game {
             if (hit) { this.plus += hit === 2 ? 40 : 15; this.sound.rock(hit === 2); } this.sound.rock(hit === 2);
           }
         } else {
+          if(this.mode==='cave'){for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,radius*.62)){this.plus+=25;this.sound.mushroom(m.note);}}}
           if(!e.frogChecked){this.tryFrogSplash(e.x,e.y);e.frogChecked=true;}
           for (const flower of this.flowers) {
             const bloomed = flower.waterHit(e.x, e.y, radius * .62);
@@ -2877,6 +2941,7 @@ class Game {
 
   draw() {
     this.stage.draw(this.ctx, this.elapsed);
+    if(this.mode==='cave') for(const m of this.mushrooms) m.draw(this.ctx,this.elapsed);
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
     for (const frog of this.frogs) frog.draw(this.ctx, this.elapsed);
     for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
@@ -2891,7 +2956,7 @@ class Game {
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
     for (const e of this.effects) this.drawEffect(e);
-    this.drawSunbeams(this.ctx);
+    if(this.mode==='meadow') this.drawSunbeams(this.ctx);
     this.fairy.draw(this.ctx, this.elapsed, this.chick);
   }
 
@@ -2911,6 +2976,7 @@ class Game {
 const canvas = document.querySelector('#gameCanvas');
 const titleScreen = document.querySelector('#titleScreen');
 const startButton = document.querySelector('#startButton');
+const caveButton = document.querySelector('#caveButton');
 const controls = document.querySelector('#controls');
 const hudElement = document.querySelector('#hud');
 
@@ -2930,7 +2996,15 @@ startButton.addEventListener('click', () => {
   titleScreen.classList.add('hidden');
   controls.classList.remove('hidden');
   hudElement.classList.remove('hidden');
-  game.start();
+  game.start('meadow');
+});
+
+caveButton.addEventListener('click', () => {
+  sound.unlock();
+  titleScreen.classList.add('hidden');
+  controls.classList.remove('hidden');
+  hudElement.classList.remove('hidden');
+  game.start('cave');
 });
 
 
@@ -3032,6 +3106,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.4.2</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.5.0</div>
 </body>
 </html>
