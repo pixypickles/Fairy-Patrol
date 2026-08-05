@@ -1390,6 +1390,82 @@ class LeafPile {
 }
 
 
+class RollingCan {
+  constructor(width, height) {
+    this.width = width;
+    this.screenHeight = height;
+    this.x = 60 + Math.random() * (width - 120);
+    this.y = -55;
+    this.speed = 40;
+    this.radius = 22;
+    this.state = 'rest';
+    this.roll = 0;
+    this.vx = 0;
+    this.vy = 0;
+    this.dead = false;
+    this.bumped = false;
+    this.tint = Math.random() < .5 ? '#8bc6d9' : '#f2a66f';
+  }
+
+  update(dt, chick) {
+    if (this.state === 'rest') {
+      this.y += this.speed * dt;
+      this.roll += dt * 1.6;
+      if (!this.bumped && Math.hypot(this.x - chick.x, this.y - chick.y) < 32) {
+        this.bumped = true;
+        return 'bump';
+      }
+    } else {
+      this.x += this.vx * dt;
+      this.y += this.vy * dt;
+      this.vy += 38 * dt;
+      this.vx *= Math.pow(.986, dt * 60);
+      this.roll += dt * 12;
+    }
+    if (this.y > this.screenHeight + 80 || this.x < -90 || this.x > this.width + 90) this.dead = true;
+    return null;
+  }
+
+  windHit(x, y, radius = 24) {
+    if (this.state !== 'rest') return false;
+    if (Math.hypot(x - this.x, y - this.y) < radius + this.radius) {
+      this.state = 'blown';
+      const dir = this.x < this.width / 2 ? -1 : 1;
+      this.vx = dir * (180 + Math.random() * 70);
+      this.vy = -90 - Math.random() * 45;
+      return true;
+    }
+    return false;
+  }
+
+  draw(ctx) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(this.roll);
+    ctx.fillStyle = 'rgba(52,63,55,.18)';
+    ctx.beginPath(); ctx.ellipse(3, 15, 25, 8, 0, 0, Math.PI * 2); ctx.fill();
+    const grad = ctx.createLinearGradient(-17, 0, 17, 0);
+    grad.addColorStop(0, '#dce8eb');
+    grad.addColorStop(.24, this.tint);
+    grad.addColorStop(.72, this.tint);
+    grad.addColorStop(1, '#8aa0a8');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(-18, -13, 36, 26, 7);
+    ctx.fill();
+    ctx.strokeStyle = '#4f5e63';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = '#c8d4d8';
+    ctx.beginPath(); ctx.ellipse(-18, 0, 5, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(18, 0, 5, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.68)';
+    ctx.fillRect(-7, -9, 5, 18);
+    ctx.restore();
+  }
+}
+
+
 class Game {
   constructor(canvas, input, hud) {
     this.canvas = canvas;
@@ -1416,6 +1492,8 @@ class Game {
     this.ledgeSpawnTimer = 22.0;
     this.leafPiles = [];
     this.leafPileSpawnTimer = 7.5;
+    this.cans = [];
+    this.canSpawnTimer = 13.0;
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -1461,6 +1539,7 @@ class Game {
     this.riverSpawnTimer -= dt;
     this.ledgeSpawnTimer -= dt;
     this.leafPileSpawnTimer -= dt;
+    this.canSpawnTimer -= dt;
     const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
     if (!terrainPresent && this.riverSpawnTimer <= 0) {
       this.rivers.push(new River(this.width, this.height));
@@ -1477,6 +1556,13 @@ class Game {
     }
     for (const pile of this.leafPiles) {
       if (pile.update(dt, this.chick) === 'bump') this.minus += 15;
+    }
+    if (this.canSpawnTimer <= 0 && this.cans.filter(c => c.state === 'rest').length < 1) {
+      this.cans.push(new RollingCan(this.width, this.height));
+      this.canSpawnTimer = 15 + Math.random() * 8;
+    }
+    for (const can of this.cans) {
+      if (can.update(dt, this.chick) === 'bump') this.minus += 12;
     }
     for (const river of this.rivers) river.update(dt, this.chick);
     for (const ledge of this.ledges) ledge.update(dt, this.chick);
@@ -1549,6 +1635,16 @@ class Game {
           }
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
+          for (const can of this.cans) {
+            if (can.windHit(e.x, e.y, 18 + (e.charge || 0) * 12)) {
+              this.plus += 35;
+              e.phase = 'burst';
+              e.age = 0;
+              break;
+            }
+          }
+        }
+        if (e.phase === 'travel' && e.kind === 'wind') {
           for (const ledge of this.ledges) {
             const carved = ledge.windHit(e.x, e.y, 18 + (e.charge || 0) * 10);
             if (carved) {
@@ -1589,6 +1685,9 @@ class Game {
           for (const pile of this.leafPiles) {
             if (pile.windHit(e.x, e.y, radius * .62)) this.plus += 30;
           }
+          for (const can of this.cans) {
+            if (can.windHit(e.x, e.y, radius * .62)) this.plus += 35;
+          }
           for (const ledge of this.ledges) {
             const carved = ledge.windHit(e.x, e.y, radius * .55);
             if (carved) this.plus += 100;
@@ -1612,30 +1711,45 @@ class Game {
     this.rivers = this.rivers.filter(river => !river.dead);
     this.ledges = this.ledges.filter(ledge => !ledge.dead);
     this.leafPiles = this.leafPiles.filter(pile => !pile.dead);
+    this.cans = this.cans.filter(can => !can.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
   }
 
   drawWindTravel(ctx, e) {
-    const pulse = 1 + Math.sin(e.age * 22) * 0.08;
-    ctx.scale(pulse, pulse);
-    const r = 18 * (1 + (e.charge || 0) * 0.26);
-    const g = ctx.createRadialGradient(-5, -6, 2, 0, 0, r);
-    g.addColorStop(0, 'rgba(255,255,255,.98)');
-    g.addColorStop(.42, 'rgba(200,255,218,.83)');
-    g.addColorStop(1, 'rgba(76,213,140,.08)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(237,255,242,.82)';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(0, 0, 12, -0.2, Math.PI * 1.55);
-    ctx.stroke();
-    for (let i = 0; i < 3; i++) {
-      const a = e.age * 7 + i * Math.PI * 2 / 3;
-      ctx.fillStyle = 'rgba(210,255,222,.68)';
-      ctx.beginPath(); ctx.arc(Math.cos(a) * 23, Math.sin(a) * 12, 2, 0, Math.PI * 2); ctx.fill();
+    // A compact, cone-shaped mini tornado. It reads as wind magic without
+    // looking like the round water projectile.
+    const charge = e.charge || 0;
+    const scale = 1 + charge * .28;
+    ctx.scale(scale, scale);
+    ctx.rotate(Math.sin(e.age * 13) * .08);
+    ctx.globalCompositeOperation = 'lighter';
+
+    const layers = 5;
+    for (let i = 0; i < layers; i++) {
+      const y = 12 - i * 7;
+      const width = 7 + i * 4.1;
+      const phase = e.age * (11 + i * .7) + i * .9;
+      ctx.strokeStyle = `rgba(${185 + i * 10},255,${205 + i * 8},${.48 + i * .07})`;
+      ctx.lineWidth = 4.5 - i * .45;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.ellipse(Math.sin(phase) * 2.2, y, width, 3.4 + i * .4, phase * .12, .2, Math.PI * 1.8);
+      ctx.stroke();
+    }
+    const glow = ctx.createRadialGradient(0, -4, 1, 0, -4, 27);
+    glow.addColorStop(0, 'rgba(245,255,246,.72)');
+    glow.addColorStop(.45, 'rgba(143,244,171,.22)');
+    glow.addColorStop(1, 'rgba(74,216,130,0)');
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.ellipse(0, -2, 25, 31, 0, 0, Math.PI * 2); ctx.fill();
+    for (let i = 0; i < 4; i++) {
+      const a = e.age * 8 + i * Math.PI / 2;
+      ctx.fillStyle = 'rgba(220,255,228,.7)';
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * (17 + i), -3 + Math.sin(a) * 10, 1.8, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -1660,11 +1774,25 @@ class Game {
     if (e.kind === 'wind') {
       const r = 18 + t * 65 * (e.power || 1);
       ctx.strokeStyle = `rgba(207,255,220,${0.9 - t * 0.6})`;
-      ctx.lineWidth = 7 * (1 - t) + 1;
-      ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = `rgba(255,255,255,${0.7 - t * 0.55})`;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(0, 0, r * 0.62, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineWidth = 6 * (1 - t) + 1;
+      ctx.lineCap = 'round';
+      // The mini tornado loosens into two curved gusts instead of exploding.
+      for (let arm = 0; arm < 2; arm++) {
+        ctx.beginPath();
+        const startA = arm * Math.PI + e.age * 3;
+        for (let j = 0; j <= 18; j++) {
+          const q = j / 18;
+          const rr = r * (.28 + q * .72);
+          const a = startA + q * Math.PI * 1.35;
+          const px = Math.cos(a) * rr;
+          const py = Math.sin(a) * rr * .72;
+          if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+      ctx.strokeStyle = `rgba(255,255,255,${0.62 - t * 0.5})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(0, 0, r * .72, r * .42, e.age * 2, 0, Math.PI * 2); ctx.stroke();
       for (let i = 0; i < 7; i++) {
         const a = i * Math.PI * 2 / 7 + e.age * 2;
         const d = 14 + t * 58;
@@ -1706,6 +1834,7 @@ class Game {
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
     for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
     for (const pile of this.leafPiles) pile.draw(this.ctx, this.elapsed);
+    for (const can of this.cans) can.draw(this.ctx);
     this.chick.draw(this.ctx, this.elapsed);
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
