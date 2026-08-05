@@ -1,7 +1,4 @@
-# Fairy Guardian v3.2.5
+# Fairy Guardian v3.2.5b
 
-- 画面外の木から横へ伸びる葉付きの枝を追加
-- 枯れ枝は風で折って片づけられます（+40）
-- 岩は風を3回当てると砕けます（途中+15、破壊+40）
-- 川・段差の禁止エリアには新ギミックも生成されません
-- index.html 単体で GitHub Pages に配置できます
+修正版です。`index.html` と `single-file.html` は同じ v3.2.5 の内容です。
+GitHub Pagesでは `index.html` をそのままリポジトリ直下へ置いてください。

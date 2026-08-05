@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.2.4</title>
+  <title>Fairy Guardian v3.2.5b</title>
   <style>
 :root {
   color-scheme: light;
@@ -1840,6 +1840,162 @@ class Dandelion {
   }
 }
 
+
+class SideBranch {
+  constructor(width, height, kind = 'leafy') {
+    this.width = width;
+    this.screenHeight = height;
+    this.side = Math.random() < .5 ? 'left' : 'right';
+    this.kind = kind;
+    this.length = kind === 'leafy' ? 120 + Math.random() * 70 : 105 + Math.random() * 55;
+    this.x = this.side === 'left' ? 0 : width;
+    this.y = -105;
+    this.speed = 42;
+    this.state = 'rest';
+    this.age = 0;
+    this.dead = false;
+    this.bumped = false;
+    this.seed = Math.random() * Math.PI * 2;
+    this.twigs = Array.from({length: kind === 'leafy' ? 7 : 4}, (_, i) => ({
+      t: .22 + i / (kind === 'leafy' ? 8.5 : 5.5),
+      side: i % 2 ? 1 : -1,
+      len: 18 + Math.random() * 22,
+      leaf: Math.random() > .2
+    }));
+  }
+
+  update(dt, chick) {
+    this.y += this.speed * dt;
+    if (this.state === 'breaking') {
+      this.age += dt;
+      if (this.age > .82) this.dead = true;
+    } else if (this.kind === 'dead' && !this.bumped) {
+      const minX = this.side === 'left' ? 0 : this.width - this.length;
+      const maxX = this.side === 'left' ? this.length : this.width;
+      if (chick.x > minX - 10 && chick.x < maxX + 10 && Math.abs(chick.y - this.y) < 25) {
+        this.bumped = true;
+        return 'bump';
+      }
+    }
+    if (this.y > this.screenHeight + 120) this.dead = true;
+    return null;
+  }
+
+  windHit(x, y, radius = 24) {
+    if (this.kind !== 'dead' || this.state !== 'rest') return false;
+    const minX = this.side === 'left' ? 0 : this.width - this.length;
+    const maxX = this.side === 'left' ? this.length : this.width;
+    const near = x >= minX - radius && x <= maxX + radius && Math.abs(y - this.y) < radius + 22;
+    if (!near) return false;
+    this.state = 'breaking';
+    this.age = .01;
+    return true;
+  }
+
+  drawLeaf(ctx, x, y, angle, scale, alpha = 1) {
+    ctx.save(); ctx.translate(x,y); ctx.rotate(angle); ctx.globalAlpha = alpha;
+    const g = ctx.createLinearGradient(-9,0,10,0);
+    g.addColorStop(0,'#4b9c4e'); g.addColorStop(.5,'#77c85d'); g.addColorStop(1,'#3e8744');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.ellipse(0,0,11*scale,5.2*scale,0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(39,93,45,.65)'; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(-8*scale,0);ctx.lineTo(8*scale,0);ctx.stroke();
+    ctx.restore();
+  }
+
+  draw(ctx, time) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    const dir = this.side === 'left' ? 1 : -1;
+    if (this.side === 'right') ctx.scale(-1,1);
+    const sway = Math.sin(time * 1.35 + this.seed) * (this.kind === 'leafy' ? 2.5 : .7);
+    if (this.state === 'breaking') {
+      const t = Math.min(1, this.age / .82);
+      for (let i=0;i<6;i++) {
+        const px = this.length * (.18 + i*.13) + t*(28+i*9);
+        const py = sway + Math.sin(i*1.7)*8 + t*(i%2?38:-28);
+        ctx.save(); ctx.translate(px,py); ctx.rotate((i%2?1:-1)*t*2.4+i*.25);
+        ctx.globalAlpha=1-t*.78; ctx.strokeStyle='#735034';ctx.lineWidth=5-i*.35;ctx.lineCap='round';
+        ctx.beginPath();ctx.moveTo(-16,0);ctx.lineTo(15,0);ctx.stroke();ctx.restore();
+      }
+      ctx.restore(); return;
+    }
+    const branchColor = this.kind === 'leafy' ? '#6f4b2d' : '#77533a';
+    ctx.strokeStyle=branchColor; ctx.lineCap='round'; ctx.lineWidth=this.kind === 'leafy'?13:10;
+    ctx.beginPath(); ctx.moveTo(-18,8); ctx.bezierCurveTo(this.length*.28,-8+sway,this.length*.63,9+sway,this.length,0+sway); ctx.stroke();
+    ctx.strokeStyle='rgba(47,31,20,.48)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,4);ctx.bezierCurveTo(this.length*.3,-10+sway,this.length*.65,6+sway,this.length-4,-2+sway);ctx.stroke();
+    for (let i=0;i<this.twigs.length;i++) {
+      const twig=this.twigs[i]; const bx=this.length*twig.t; const by=Math.sin(twig.t*Math.PI*2+this.seed)*4+sway;
+      const a=twig.side*(.58+Math.sin(i+this.seed)*.12); const tx=bx+Math.cos(a)*twig.len; const ty=by+Math.sin(a)*twig.len;
+      ctx.strokeStyle=this.kind==='leafy'?'#68462b':'#77533a';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(bx,by);ctx.lineTo(tx,ty);ctx.stroke();
+      if(this.kind==='leafy'&&twig.leaf){
+        this.drawLeaf(ctx,tx,ty,a+twig.side*.3,.9, .92);
+        this.drawLeaf(ctx,bx+(tx-bx)*.62,by+(ty-by)*.62,a-twig.side*.55,.72,.9);
+      }
+    }
+    if(this.kind==='leafy'){
+      for(let i=0;i<5;i++){
+        const q=.18+i*.17; this.drawLeaf(ctx,this.length*q, -9+Math.sin(i+this.seed)*8+sway, (i%2?-.25:.25), .88, .88);
+      }
+    } else {
+      ctx.strokeStyle='#3e2a20';ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(this.length*.72,-7+sway);ctx.lineTo(this.length*.75,2+sway);ctx.lineTo(this.length*.79,-5+sway);ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+class WindRock {
+  constructor(width, height) {
+    this.screenHeight=height;
+    this.x=72+Math.random()*(width-144);
+    this.y=-88;
+    this.speed=42;
+    this.radius=34;
+    this.hp=3;
+    this.hitCooldown=0;
+    this.state='rest';
+    this.breakAge=0;
+    this.dead=false;
+    this.bumped=false;
+    this.seed=Math.random()*Math.PI*2;
+    this.points=Array.from({length:9},(_,i)=>({a:i/9*Math.PI*2,r:.82+Math.random()*.28}));
+  }
+  update(dt,chick){
+    this.y+=this.speed*dt;this.hitCooldown=Math.max(0,this.hitCooldown-dt);
+    if(this.state==='broken'){this.breakAge+=dt;if(this.breakAge>.9)this.dead=true;}
+    else if(!this.bumped&&Math.hypot(this.x-chick.x,this.y-chick.y)<42){this.bumped=true;return'bump';}
+    if(this.y>this.screenHeight+100)this.dead=true;return null;
+  }
+  windHit(x,y,radius=24){
+    if(this.state!=='rest'||this.hitCooldown>0)return 0;
+    if(Math.hypot(x-this.x,y-this.y)>=radius+this.radius)return 0;
+    this.hitCooldown=.34;this.hp--;
+    if(this.hp<=0){this.state='broken';this.breakAge=.01;return 2;}
+    return 1;
+  }
+  drawRockShape(ctx,scale=1,alpha=1){
+    ctx.globalAlpha=alpha;
+    const grad=ctx.createLinearGradient(-25,-28,26,26);grad.addColorStop(0,'#a6a497');grad.addColorStop(.55,'#7f8178');grad.addColorStop(1,'#656a64');
+    ctx.fillStyle=grad;ctx.beginPath();
+    this.points.forEach((p,i)=>{const x=Math.cos(p.a)*34*p.r*scale,y=Math.sin(p.a)*27*p.r*scale;if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)});ctx.closePath();ctx.fill();
+    ctx.strokeStyle='rgba(50,55,51,.72)';ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,.2)';ctx.beginPath();ctx.ellipse(-9,-11,13,6,-.45,0,Math.PI*2);ctx.fill();
+  }
+  draw(ctx,time){
+    ctx.save();ctx.translate(this.x,this.y);
+    if(this.state==='broken'){
+      const t=Math.min(1,this.breakAge/.9);
+      for(let i=0;i<7;i++){const a=i/7*Math.PI*2+this.seed;const d=t*(35+i*4);ctx.save();ctx.translate(Math.cos(a)*d,Math.sin(a)*d*.65+t*18);ctx.rotate(a+t*3);ctx.scale(.28+(i%3)*.08,.28+(i%3)*.08);this.drawRockShape(ctx,1,1-t*.85);ctx.restore();}
+      ctx.restore();return;
+    }
+    ctx.fillStyle='rgba(42,54,45,.18)';ctx.beginPath();ctx.ellipse(0,22,38,12,0,0,Math.PI*2);ctx.fill();
+    this.drawRockShape(ctx);
+    ctx.strokeStyle='#505550';ctx.lineWidth=2.4;ctx.lineCap='round';
+    if(this.hp<=2){ctx.beginPath();ctx.moveTo(-5,-21);ctx.lineTo(1,-8);ctx.lineTo(-8,2);ctx.stroke();}
+    if(this.hp<=1){ctx.beginPath();ctx.moveTo(14,-14);ctx.lineTo(5,-2);ctx.lineTo(14,8);ctx.stroke();ctx.beginPath();ctx.moveTo(-15,5);ctx.lineTo(-4,10);ctx.lineTo(-10,20);ctx.stroke();}
+    if(this.hitCooldown>0){ctx.strokeStyle=`rgba(218,255,224,${this.hitCooldown/.34})`;ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,42+(1-this.hitCooldown/.34)*9,0,Math.PI*2);ctx.stroke();}
+    ctx.restore();
+  }
+}
+
 class Game {
   constructor(canvas, input, hud) {
     this.canvas = canvas;
@@ -1870,6 +2026,10 @@ class Game {
     this.flowerSpawnTimer = 3.8;
     this.dandelions = [];
     this.dandelionSpawnTimer = 9.0;
+    this.sideBranches = [];
+    this.sideBranchSpawnTimer = 8.0;
+    this.rocks = [];
+    this.rockSpawnTimer = 13.0;
     this.leftHintButton = document.querySelector('#chickLeftButton');
     this.rightHintButton = document.querySelector('#chickRightButton');
     this.stage = new Stage(this.width, this.height);
@@ -1961,6 +2121,8 @@ class Game {
     this.leafPileSpawnTimer -= dt;
     this.flowerSpawnTimer -= dt;
     this.dandelionSpawnTimer -= dt;
+    this.sideBranchSpawnTimer -= dt;
+    this.rockSpawnTimer -= dt;
     const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
     if (!terrainPresent && this.riverSpawnTimer <= 0) {
       this.rivers.push(new River(this.width, this.height));
@@ -1991,6 +2153,23 @@ class Game {
       this.dandelionSpawnTimer = dandelion ? 12 + Math.random() * 9 : 2.0;
     }
     for (const d of this.dandelions) d.update(dt);
+    if (this.sideBranchSpawnTimer <= 0 && this.sideBranches.filter(b => !b.dead).length < 2) {
+      const kind = Math.random() < .58 ? 'leafy' : 'dead';
+      const branch = this.spawnScenery(() => new SideBranch(this.width, this.height, kind), 72, 10);
+      if (branch) this.sideBranches.push(branch);
+      this.sideBranchSpawnTimer = branch ? 13 + Math.random() * 8 : 2.5;
+    }
+    for (const branch of this.sideBranches) {
+      if (branch.update(dt, this.chick) === 'bump') this.minus += 12;
+    }
+    if (this.rockSpawnTimer <= 0 && this.rocks.filter(r => !r.dead).length < 2) {
+      const rock = this.spawnScenery(() => new WindRock(this.width, this.height), 62, 10);
+      if (rock) this.rocks.push(rock);
+      this.rockSpawnTimer = rock ? 15 + Math.random() * 9 : 2.5;
+    }
+    for (const rock of this.rocks) {
+      if (rock.update(dt, this.chick) === 'bump') this.minus += 18;
+    }
     for (const river of this.rivers) river.update(dt, this.chick);
     for (const ledge of this.ledges) ledge.update(dt, this.chick);
 
@@ -2119,6 +2298,22 @@ class Game {
           }
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
+          for (const branch of this.sideBranches) {
+            if (branch.windHit(e.x, e.y, 18 + (e.charge || 0) * 16)) {
+              this.plus += 40; e.phase = 'burst'; e.age = 0; break;
+            }
+          }
+        }
+        if (e.phase === 'travel' && e.kind === 'wind') {
+          for (const rock of this.rocks) {
+            const hit = rock.windHit(e.x, e.y, 18 + (e.charge || 0) * 16);
+            if (hit) {
+              this.plus += hit === 2 ? 40 : 15;
+              e.phase = 'burst'; e.age = 0; break;
+            }
+          }
+        }
+        if (e.phase === 'travel' && e.kind === 'wind') {
           for (const ledge of this.ledges) {
             const carved = ledge.windHit(e.x, e.y, 18 + (e.charge || 0) * 14);
             if (carved) {
@@ -2166,6 +2361,13 @@ class Game {
           for (const d of this.dandelions) {
             if (d.windHit(e.x, e.y, radius * .55)) this.plus += 45;
           }
+          for (const branch of this.sideBranches) {
+            if (branch.windHit(e.x, e.y, radius * .58)) this.plus += 40;
+          }
+          for (const rock of this.rocks) {
+            const hit = rock.windHit(e.x, e.y, radius * .55);
+            if (hit) this.plus += hit === 2 ? 40 : 15;
+          }
         } else {
           for (const flower of this.flowers) {
             const bloomed = flower.waterHit(e.x, e.y, radius * .62);
@@ -2200,6 +2402,8 @@ class Game {
     this.leafPiles = this.leafPiles.filter(pile => !pile.dead);
     this.flowers = this.flowers.filter(flower => !flower.dead);
     this.dandelions = this.dandelions.filter(d => !d.dead);
+    this.sideBranches = this.sideBranches.filter(b => !b.dead);
+    this.rocks = this.rocks.filter(r => !r.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -2338,6 +2542,8 @@ class Game {
     for (const pile of this.leafPiles) pile.draw(this.ctx, this.elapsed);
     for (const flower of this.flowers) flower.draw(this.ctx, this.elapsed);
     for (const d of this.dandelions) d.draw(this.ctx, this.elapsed);
+    for (const branch of this.sideBranches) branch.draw(this.ctx, this.elapsed);
+    for (const rock of this.rocks) rock.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
@@ -2469,6 +2675,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.4</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.5b</div>
 </body>
 </html>
