@@ -147,6 +147,9 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
   gap: 9px;
 }
 .action-button {
+  --charge: 0;
+  position: relative;
+  overflow: hidden;
   min-height: 62px;
   border: 3px solid #2c4733;
   border-radius: 18px;
@@ -155,7 +158,18 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
   font-weight: 900;
   box-shadow: 0 5px 0 rgba(42,65,47,.25);
 }
+.action-button::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: calc(var(--charge) * 100%);
+  background: rgba(255,255,255,.42);
+  pointer-events: none;
+  transition: height .04s linear;
+}
+.action-button > span { position: relative; z-index: 1; }
 .action-button .symbol { display: block; font-size: 21px; line-height: 1; margin-bottom: 3px; }
+.action-button.wind.charging { box-shadow: 0 0 18px rgba(126,255,169,.9), 0 5px 0 rgba(42,65,47,.25); }
 .action-button:active { transform: translateY(3px); box-shadow: 0 2px 0 rgba(42,65,47,.25); }
 .action-button.wind { background: linear-gradient(135deg, #f8fff2, #aee7af); }
 .action-button.water { background: linear-gradient(135deg, #effcff, #75c8ff); }

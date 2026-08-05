@@ -25,10 +25,38 @@ startButton.addEventListener('click', () => {
   game.start();
 });
 
-document.querySelector('#windButton').addEventListener('pointerdown', (e) => {
+const windButton = document.querySelector('#windButton');
+let windChargeStarted = 0;
+let windChargeFrame = 0;
+
+function updateWindChargeMeter() {
+  if (!windChargeStarted) return;
+  const ratio = Math.min(1, (performance.now() - windChargeStarted) / 900);
+  windButton.style.setProperty('--charge', ratio.toFixed(3));
+  windChargeFrame = requestAnimationFrame(updateWindChargeMeter);
+}
+
+function releaseWind(e) {
+  if (!windChargeStarted) return;
+  e?.preventDefault();
+  const seconds = Math.min(0.9, (performance.now() - windChargeStarted) / 1000);
+  windChargeStarted = 0;
+  cancelAnimationFrame(windChargeFrame);
+  windButton.classList.remove('charging');
+  windButton.style.setProperty('--charge', '0');
+  game.cast('wind', seconds);
+}
+
+windButton.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  game.cast('wind');
+  if (windChargeStarted) return;
+  windChargeStarted = performance.now();
+  windButton.classList.add('charging');
+  windButton.setPointerCapture?.(e.pointerId);
+  updateWindChargeMeter();
 });
+windButton.addEventListener('pointerup', releaseWind);
+windButton.addEventListener('pointercancel', releaseWind);
 document.querySelector('#waterButton').addEventListener('pointerdown', (e) => {
   e.preventDefault();
   game.cast('water');
@@ -43,7 +71,7 @@ document.querySelector('#chickRightButton').addEventListener('pointerdown', (e) 
 });
 
 window.addEventListener('keydown', (e) => {
-  if (e.key === 'j') game.cast('wind');
+  if (e.key === 'j' && !e.repeat) game.cast('wind', 0.35);
   if (e.key === 'k') game.cast('water');
   if (e.key === 'q') game.guideChick(-1);
   if (e.key === 'e') game.guideChick(1);

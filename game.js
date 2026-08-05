@@ -36,19 +36,24 @@ export class Game {
 
   guideChick(direction) { this.chick.guide(direction); }
 
-  cast(kind) {
+  cast(kind, chargeSeconds = 0) {
     if (!this.running || this.cooldowns[kind] > 0) return;
     const isWater = kind === 'water';
-    this.cooldowns[kind] = isWater ? 0.62 : 0.48;
+    const charge = isWater ? 0 : Math.min(1, Math.max(0, chargeSeconds / 0.9));
+    this.cooldowns[kind] = isWater ? 0.62 : 0.52 + charge * 0.18;
     this.effects.push({
       x: this.fairy.x,
       y: this.fairy.y - 24,
       startX: this.fairy.x,
       startY: this.fairy.y - 24,
       age: 0,
-      travel: isWater ? 0.54 : 0.46,
-      burst: isWater ? 0.38 : 0.32,
-      speed: isWater ? 225 : 255,
+      // Wind already travels a little farther than water. Holding the button
+      // briefly extends its range and makes the burst wider.
+      travel: isWater ? 0.54 : 0.56 + charge * 0.34,
+      burst: isWater ? 0.38 : 0.34 + charge * 0.10,
+      speed: isWater ? 225 : 270,
+      power: isWater ? 1 : 1 + charge * 0.7,
+      charge,
       kind,
       phase: 'travel'
     });
@@ -97,7 +102,7 @@ export class Game {
         }
       } else {
         const t = e.age / e.burst;
-        const radius = e.kind === 'wind' ? 18 + t * 65 : 13 + t * 56;
+        const radius = e.kind === 'wind' ? 18 + t * 65 * (e.power || 1) : 13 + t * 56;
         for (const bird of this.birds) {
           if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < radius + bird.hitRadius) {
             if (bird.scare(e.x, e.y)) this.plus += 50;
@@ -115,7 +120,7 @@ export class Game {
   drawWindTravel(ctx, e) {
     const pulse = 1 + Math.sin(e.age * 22) * 0.08;
     ctx.scale(pulse, pulse);
-    const r = 18;
+    const r = 18 * (1 + (e.charge || 0) * 0.26);
     const g = ctx.createRadialGradient(-5, -6, 2, 0, 0, r);
     g.addColorStop(0, 'rgba(255,255,255,.98)');
     g.addColorStop(.42, 'rgba(200,255,218,.83)');
@@ -153,7 +158,7 @@ export class Game {
     const t = e.age / e.burst;
     ctx.globalAlpha = Math.max(0, 1 - t);
     if (e.kind === 'wind') {
-      const r = 18 + t * 65;
+      const r = 18 + t * 65 * (e.power || 1);
       ctx.strokeStyle = `rgba(207,255,220,${0.9 - t * 0.6})`;
       ctx.lineWidth = 7 * (1 - t) + 1;
       ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke();
