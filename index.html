@@ -1474,6 +1474,112 @@ class RollingCan {
 }
 
 
+class MeadowFlower {
+  constructor(width, height) {
+    this.width = width;
+    this.screenHeight = height;
+    this.x = 55 + Math.random() * (width - 110);
+    this.y = -60;
+    this.speed = 39;
+    this.radius = 25;
+    this.state = 'bud';
+    this.growth = 0;
+    this.dead = false;
+    this.scored = false;
+    this.seed = Math.random() * Math.PI * 2;
+    this.palette = Math.floor(Math.random() * 3);
+  }
+
+  update(dt) {
+    this.y += this.speed * dt;
+    if (this.state === 'blooming') {
+      this.growth = Math.min(1, this.growth + dt / .72);
+      if (this.growth >= 1) this.state = 'bloomed';
+    }
+    if (this.y > this.screenHeight + 75) this.dead = true;
+  }
+
+  waterHit(x, y, radius = 22) {
+    if (this.state !== 'bud') return false;
+    if (Math.hypot(x - this.x, y - this.y) < radius + this.radius) {
+      this.state = 'blooming';
+      this.growth = .01;
+      return true;
+    }
+    return false;
+  }
+
+  drawPetal(ctx, angle, distance, length, width, color, alpha = 1) {
+    ctx.save();
+    ctx.rotate(angle);
+    ctx.translate(0, -distance);
+    ctx.globalAlpha = alpha;
+    const grad = ctx.createLinearGradient(0, -length / 2, 0, length / 2);
+    grad.addColorStop(0, 'rgba(255,255,255,.92)');
+    grad.addColorStop(.28, color);
+    grad.addColorStop(1, color);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, width, length, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  draw(ctx, time) {
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    const sway = Math.sin(time * 2.1 + this.seed) * .05;
+    ctx.rotate(sway);
+
+    ctx.fillStyle = 'rgba(41,71,38,.16)';
+    ctx.beginPath(); ctx.ellipse(0, 20, 19, 7, 0, 0, Math.PI * 2); ctx.fill();
+
+    const g = this.state === 'bud' ? 0 : Math.max(.04, this.growth);
+    const stemH = 22 + g * 18;
+    ctx.strokeStyle = '#3e8c45';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 18); ctx.quadraticCurveTo(-2, 4, 0, 18 - stemH); ctx.stroke();
+
+    ctx.fillStyle = '#62ad54';
+    ctx.beginPath(); ctx.ellipse(-8, 7, 10, 5, -.55, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(8, 2, 10, 5, .55, 0, Math.PI * 2); ctx.fill();
+
+    const flowerY = 18 - stemH;
+    ctx.translate(0, flowerY);
+    if (this.state === 'bud') {
+      ctx.fillStyle = '#78b85a';
+      ctx.beginPath(); ctx.ellipse(0, 0, 8, 11, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#e7a8c6';
+      ctx.beginPath(); ctx.ellipse(0, -4, 5, 7, 0, 0, Math.PI * 2); ctx.fill();
+    } else {
+      const eased = 1 - Math.pow(1 - g, 3);
+      const colors = ['#ef8fc2', '#a891ef', '#f5a65b'];
+      const color = colors[this.palette];
+      ctx.save();
+      ctx.scale(.35 + eased * .65, .35 + eased * .65);
+      for (let i = 0; i < 6; i++) {
+        this.drawPetal(ctx, i * Math.PI / 3 + time * .04, 9 + eased * 5, 10 + eased * 5, 6 + eased * 2, color, .75 + eased * .25);
+      }
+      ctx.fillStyle = '#ffd75a';
+      ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.9)';
+      ctx.beginPath(); ctx.arc(-2, -2, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      if (this.state === 'blooming') {
+        for (let i = 0; i < 5; i++) {
+          const a = i * Math.PI * .4 + this.seed;
+          const d = 18 + eased * 18;
+          ctx.fillStyle = `rgba(255,248,174,${.85 * (1 - g)})`;
+          ctx.beginPath(); ctx.arc(Math.cos(a) * d, Math.sin(a) * d, 2.5, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+    ctx.restore();
+  }
+}
+
+
 class Game {
   constructor(canvas, input, hud) {
     this.canvas = canvas;
@@ -1502,6 +1608,8 @@ class Game {
     this.leafPileSpawnTimer = 7.5;
     this.cans = [];
     this.canSpawnTimer = 13.0;
+    this.flowers = [];
+    this.flowerSpawnTimer = 5.5;
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -1548,6 +1656,7 @@ class Game {
     this.ledgeSpawnTimer -= dt;
     this.leafPileSpawnTimer -= dt;
     this.canSpawnTimer -= dt;
+    this.flowerSpawnTimer -= dt;
     const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
     if (!terrainPresent && this.riverSpawnTimer <= 0) {
       this.rivers.push(new River(this.width, this.height));
@@ -1572,6 +1681,11 @@ class Game {
     for (const can of this.cans) {
       if (can.update(dt, this.chick) === 'bump') this.minus += 12;
     }
+    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < 2) {
+      this.flowers.push(new MeadowFlower(this.width, this.height));
+      this.flowerSpawnTimer = 12 + Math.random() * 8;
+    }
+    for (const flower of this.flowers) flower.update(dt);
     for (const river of this.rivers) river.update(dt, this.chick);
     for (const ledge of this.ledges) ledge.update(dt, this.chick);
     const guideX = [
@@ -1629,6 +1743,16 @@ class Game {
               e.phase = 'burst';
               e.age = 0;
               break;
+            }
+          }
+          if (e.phase === 'travel') {
+            for (const flower of this.flowers) {
+              if (flower.waterHit(e.x, e.y, 20)) {
+                this.plus += 40;
+                e.phase = 'burst';
+                e.age = 0;
+                break;
+              }
             }
           }
         }
@@ -1700,6 +1824,14 @@ class Game {
             const carved = ledge.windHit(e.x, e.y, radius * .55);
             if (carved) this.plus += 100;
           }
+        } else {
+          for (const flower of this.flowers) {
+            if (flower.waterHit(e.x, e.y, radius * .62)) this.plus += 40;
+          }
+          for (const river of this.rivers) {
+            const grown = river.waterHit(e.x, e.y, radius * .55);
+            if (grown) this.plus += 100;
+          }
         }
         for (const bird of this.birds) {
           if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < radius + bird.hitRadius) {
@@ -1720,6 +1852,7 @@ class Game {
     this.ledges = this.ledges.filter(ledge => !ledge.dead);
     this.leafPiles = this.leafPiles.filter(pile => !pile.dead);
     this.cans = this.cans.filter(can => !can.dead);
+    this.flowers = this.flowers.filter(flower => !flower.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -1845,6 +1978,7 @@ class Game {
     for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
     for (const pile of this.leafPiles) pile.draw(this.ctx, this.elapsed);
     for (const can of this.cans) can.draw(this.ctx);
+    for (const flower of this.flowers) flower.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
