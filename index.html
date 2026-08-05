@@ -1412,6 +1412,7 @@ class RollingCan {
     this.vy = 0;
     this.dead = false;
     this.bumped = false;
+    this.blownTime = 0;
     this.tint = Math.random() < .5 ? '#8bc6d9' : '#f2a66f';
   }
 
@@ -1424,13 +1425,17 @@ class RollingCan {
         return 'bump';
       }
     } else {
+      this.blownTime += dt;
       this.x += this.vx * dt;
       this.y += this.vy * dt;
-      this.vy += 38 * dt;
-      this.vx *= Math.pow(.986, dt * 60);
-      this.roll += dt * 12;
+      this.vy += 52 * dt;
+      // Keep enough sideways momentum to leave the screen cleanly.
+      const direction = Math.sign(this.vx) || 1;
+      this.vx = direction * Math.max(175, Math.abs(this.vx) * Math.pow(.997, dt * 60));
+      this.roll += dt * 13.5;
+      if (this.blownTime > 1.35) this.dead = true;
     }
-    if (this.y > this.screenHeight + 80 || this.x < -90 || this.x > this.width + 90) this.dead = true;
+    if (this.y > this.screenHeight + 80 || this.x < -55 || this.x > this.width + 55) this.dead = true;
     return null;
   }
 
@@ -1438,6 +1443,7 @@ class RollingCan {
     if (this.state !== 'rest') return false;
     if (Math.hypot(x - this.x, y - this.y) < radius + this.radius) {
       this.state = 'blown';
+      this.blownTime = 0;
       const dir = this.x < this.width / 2 ? -1 : 1;
       this.vx = dir * (180 + Math.random() * 70);
       this.vy = -90 - Math.random() * 45;
@@ -1609,7 +1615,7 @@ class Game {
     this.cans = [];
     this.canSpawnTimer = 13.0;
     this.flowers = [];
-    this.flowerSpawnTimer = 5.5;
+    this.flowerSpawnTimer = 3.8;
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -1681,9 +1687,9 @@ class Game {
     for (const can of this.cans) {
       if (can.update(dt, this.chick) === 'bump') this.minus += 12;
     }
-    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < 2) {
+    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < 3) {
       this.flowers.push(new MeadowFlower(this.width, this.height));
-      this.flowerSpawnTimer = 12 + Math.random() * 8;
+      this.flowerSpawnTimer = 7.5 + Math.random() * 5.5;
     }
     for (const flower of this.flowers) flower.update(dt);
     for (const river of this.rivers) river.update(dt, this.chick);
