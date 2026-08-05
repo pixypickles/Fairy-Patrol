@@ -1,6 +1,7 @@
 import { Fairy } from './fairy.js';
 import { Chick } from './chick.js';
 import { Stage } from './stage.js';
+import { Bird } from './bird.js';
 
 export class Game {
   constructor(canvas, input, hud) {
@@ -18,6 +19,8 @@ export class Game {
     this.minus = 0;
     this.effects = [];
     this.cooldowns = { wind: 0, water: 0 };
+    this.birds = [];
+    this.birdSpawnTimer = 2.8;
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -60,18 +63,50 @@ export class Game {
     this.cooldowns.wind = Math.max(0, this.cooldowns.wind - dt);
     this.cooldowns.water = Math.max(0, this.cooldowns.water - dt);
 
+    // Keep the pace gentle: normally only one bird is present at a time.
+    this.birdSpawnTimer -= dt;
+    if (this.birdSpawnTimer <= 0 && this.birds.length === 0) {
+      this.birds.push(new Bird(this.width, this.height, Math.floor(Math.random() * 3)));
+      this.birdSpawnTimer = 5.5 + Math.random() * 3.5;
+    }
+    for (const bird of this.birds) {
+      bird.update(dt, this.chick, this.elapsed);
+      if (bird.state === 'approach' && Math.hypot(bird.x - this.chick.x, bird.y - this.chick.y) < 34) {
+        this.minus += 25;
+        bird.scare(this.chick.x, this.chick.y + 25);
+      }
+    }
+
     for (const e of this.effects) {
       e.age += dt;
       if (e.phase === 'travel') {
         e.y -= e.speed * dt;
         e.x += Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
+        // A direct hit scares the bird immediately.
+        for (const bird of this.birds) {
+          if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < bird.hitRadius + 18) {
+            if (bird.scare(e.x, e.y)) this.plus += 50;
+            e.phase = 'burst';
+            e.age = 0;
+            break;
+          }
+        }
         if (e.age >= e.travel) {
           e.phase = 'burst';
           e.age = 0;
         }
+      } else {
+        const t = e.age / e.burst;
+        const radius = e.kind === 'wind' ? 18 + t * 65 : 13 + t * 56;
+        for (const bird of this.birds) {
+          if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < radius + bird.hitRadius) {
+            if (bird.scare(e.x, e.y)) this.plus += 50;
+          }
+        }
       }
     }
     this.effects = this.effects.filter(e => e.phase !== 'burst' || e.age < e.burst);
+    this.birds = this.birds.filter(bird => !bird.isOffscreen());
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -164,6 +199,7 @@ export class Game {
   draw() {
     this.stage.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
+    for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
     for (const e of this.effects) this.drawEffect(e);
     this.fairy.draw(this.ctx, this.elapsed, this.chick);
   }
