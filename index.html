@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.5.4</title>
+  <title>Fairy Guardian v3.6.0</title>
   <style>
 :root {
   color-scheme: light;
@@ -227,6 +227,16 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
 .cave-choice { margin-top:10px; background:linear-gradient(#73d8d0,#4a9bb3); box-shadow:0 5px 0 #326a82; }
 .cave-choice:active { box-shadow:0 2px 0 #326a82; }
 
+.route-card { max-width: 410px; }
+.route-card h2 { margin: 0 0 10px; font-size: clamp(25px,6vw,36px); color:#315c45; }
+.route-card p { margin: 0 0 14px; }
+.route-buttons { display:grid; gap:10px; }
+.route-button { border:0; border-radius:18px; padding:13px 16px; color:#234538; font:800 16px/1.25 system-ui,sans-serif; cursor:pointer; touch-action:manipulation; }
+.route-button.cave { background:linear-gradient(135deg,#c8f6ef,#68b6c9); box-shadow:0 5px 0 #39788a; }
+.route-button.flowers { background:linear-gradient(135deg,#fff7c8,#ffb9d7); box-shadow:0 5px 0 #c87796; }
+.route-button:active { transform:translateY(3px); box-shadow:0 2px 0 rgba(35,69,56,.35); }
+.route-note { font-size:13px; opacity:.78; }
+
 @media (max-height: 700px) {
   .app-shell { gap: 4px; }
   .controls { grid-template-columns: 120px 1fr; padding: 6px 8px; }
@@ -250,6 +260,19 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
           <p>風と水の力で、ヒヨコをそっと見守ろう。</p>
           <button id="startButton" class="primary-button" type="button">おさんぽを始める</button>
           <button id="caveButton" class="primary-button cave-choice" type="button">音の洞くつを試す</button>
+        </div>
+      </div>
+
+      <div id="routeScreen" class="screen-overlay hidden">
+        <div class="title-card route-card">
+          <p class="eyebrow">2500点のおさんぽ分かれ道</p>
+          <h2>どっちへ行こう？</h2>
+          <p>ヒヨコと妖精の、次のおさんぽ先を選んでください。</p>
+          <div class="route-buttons">
+            <button id="routeCaveButton" class="route-button cave" type="button">💧 音の洞くつへ</button>
+            <button id="routeFlowerButton" class="route-button flowers" type="button">🌸 このまま花の多く咲くほうへ</button>
+          </div>
+          <p class="route-note">プラス点とマイナス点は、そのまま引き継ぎます。</p>
         </div>
       </div>
 
@@ -2492,6 +2515,10 @@ class Game {
     this.sound = sound;
     this.previousMinus = 0;
     this.mode = 'meadow';
+    this.flowerRoute = false;
+    this.routePromptShown = false;
+    this.pausedForRoute = false;
+    this.onRouteChoice = null;
     this.mushrooms = [];
     this.cavePuddles = [];
     this.cavePebbles = [];
@@ -2571,6 +2598,29 @@ class Game {
     this.running = true;
     this.lastTime = performance.now();
     requestAnimationFrame(this.loop);
+  }
+
+  enterCaveRoute() {
+    this.mode='cave'; this.flowerRoute=false; this.pausedForRoute=false; this.sound.caveMode=true;
+    this.stage=new CaveStage(this.width,this.height);
+    this.mushrooms=[]; this.cavePuddles=[]; this.cavePebbles=[]; this.caveCrystals=[]; this.glowMoss=[];
+    const notes=[0,1,2,3,4,2,4]; const rows=[105,285,465];
+    for(let row=0;row<rows.length;row++){ const count=row%2?4:5; for(let i=0;i<count;i++) this.mushrooms.push(new CaveMushroom(105+i*(330/(count-1)),rows[row]+(i%2)*18,notes[(i+row)%notes.length],row,i)); }
+    this.cavePuddles=[new CavePuddle(170,205,0),new CavePuddle(382,400,1)];
+    this.cavePebbles=[new CavePebble(135,330,0),new CavePebble(355,565,1),new CavePebble(250,735,2)];
+    this.caveCrystals=[new CaveCrystal(92,245,0),new CaveCrystal(445,340,1),new CaveCrystal(105,650,2),new CaveCrystal(438,780,3)];
+    this.glowMoss=[new GlowMoss(66,170,0),new GlowMoss(465,225,1),new GlowMoss(72,520,0),new GlowMoss(458,690,1),new GlowMoss(75,860,0)];
+    this.caveCelebration=0; this.completedMushroomGroups.clear();
+    this.birdSpawnTimer=this.catSpawnTimer=this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=99999;
+    this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
+  }
+
+  enterFlowerRoute() {
+    this.mode='meadow'; this.flowerRoute=true; this.pausedForRoute=false; this.sound.caveMode=false;
+    this.flowerSpawnTimer=.35; this.dandelionSpawnTimer=1.2; this.butterflySpawnTimer=.6;
+    this.birdSpawnTimer=Math.max(this.birdSpawnTimer,12); this.catSpawnTimer=Math.max(this.catSpawnTimer,15);
+    this.riverSpawnTimer=Math.max(this.riverSpawnTimer,24); this.ledgeSpawnTimer=Math.max(this.ledgeSpawnTimer,26);
+    for(let i=0;i<3;i++){ const f=this.spawnScenery(()=>new MeadowFlower(this.width,this.height),54); if(f){f.y=80+i*95;this.flowers.push(f);} }
   }
 
   guideChick(direction) { this.chick.guide(direction); this.sound.chick(); }
@@ -2704,8 +2754,14 @@ class Game {
   }
 
   update(dt) {
+    if (this.pausedForRoute) return;
     this.elapsed += dt;
     this.distance += dt * 5;
+    if (this.mode==='meadow' && !this.routePromptShown && this.plus >= 2500) {
+      this.routePromptShown=true; this.pausedForRoute=true;
+      if (this.onRouteChoice) this.onRouteChoice();
+      return;
+    }
     this.frogCooldown = Math.max(0, this.frogCooldown - dt);
     this.mushroomNoteTimer = Math.max(0, this.mushroomNoteTimer - dt);
     this.caveCelebration = Math.max(0, this.caveCelebration - dt);
@@ -2713,13 +2769,13 @@ class Game {
     this.flowerAdmireCooldown = Math.max(0, this.flowerAdmireCooldown - dt);
     this.butterflySpawnTimer -= dt;
     this.ladybugSpawnTimer -= dt;
-    if (this.mode==='meadow' && this.butterflySpawnTimer <= 0 && this.butterflies.length < 4) {
+    if (this.mode==='meadow' && this.butterflySpawnTimer <= 0 && this.butterflies.length < (this.flowerRoute ? 7 : 4)) {
       this.butterflies.push(new AmbientButterfly(this.width, this.height));
-      this.butterflySpawnTimer = 4 + Math.random() * 5;
+      this.butterflySpawnTimer = (this.flowerRoute ? 1.8 : 4) + Math.random() * (this.flowerRoute ? 2.8 : 5);
     }
-    if (this.mode==='meadow' && this.ladybugSpawnTimer <= 0 && this.ladybugs.length < 3) {
+    if (this.mode==='meadow' && this.ladybugSpawnTimer <= 0 && this.ladybugs.length < (this.flowerRoute ? 5 : 3)) {
       this.ladybugs.push(new AmbientLadybug(this.width, this.height));
-      this.ladybugSpawnTimer = 6 + Math.random() * 7;
+      this.ladybugSpawnTimer = (this.flowerRoute ? 3.8 : 6) + Math.random() * (this.flowerRoute ? 4 : 7);
     }
     for (const butterfly of this.butterflies) butterfly.update(dt, this.elapsed, this.flowers, this.fairy);
     for (const ladybug of this.ladybugs) ladybug.update(dt, this.elapsed);
@@ -2746,28 +2802,28 @@ class Game {
     const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
     if (!terrainPresent && this.riverSpawnTimer <= 0) {
       this.rivers.push(new River(this.width, this.height));
-      this.riverSpawnTimer = 30 + Math.random() * 8;
+      this.riverSpawnTimer = (this.flowerRoute ? 44 : 30) + Math.random() * 10;
       this.ledgeSpawnTimer = Math.max(this.ledgeSpawnTimer, 15);
     } else if (!terrainPresent && this.ledgeSpawnTimer <= 0) {
       this.ledges.push(new Ledge(this.width, this.height));
-      this.ledgeSpawnTimer = 30 + Math.random() * 8;
+      this.ledgeSpawnTimer = (this.flowerRoute ? 46 : 30) + Math.random() * 10;
       this.riverSpawnTimer = Math.max(this.riverSpawnTimer, 15);
     }
     if (this.leafPileSpawnTimer <= 0 && this.leafPiles.filter(p => p.state === 'rest').length < 2) {
       const pile = this.spawnScenery(() => new LeafPile(this.width, this.height), 58);
       if (pile) this.leafPiles.push(pile);
-      this.leafPileSpawnTimer = pile ? 11 + Math.random() * 7 : 2.2;
+      this.leafPileSpawnTimer = pile ? (this.flowerRoute ? 18 : 11) + Math.random() * 7 : 2.2;
     }
     for (const pile of this.leafPiles) {
       if (pile.update(dt, this.chick) === 'bump') this.minus += 15;
     }
-    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < 5) {
+    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < (this.flowerRoute ? 10 : 5)) {
       const flower = this.spawnScenery(() => new MeadowFlower(this.width, this.height), 54);
       if (flower) this.flowers.push(flower);
-      this.flowerSpawnTimer = flower ? 5.4 + Math.random() * 3.8 : 2.0;
+      this.flowerSpawnTimer = flower ? (this.flowerRoute ? 2.0 + Math.random() * 2.2 : 5.4 + Math.random() * 3.8) : 1.2;
     }
     for (const flower of this.flowers) flower.update(dt);
-    if (this.dandelionSpawnTimer <= 0 && this.dandelions.filter(d => !d.dead).length < 2) {
+    if (this.dandelionSpawnTimer <= 0 && this.dandelions.filter(d => !d.dead).length < (this.flowerRoute ? 5 : 2)) {
       const dandelion = this.spawnScenery(() => new Dandelion(this.width, this.height), 54);
       if (dandelion) {
         this.dandelions.push(dandelion);
@@ -2779,7 +2835,7 @@ class Game {
           if (!this.isSceneryBlocked(friend.x, friend.y, 50)) this.dandelions.push(friend);
         }
       }
-      this.dandelionSpawnTimer = dandelion ? 13 + Math.random() * 9 : 2.0;
+      this.dandelionSpawnTimer = dandelion ? (this.flowerRoute ? 5 + Math.random() * 5 : 13 + Math.random() * 9) : 2.0;
     }
     for (const d of this.dandelions) d.update(dt);
     if (this.sideBranchSpawnTimer <= 0 && this.sideBranches.filter(b => !b.dead).length < 2) {
@@ -3264,6 +3320,9 @@ const canvas = document.querySelector('#gameCanvas');
 const titleScreen = document.querySelector('#titleScreen');
 const startButton = document.querySelector('#startButton');
 const caveButton = document.querySelector('#caveButton');
+const routeScreen = document.querySelector('#routeScreen');
+const routeCaveButton = document.querySelector('#routeCaveButton');
+const routeFlowerButton = document.querySelector('#routeFlowerButton');
 const controls = document.querySelector('#controls');
 const hudElement = document.querySelector('#hud');
 
@@ -3277,6 +3336,8 @@ const game = new Game(canvas, input, {
   plus: document.querySelector('#plusScore'),
   minus: document.querySelector('#minusScore')
 });
+
+game.onRouteChoice = () => routeScreen.classList.remove('hidden');
 
 startButton.addEventListener('click', () => {
   sound.unlock();
@@ -3294,6 +3355,13 @@ caveButton.addEventListener('click', () => {
   game.start('cave');
 });
 
+
+routeCaveButton.addEventListener('click', () => {
+  sound.unlock(); routeScreen.classList.add('hidden'); game.enterCaveRoute();
+});
+routeFlowerButton.addEventListener('click', () => {
+  sound.unlock(); routeScreen.classList.add('hidden'); game.enterFlowerRoute();
+});
 
 const soundButton = document.querySelector('#soundButton');
 soundButton.addEventListener('click', (e) => {
@@ -3393,6 +3461,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.5.4</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.6.0</div>
 </body>
 </html>
