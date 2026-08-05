@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.3.1</title>
+  <title>Fairy Guardian v3.4.0</title>
   <style>
 :root {
   color-scheme: light;
@@ -64,6 +64,25 @@ canvas {
   object-fit: contain;
   background: #7aaa5c;
 }
+
+.sound-button {
+  position: absolute;
+  z-index: 8;
+  top: 60px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border: 2px solid rgba(32,55,38,.72);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.86);
+  box-shadow: 0 3px 0 rgba(32,55,38,.20);
+  font-size: 21px;
+  cursor: pointer;
+}
+.sound-button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(32,55,38,.20); }
+.sound-button.muted { opacity: .62; }
 
 .screen-overlay {
   position: absolute;
@@ -219,6 +238,7 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
   <main class="app-shell">
     <section class="game-frame" aria-label="Fairy Guardian game">
       <canvas id="gameCanvas" width="540" height="960"></canvas>
+      <button id="soundButton" class="sound-button" type="button" aria-label="効果音を切り替える">🔊</button>
 
       <div id="titleScreen" class="screen-overlay">
         <div class="title-card">
@@ -260,6 +280,100 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
   </main>
 
   <script>
+class AudioEngine {
+  constructor() {
+    this.ctx = null;
+    this.master = null;
+    this.muted = false;
+    this.last = new Map();
+  }
+  unlock() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = .72;
+      this.master.connect(this.ctx.destination);
+    }
+    if (this.ctx.state === 'suspended') this.ctx.resume().catch(()=>{});
+  }
+  setMuted(value) {
+    this.muted = value;
+    if (this.master && this.ctx) {
+      this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.master.gain.setTargetAtTime(value ? 0 : .72, this.ctx.currentTime, .02);
+    }
+  }
+  can(key, gap=.045) {
+    if (this.muted) return false;
+    this.unlock();
+    if (!this.ctx || !this.master) return false;
+    const now = performance.now()/1000;
+    const prev = this.last.get(key) || -99;
+    if (now-prev < gap) return false;
+    this.last.set(key, now);
+    return true;
+  }
+  tone(freq=440, duration=.12, {type='sine', volume=.08, endFreq=null, delay=0}={}) {
+    if (!this.ctx || this.muted) return;
+    const t=this.ctx.currentTime+delay;
+    const osc=this.ctx.createOscillator();
+    const gain=this.ctx.createGain();
+    osc.type=type; osc.frequency.setValueAtTime(freq,t);
+    if(endFreq) osc.frequency.exponentialRampToValueAtTime(Math.max(20,endFreq),t+duration);
+    gain.gain.setValueAtTime(.0001,t);
+    gain.gain.exponentialRampToValueAtTime(Math.max(.0002,volume),t+.012);
+    gain.gain.exponentialRampToValueAtTime(.0001,t+duration);
+    osc.connect(gain); gain.connect(this.master); osc.start(t); osc.stop(t+duration+.03);
+  }
+  noise(duration=.12,{volume=.04,highpass=300,lowpass=5000,delay=0}={}) {
+    if (!this.ctx || this.muted) return;
+    const len=Math.max(1,Math.floor(this.ctx.sampleRate*duration));
+    const buf=this.ctx.createBuffer(1,len,this.ctx.sampleRate);
+    const data=buf.getChannelData(0);
+    for(let i=0;i<len;i++) data[i]=(Math.random()*2-1)*(1-i/len*.45);
+    const src=this.ctx.createBufferSource(); src.buffer=buf;
+    const hp=this.ctx.createBiquadFilter();hp.type='highpass';hp.frequency.value=highpass;
+    const lp=this.ctx.createBiquadFilter();lp.type='lowpass';lp.frequency.value=lowpass;
+    const g=this.ctx.createGain(); const t=this.ctx.currentTime+delay;
+    g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(volume,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+duration);
+    src.connect(hp);hp.connect(lp);lp.connect(g);g.connect(this.master);src.start(t);src.stop(t+duration+.02);
+  }
+  cast(kind,charge=0){
+    if(!this.can('cast-'+kind,.12))return;
+    if(kind==='wind'){
+      this.noise(.11+charge*.07,{volume:.032+charge*.018,highpass:650,lowpass:4300});
+      this.tone(480+charge*120,.10+charge*.05,{type:'triangle',volume:.038,endFreq:310+charge*80});
+      if(charge>.65)this.tone(760,.11,{type:'sine',volume:.025,endFreq:1040,delay:.025});
+    }else{
+      this.tone(510,.10,{type:'sine',volume:.038,endFreq:310});
+      this.tone(820,.08,{type:'sine',volume:.018,endFreq:600,delay:.018});
+      if(charge>.2)this.noise(.10,{volume:.022,highpass:900,lowpass:6500,delay:.02});
+    }
+  }
+  impact(kind,power=1,spread=false){
+    if(!this.can('impact-'+kind,spread?.075:.035))return;
+    if(kind==='wind'){
+      this.noise(.16,{volume:.026*Math.min(1.7,power),highpass:280,lowpass:2600});
+      this.tone(220,.14,{type:'triangle',volume:.025*Math.min(1.5,power),endFreq:110});
+    }else{
+      this.noise(.09,{volume:spread?.018:.027,highpass:700,lowpass:6000});
+      this.tone(290,.12,{type:'sine',volume:spread?.018:.03,endFreq:165});
+    }
+  }
+  flower(count=1){if(!this.can('flower',.09))return;for(let i=0;i<Math.min(3,count);i++)this.tone(760+i*105,.15,{type:'sine',volume:.033,endFreq:910+i*120,delay:i*.07});}
+  grow(kind='bridge'){if(!this.can('grow',.20))return;this.noise(.28,{volume:.025,highpass:180,lowpass:1700});this.tone(kind==='ledge'?210:330,.24,{type:'triangle',volume:.03,endFreq:kind==='ledge'?150:520});this.tone(720,.18,{type:'sine',volume:.023,endFreq:930,delay:.17});}
+  leaves(){if(!this.can('leaves',.16))return;this.noise(.30,{volume:.035,highpass:650,lowpass:4800});}
+  dandelion(){if(!this.can('dandelion',.25))return;this.noise(.23,{volume:.018,highpass:1000,lowpass:6800});this.tone(880,.22,{type:'sine',volume:.022,endFreq:1180});}
+  scare(kind){if(!this.can('scare-'+kind,.18))return;if(kind==='bird'){this.tone(980,.07,{type:'triangle',volume:.03,endFreq:1180});this.noise(.14,{volume:.025,highpass:900,lowpass:5000,delay:.04});}else{this.tone(610,.11,{type:'triangle',volume:.035,endFreq:440});}}
+  frog(){if(!this.can('frog',1.3))return;this.tone(185,.11,{type:'square',volume:.024,endFreq:150});this.tone(245,.10,{type:'square',volume:.019,endFreq:205,delay:.11});}
+  chick(){if(!this.can('chick',.20))return;this.tone(1150,.07,{type:'sine',volume:.025,endFreq:1320});}
+  rock(last=false){if(!this.can('rock',.10))return;this.noise(last?.20:.09,{volume:last?.045:.028,highpass:80,lowpass:1100});this.tone(last?105:155,last?.18:.08,{type:'triangle',volume:.025,endFreq:75});}
+  penalty(){if(!this.can('penalty',.35))return;this.tone(420,.10,{type:'triangle',volume:.025,endFreq:280});this.tone(290,.13,{type:'triangle',volume:.022,endFreq:190,delay:.09});}
+}
+const sound = new AudioEngine();
+
 class InputController {
   constructor(stick, knob) {
     this.stick = stick;
@@ -2086,6 +2200,8 @@ class Game {
     this.ctx = canvas.getContext('2d');
     this.input = input;
     this.hud = hud;
+    this.sound = sound;
+    this.previousMinus = 0;
     this.width = canvas.width;
     this.height = canvas.height;
     this.running = false;
@@ -2136,13 +2252,14 @@ class Game {
     requestAnimationFrame(this.loop);
   }
 
-  guideChick(direction) { this.chick.guide(direction); }
+  guideChick(direction) { this.chick.guide(direction); this.sound.chick(); }
 
   cast(kind, chargeSeconds = 0) {
     if (!this.running || this.cooldowns[kind] > 0) return;
     const isWater = kind === 'water';
     const charge = Math.min(1, Math.max(0, chargeSeconds / 0.9));
     this.cooldowns[kind] = isWater ? 0.60 + charge * .25 : 0.52 + charge * 0.18;
+    this.sound.cast(kind, charge);
 
     // A tap remains one precise water ball. Charged water becomes a gentle
     // sprinkler arc: every small droplet lands on the same radius from the fairy.
@@ -2189,7 +2306,7 @@ class Game {
   tryFrogSplash(x,y){
     if(this.frogCooldown>0)return;
     const river=this.rivers.find(r=>Math.abs(y-r.y)<r.height*.52 && x>18 && x<this.width-18);
-    if(river && Math.random()<.34){this.frogs.push(new RiverFrog(x,river.y+2));this.frogCooldown=3.2;}
+    if(river && Math.random()<.34){this.frogs.push(new RiverFrog(x,river.y+2));this.frogCooldown=3.2;this.sound.frog();}
   }
 
   drawSunbeams(ctx){
@@ -2369,6 +2486,7 @@ class Game {
     }
 
     for (const e of this.effects) {
+      const phaseBefore = e.phase;
       e.age += dt;
       if (e.phase === 'travel') {
         if (e.fixedTarget) {
@@ -2390,9 +2508,9 @@ class Game {
           for (const river of this.rivers) {
             const grown = river.waterHit(e.x, e.y, e.spreadShot ? 12 : 18);
             if (grown) {
-              if (grown.kind === 'bridge') this.plus += 100;
-              else if (grown.kind === 'bridgeFlowers') this.plus += 80;
-              else if (grown.kind === 'bridgeEnd') this.plus += 20;
+              if (grown.kind === 'bridge') { this.plus += 100; this.sound.grow('bridge'); }
+              else if (grown.kind === 'bridgeFlowers') { this.plus += 80; this.sound.flower(3); }
+              else if (grown.kind === 'bridgeEnd') { this.plus += 20; this.sound.flower(1); }
               e.phase = 'burst';
               e.age = 0;
               break;
@@ -2402,7 +2520,7 @@ class Game {
             for (const flower of this.flowers) {
               const bloomed = flower.waterHit(e.x, e.y, e.spreadShot ? 13 : 20);
               if (bloomed) {
-                this.plus += 40 * bloomed;
+                this.plus += 40 * bloomed; this.sound.flower(bloomed);
                 e.phase = 'burst';
                 e.age = 0;
                 break;
@@ -2413,7 +2531,7 @@ class Game {
         if (e.phase === 'travel' && e.kind === 'wind') {
           for (const pile of this.leafPiles) {
             if (pile.windHit(e.x, e.y, 18 + (e.charge || 0) * 16)) {
-              this.plus += 30;
+              this.plus += 30; this.sound.leaves();
               e.phase = 'burst';
               e.age = 0;
               break;
@@ -2423,14 +2541,14 @@ class Game {
         if (e.phase === 'travel' && e.kind === 'wind') {
           for (const d of this.dandelions) {
             if (d.windHit(e.x, e.y, 18 + (e.charge || 0) * 16)) {
-              this.plus += 45; e.phase = 'burst'; e.age = 0; break;
+              this.plus += 45; this.sound.dandelion(); e.phase = 'burst'; e.age = 0; break;
             }
           }
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
           for (const branch of this.sideBranches) {
             if (branch.windHit(e.x, e.y, 18 + (e.charge || 0) * 16)) {
-              this.plus += 40; e.phase = 'burst'; e.age = 0; break;
+              this.plus += 40; this.sound.leaves(); e.phase = 'burst'; e.age = 0; break;
             }
           }
         }
@@ -2441,7 +2559,7 @@ class Game {
           for (const rock of this.rocks) {
             const hit = rock.windHit(e.x, e.y, 18 + (e.charge || 0) * 16);
             if (hit) {
-              this.plus += hit === 2 ? 40 : 15;
+              this.plus += hit === 2 ? 40 : 15; this.sound.rock(hit === 2);
               e.phase = 'burst'; e.age = 0; break;
             }
           }
@@ -2450,7 +2568,7 @@ class Game {
           for (const ledge of this.ledges) {
             const carved = ledge.windHit(e.x, e.y, 18 + (e.charge || 0) * 14);
             if (carved) {
-              this.plus += 100;
+              this.plus += 100; this.sound.grow('ledge');
               e.phase = 'burst';
               e.age = 0;
               break;
@@ -2460,7 +2578,7 @@ class Game {
         // A direct hit scares the bird immediately.
         if (e.phase === 'travel') for (const bird of this.birds) {
           if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < bird.hitRadius + 18) {
-            if (bird.scare(e.x, e.y)) this.plus += 50;
+            if (bird.scare(e.x, e.y)) { this.plus += 50; this.sound.scare('bird'); }
             e.phase = 'burst';
             e.age = 0;
             break;
@@ -2469,7 +2587,7 @@ class Game {
         if (e.phase === 'travel') {
           for (const cat of this.cats) {
             if (cat.state === 'approach' && Math.hypot(e.x - cat.x, e.y - cat.y) < cat.hitRadius + 18) {
-              if (cat.scare(e.x, e.y)) this.plus += 60;
+              if (cat.scare(e.x, e.y)) { this.plus += 60; this.sound.scare('cat'); }
               e.phase = 'burst';
               e.age = 0;
               break;
@@ -2485,48 +2603,49 @@ class Game {
         const radius = e.kind === 'wind' ? 20 + t * 72 * (e.power || 1) : 11 + t * 42 * (e.power || 1);
         if (e.kind === 'wind') {
           for (const pile of this.leafPiles) {
-            if (pile.windHit(e.x, e.y, radius * .62)) this.plus += 30;
+            if (pile.windHit(e.x, e.y, radius * .62)) { this.plus += 30; this.sound.leaves(); }
           }
           for (const ledge of this.ledges) {
             const carved = ledge.windHit(e.x, e.y, radius * .55);
-            if (carved) this.plus += 100;
+            if (carved) { this.plus += 100; this.sound.grow('ledge'); }
           }
           for (const d of this.dandelions) {
-            if (d.windHit(e.x, e.y, radius * .55)) this.plus += 45;
+            if (d.windHit(e.x, e.y, radius * .55)) { this.plus += 45; this.sound.dandelion(); }
           }
           for (const branch of this.sideBranches) {
-            if (branch.windHit(e.x, e.y, radius * .58)) this.plus += 40;
+            if (branch.windHit(e.x, e.y, radius * .58)) { this.plus += 40; this.sound.leaves(); }
           }
           for (const rock of this.rocks) {
             const hit = rock.windHit(e.x, e.y, radius * .55);
-            if (hit) this.plus += hit === 2 ? 40 : 15;
+            if (hit) { this.plus += hit === 2 ? 40 : 15; this.sound.rock(hit === 2); } this.sound.rock(hit === 2);
           }
         } else {
           if(!e.frogChecked){this.tryFrogSplash(e.x,e.y);e.frogChecked=true;}
           for (const flower of this.flowers) {
             const bloomed = flower.waterHit(e.x, e.y, radius * .62);
-            if (bloomed) this.plus += 40 * bloomed;
+            if (bloomed) this.plus += 40 * bloomed; this.sound.flower(bloomed);
           }
           for (const river of this.rivers) {
             const grown = river.waterHit(e.x, e.y, radius * .55);
             if (grown) {
-              if (grown.kind === 'bridge') this.plus += 100;
-              else if (grown.kind === 'bridgeFlowers') this.plus += 80;
-              else if (grown.kind === 'bridgeEnd') this.plus += 20;
+              if (grown.kind === 'bridge') { this.plus += 100; this.sound.grow('bridge'); }
+              else if (grown.kind === 'bridgeFlowers') { this.plus += 80; this.sound.flower(3); }
+              else if (grown.kind === 'bridgeEnd') { this.plus += 20; this.sound.flower(1); }
             }
           }
         }
         for (const bird of this.birds) {
           if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < radius + bird.hitRadius) {
-            if (bird.scare(e.x, e.y)) this.plus += 50;
+            if (bird.scare(e.x, e.y)) { this.plus += 50; this.sound.scare('bird'); }
           }
         }
         for (const cat of this.cats) {
           if (cat.state === 'approach' && Math.hypot(e.x - cat.x, e.y - cat.y) < radius + cat.hitRadius) {
-            if (cat.scare(e.x, e.y)) this.plus += 60;
+            if (cat.scare(e.x, e.y)) { this.plus += 60; this.sound.scare('cat'); }
           }
         }
       }
+      if (phaseBefore === 'travel' && e.phase === 'burst') this.sound.impact(e.kind, e.power || 1, !!e.spreadShot);
     }
     this.effects = this.effects.filter(e => e.phase !== 'burst' || e.age < e.burst);
     this.birds = this.birds.filter(bird => !bird.isOffscreen());
@@ -2541,6 +2660,8 @@ class Game {
     this.butterflies=this.butterflies.filter(b=>!b.dead);
     this.ladybugs=this.ladybugs.filter(l=>!l.dead);
     this.frogs=this.frogs.filter(f=>!f.dead);
+    if (this.minus > this.previousMinus) this.sound.penalty();
+    this.previousMinus = this.minus;
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -2723,10 +2844,22 @@ const game = new Game(canvas, input, {
 });
 
 startButton.addEventListener('click', () => {
+  sound.unlock();
   titleScreen.classList.add('hidden');
   controls.classList.remove('hidden');
   hudElement.classList.remove('hidden');
   game.start();
+});
+
+
+const soundButton = document.querySelector('#soundButton');
+soundButton.addEventListener('click', (e) => {
+  e.preventDefault();
+  sound.unlock();
+  sound.setMuted(!sound.muted);
+  soundButton.textContent = sound.muted ? '🔇' : '🔊';
+  soundButton.classList.toggle('muted', sound.muted);
+  soundButton.setAttribute('aria-label', sound.muted ? '効果音をオンにする' : '効果音をオフにする');
 });
 
 const windButton = document.querySelector('#windButton');
@@ -2808,6 +2941,7 @@ document.addEventListener('selectstart', (e) => e.preventDefault(), { passive: f
 document.addEventListener('dragstart', (e) => e.preventDefault(), { passive: false });
 
 window.addEventListener('keydown', (e) => {
+  if (e.key.toLowerCase() === 'm') { soundButton.click(); return; }
   if (e.key === 'j' && !e.repeat) game.cast('wind', 0.35);
   if (e.key === 'k' && !e.repeat) game.cast('water', .5);
   if (e.key === 'q') game.guideChick(-1);
@@ -2816,6 +2950,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.3.1</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.4.0</div>
 </body>
 </html>
