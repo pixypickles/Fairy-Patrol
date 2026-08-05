@@ -612,7 +612,15 @@ class Chick {
   setAutoTarget(x) { this.autoTargetX = x; }
 
   update(dt, time) {
-    const activeTarget = this.autoTargetX ?? this.targetX;
+    // Terrain guidance is deliberately gentle. It nudges the chick toward a
+    // usable crossing, then stops pulling once the chick is safely inside it.
+    let activeTarget = this.targetX;
+    if (this.autoTargetX != null) {
+      const autoDx = this.autoTargetX - this.x;
+      activeTarget = Math.abs(autoDx) <= 30
+        ? this.x
+        : this.x + Math.max(-58, Math.min(58, autoDx));
+    }
     const dx = activeTarget - this.x;
     this.moveDir = Math.abs(dx) > 4 ? Math.sign(dx) : 0;
 
@@ -1046,7 +1054,7 @@ class River {
   update(dt, chick) {
     const complete = this.slots.filter(s => s.complete);
     const nearChick = this.y + this.height * 0.5 > chick.y - 72 && this.y - this.height * 0.5 < chick.y + 42;
-    const aligned = complete.some(s => Math.abs(chick.x - s.x) < 46);
+    const aligned = complete.some(s => Math.abs(chick.x - s.x) < 60);
     this.blocking = nearChick && !aligned;
 
     if (!this.blocking) this.y += this.speed * dt;
@@ -1075,7 +1083,7 @@ class River {
   }
 
   getGuidance(chick) {
-    if (this.y < chick.y - 290 || this.y > chick.y + 40) return null;
+    if (this.y < chick.y - 235 || this.y > chick.y + 40) return null;
     const complete = this.slots.filter(s => s.complete);
     if (!complete.length) return null;
     return complete.reduce((best, slot) => Math.abs(slot.x - chick.x) < Math.abs(best.x - chick.x) ? slot : best).x;
@@ -1718,24 +1726,26 @@ class Game {
   }
 
   drawWindTravel(ctx, e) {
-    // A compact, cone-shaped mini tornado. It reads as wind magic without
-    // looking like the round water projectile.
+    // Keep the projectile compact all the way to impact. The rings spin
+    // quickly inside a stable cone, so the last frame never stretches into
+    // a long feather-like shape.
     const charge = e.charge || 0;
     const scale = 1 + charge * .28;
     ctx.scale(scale, scale);
-    ctx.rotate(Math.sin(e.age * 13) * .08);
+    ctx.rotate(Math.sin(e.age * 18) * .025);
     ctx.globalCompositeOperation = 'lighter';
 
     const layers = 5;
     for (let i = 0; i < layers; i++) {
       const y = 12 - i * 7;
       const width = 7 + i * 4.1;
-      const phase = e.age * (11 + i * .7) + i * .9;
+      const spin = e.age * 22 + i * 1.18;
+      const squash = .82 + Math.sin(spin) * .08;
       ctx.strokeStyle = `rgba(${185 + i * 10},255,${205 + i * 8},${.48 + i * .07})`;
       ctx.lineWidth = 4.5 - i * .45;
       ctx.lineCap = 'round';
       ctx.beginPath();
-      ctx.ellipse(Math.sin(phase) * 2.2, y, width, 3.4 + i * .4, phase * .12, .2, Math.PI * 1.8);
+      ctx.ellipse(Math.sin(spin) * 1.35, y, width, (3.7 + i * .42) * squash, 0, 0, Math.PI * 2);
       ctx.stroke();
     }
     const glow = ctx.createRadialGradient(0, -4, 1, 0, -4, 27);
