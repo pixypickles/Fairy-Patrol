@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.7.0</title>
+  <title>Fairy Guardian v3.7.1</title>
   <style>
 :root {
   color-scheme: light;
@@ -234,7 +234,7 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
 .route-button { border:0; border-radius:18px; padding:13px 16px; color:#234538; font:800 16px/1.25 system-ui,sans-serif; cursor:pointer; touch-action:manipulation; }
 .route-button.cave { background:linear-gradient(135deg,#c8f6ef,#68b6c9); box-shadow:0 5px 0 #39788a; }
 .route-button.flowers { background:linear-gradient(135deg,#fff7c8,#ffb9d7); box-shadow:0 5px 0 #c87796; }
-.route-button.wetland { background:linear-gradient(135deg,#daf2b9,#74c9a1); box-shadow:0 5px 0 #3d8869; }
+.route-button.wetland { background:linear-gradient(135deg,#dff6b7,#79c9a2); box-shadow:0 5px 0 #4b8d70; }
 .route-button:active { transform:translateY(3px); box-shadow:0 2px 0 rgba(35,69,56,.35); }
 .route-note { font-size:13px; opacity:.78; }
 
@@ -1047,7 +1047,7 @@ class Bird {
     this.variant = variant;
     this.x = 70 + Math.random() * (width - 140);
     this.y = -55;
-    this.speed = 64 + Math.random() * 18;
+    this.speed = 126 + Math.random() * 42;
     this.phase = Math.random() * Math.PI * 2;
     this.state = 'approach';
     this.escapeX = 0;
@@ -1059,7 +1059,7 @@ class Bird {
   update(dt, chick, time) {
     if (this.state === 'approach') {
       const targetX = chick.x + Math.sin(time * 1.1 + this.phase) * 42;
-      this.x += (targetX - this.x) * Math.min(1, dt * 0.82);
+      this.x += (targetX - this.x) * Math.min(1, dt * 0.55);
       this.y += this.speed * dt;
       this.x += Math.sin(time * 2.2 + this.phase) * 10 * dt;
     } else {
@@ -1194,7 +1194,7 @@ class Cat {
     this.variant = variant;
     this.x = 75 + Math.random() * (width - 150);
     this.y = -65;
-    this.speed = 47 + Math.random() * 10;
+    this.speed = 93 + Math.random() * 24;
     this.phase = Math.random() * Math.PI * 2;
     this.state = 'approach';
     this.escapeX = 0;
@@ -1205,7 +1205,7 @@ class Cat {
   update(dt, chick, time) {
     if (this.state === 'approach') {
       const targetX = chick.x + Math.sin(time * 0.8 + this.phase) * 54;
-      this.x += (targetX - this.x) * Math.min(1, dt * 0.64);
+      this.x += (targetX - this.x) * Math.min(1, dt * 0.42);
       this.y += this.speed * dt;
       this.x += Math.sin(time * 2.1 + this.phase) * 5 * dt;
     } else {
@@ -1990,61 +1990,6 @@ class MeadowFlower {
 }
 
 
-class ReturnBudCluster extends MeadowFlower {
-  constructor(width,height,route='flowers',index=0,level=1){
-    super(width,height);
-    this.route=route;
-    this.level=level;
-    this.variant='returnCluster';
-    const counts=[5,7,8,9,10];
-    const count=counts[Math.min(counts.length-1,(level+index)%counts.length)];
-    const span=Math.min(310,140+count*18);
-    this.x=width*.5+Math.sin(index*1.71)*62;
-    this.seed=index*1.37+level*.83;
-    this.glow=route==='cave';
-    this.buds=Array.from({length:count},(_,i)=>{
-      const t=count===1?0:i/(count-1);
-      return {
-        offset:-span/2+span*t+Math.sin(i*1.83+this.seed)*9,
-        growth:0,delay:0,state:'bud',
-        palette:route==='cave'?(i%2?5:1):((i+index+level)%6)
-      };
-    });
-    this.radius=span*.58;
-  }
-  budDrop(i){return Math.sin(i*1.55+this.seed)*13+Math.cos(i*.72+this.seed)*5;}
-  waterHit(x,y,radius=22){
-    let nearest=-1,nearestDistance=Infinity;
-    for(let i=0;i<this.buds.length;i++){
-      const bud=this.buds[i]; if(bud.state!=='bud')continue;
-      const d=Math.hypot(x-(this.x+bud.offset),y-(this.y+this.budDrop(i)));
-      if(d<radius+25&&d<nearestDistance){nearest=i;nearestDistance=d;}
-    }
-    if(nearest<0)return 0;
-    const order=[nearest,...this.buds.map((_,i)=>i).filter(i=>i!==nearest).sort((a,b)=>Math.abs(a-nearest)-Math.abs(b-nearest))];
-    let started=0;
-    for(let n=0;n<order.length;n++){
-      const bud=this.buds[order[n]]; if(bud.state!=='bud')continue;
-      bud.state=n===0?'blooming':'waiting';bud.delay=n*.12;bud.growth=n===0?.01:0;started++;
-    }
-    return started;
-  }
-  draw(ctx,time){
-    ctx.save();ctx.translate(this.x,this.y);
-    if(this.glow){
-      const halo=ctx.createRadialGradient(0,0,8,0,0,Math.max(100,this.radius));
-      halo.addColorStop(0,'rgba(105,211,255,.18)');halo.addColorStop(1,'rgba(105,211,255,0)');
-      ctx.fillStyle=halo;ctx.beginPath();ctx.arc(0,0,Math.max(100,this.radius),0,Math.PI*2);ctx.fill();
-    }
-    ctx.fillStyle='rgba(41,71,38,.11)';ctx.beginPath();ctx.ellipse(0,27,Math.min(150,this.radius),10,0,0,Math.PI*2);ctx.fill();
-    for(let i=0;i<this.buds.length;i++){
-      ctx.save();ctx.translate(0,this.budDrop(i));this.drawBud(ctx,this.buds[i],i,time);ctx.restore();
-    }
-    ctx.restore();
-  }
-}
-
-
 class BarePatch {
   constructor(width, height) {
     this.screenHeight = height;
@@ -2565,49 +2510,50 @@ class CaveMushroom {
 
 
 class WetlandStage {
-  constructor(width,height){
-    this.width=width;this.height=height;this.offset=0;this.speed=34;
-    this.mud=Array.from({length:28},()=>({x:Math.random()*width,y:Math.random()*height,w:30+Math.random()*80,h:12+Math.random()*28,a:Math.random()*6.28}));
-    this.reeds=Array.from({length:32},()=>({x:20+Math.random()*(width-40),y:Math.random()*height,h:18+Math.random()*28,a:Math.random()*6.28}));
-  }
-  update(dt){this.offset=(this.offset+this.speed*dt)%this.height;}
+  constructor(width,height){this.width=width;this.height=height;this.offset=0;this.speed=40;this.pools=[];for(let i=0;i<9;i++)this.pools.push(this.makePool(Math.random()*height));}
+  makePool(y){return{x:75+Math.random()*(this.width-150),y,w:75+Math.random()*110,h:32+Math.random()*40,phase:Math.random()*6};}
+  update(dt){this.offset=(this.offset+this.speed*dt)%this.height;for(const p of this.pools){p.y+=this.speed*dt;if(p.y>this.height+90)Object.assign(p,this.makePool(-80-Math.random()*260));}}
   draw(ctx,time){
-    const g=ctx.createLinearGradient(0,0,0,this.height);g.addColorStop(0,'#6f9c70');g.addColorStop(.5,'#7eaa78');g.addColorStop(1,'#557d67');ctx.fillStyle=g;ctx.fillRect(0,0,this.width,this.height);
-    for(const m of this.mud){const y=(m.y+this.offset)%this.height;ctx.fillStyle='rgba(73,91,62,.20)';ctx.beginPath();ctx.ellipse(m.x,y,m.w,m.h,m.a,0,Math.PI*2);ctx.fill();}
-    // shallow winding water strips
-    ctx.strokeStyle='rgba(64,143,145,.58)';ctx.lineWidth=72;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(110,-40);ctx.bezierCurveTo(190,140,80,310,175,480);ctx.bezierCurveTo(270,650,155,800,250,1020);ctx.stroke();
-    ctx.strokeStyle='rgba(181,239,222,.30)';ctx.lineWidth=3;ctx.setLineDash([18,24]);ctx.lineDashOffset=-time*16;ctx.stroke();ctx.setLineDash([]);
-    for(const r of this.reeds){const y=(r.y+this.offset)%this.height;const sway=Math.sin(time*1.8+r.a)*3;ctx.strokeStyle='rgba(45,94,53,.72)';ctx.lineWidth=2.4;ctx.beginPath();ctx.moveTo(r.x,y);ctx.quadraticCurveTo(r.x+sway,y-r.h*.55,r.x+sway*.5,y-r.h);ctx.stroke();ctx.fillStyle='#7f5b38';ctx.beginPath();ctx.ellipse(r.x+sway*.5,y-r.h,3.5,8,.05,0,Math.PI*2);ctx.fill();}
-    const fog=ctx.createLinearGradient(0,0,this.width,0);fog.addColorStop(0,'rgba(224,245,217,.08)');fog.addColorStop(.5,'rgba(255,255,235,.02)');fog.addColorStop(1,'rgba(224,245,217,.08)');ctx.fillStyle=fog;ctx.fillRect(0,0,this.width,this.height);
+    const g=ctx.createLinearGradient(0,0,0,this.height);g.addColorStop(0,'#7fae72');g.addColorStop(.55,'#6d9f69');g.addColorStop(1,'#82b776');ctx.fillStyle=g;ctx.fillRect(0,0,this.width,this.height);
+    // damp mottled ground
+    for(let i=0;i<70;i++){const x=(i*83.7)%this.width,y=((i*149.3+this.offset*.55)%this.height);ctx.fillStyle=i%3?'rgba(57,102,67,.10)':'rgba(176,208,132,.10)';ctx.beginPath();ctx.ellipse(x,y,20+(i%5)*7,8+(i%4)*4,(i%7)*.3,0,Math.PI*2);ctx.fill();}
+    for(const p of this.pools){ctx.save();ctx.translate(p.x,p.y);const wob=Math.sin(time*1.5+p.phase)*2;const rg=ctx.createRadialGradient(-p.w*.18,-p.h*.15,2,0,0,p.w*.55);rg.addColorStop(0,'rgba(143,221,218,.75)');rg.addColorStop(.6,'rgba(67,151,150,.68)');rg.addColorStop(1,'rgba(44,106,112,.63)');ctx.fillStyle=rg;ctx.beginPath();ctx.ellipse(0,0,p.w*.5,p.h*.5,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(191,239,220,.35)';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(wob,0,p.w*.32,p.h*.19,0,0,Math.PI*2);ctx.stroke();ctx.restore();}
   }
-}
-
-class WetlandPond {
-  constructor(x,y,index=0){this.x=x;this.y=y;this.w=105+(index%2)*25;this.h=46+(index%3)*6;this.phase=Math.random()*6.28;this.ripples=[];}
-  update(dt){this.y+=34*dt;for(const r of this.ripples)r.age+=dt;this.ripples=this.ripples.filter(r=>r.age<1);if(this.y>1030){this.y=-100-Math.random()*260;this.x=80+Math.random()*380;}}
-  splash(x=this.x,y=this.y){this.ripples.push({x:x-this.x,y:y-this.y,age:0});}
-  contains(x,y,pad=0){return Math.abs(x-this.x)<this.w*.48+pad&&Math.abs(y-this.y)<this.h*.48+pad;}
-  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);const g=ctx.createRadialGradient(-15,-8,4,0,0,this.w*.55);g.addColorStop(0,'rgba(154,226,205,.74)');g.addColorStop(.55,'rgba(55,147,142,.74)');g.addColorStop(1,'rgba(37,98,105,.68)');ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,0,this.w*.5,this.h*.5,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(211,255,236,.36)';ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(Math.sin(time*1.5+this.phase)*3,-3,this.w*.34,this.h*.20,0,0,Math.PI*2);ctx.stroke();for(const r of this.ripples){const q=r.age;ctx.globalAlpha=1-q;ctx.strokeStyle='rgba(220,255,240,.72)';ctx.beginPath();ctx.ellipse(r.x,r.y,8+q*38,3+q*14,0,0,Math.PI*2);ctx.stroke();}ctx.restore();}
-}
-
-class LilyPad {
-  constructor(pond,angle=0){this.pond=pond;this.angle=angle;this.r=12+Math.random()*7;this.phase=Math.random()*6.28;}
-  update(){}
-  draw(ctx,time){const x=this.pond.x+Math.cos(this.angle)*this.pond.w*.27,y=this.pond.y+Math.sin(this.angle)*this.pond.h*.25;ctx.save();ctx.translate(x,y);ctx.rotate(Math.sin(time*1.2+this.phase)*.05);ctx.fillStyle='#5fae68';ctx.strokeStyle='#315f43';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,this.r,.22,Math.PI*2-.22);ctx.lineTo(0,0);ctx.closePath();ctx.fill();ctx.stroke();if((this.phase*10|0)%3===0){ctx.fillStyle='#f2a9d1';ctx.beginPath();for(let i=0;i<6;i++){const a=i*Math.PI/3;ctx.ellipse(Math.cos(a)*4,Math.sin(a)*4,4,2,a,0,Math.PI*2);}ctx.fill();}ctx.restore();}
 }
 
 class WetlandFrog {
-  constructor(pond,index=0){this.pond=pond;this.index=index;this.angle=Math.random()*Math.PI*2;this.state='rest';this.timer=1+Math.random()*3;this.jump=0;this.phase=Math.random()*6.28;this.hidden=0;}
-  get x(){return this.pond.x+Math.cos(this.angle)*this.pond.w*.25;}
-  get y(){return this.pond.y+Math.sin(this.angle)*this.pond.h*.22;}
-  update(dt,fairy,chick,sound){this.timer-=dt;this.hidden=Math.max(0,this.hidden-dt);if(this.state==='rest'&&this.hidden<=0){const near=Math.min(Math.hypot(fairy.x-this.x,fairy.y-this.y),Math.hypot(chick.x-this.x,chick.y-this.y));if(near<92||this.timer<=0){this.state='jump';this.jump=.42;this.timer=3+Math.random()*4;sound.frog();this.pond.splash(this.x,this.y);}}else if(this.state==='jump'){this.jump-=dt;if(this.jump<=0){this.state='rest';this.hidden=1.1+Math.random()*1.4;this.angle+=1.2+Math.random()*2.1;}}}
-  draw(ctx,time){if(this.hidden>0)return;const q=this.state==='jump'?Math.sin(Math.max(0,this.jump)/.42*Math.PI)*22:0;ctx.save();ctx.translate(this.x,this.y-q);const bob=Math.sin(time*2+this.phase)*1.5;ctx.translate(0,bob);ctx.strokeStyle='#294d32';ctx.lineWidth=2.5;ctx.fillStyle='#79c65f';ctx.beginPath();ctx.ellipse(0,0,14,10,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.arc(-7,-7,6,0,Math.PI*2);ctx.arc(7,-7,6,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#f5fff0';ctx.beginPath();ctx.arc(-7,-8,3.5,0,Math.PI*2);ctx.arc(7,-8,3.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#263b2b';ctx.beginPath();ctx.arc(-7,-8,1.6,0,Math.PI*2);ctx.arc(7,-8,1.6,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#36583a';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(0,1,5,0.2,Math.PI-.2);ctx.stroke();ctx.restore();}
+  constructor(width,height){this.width=width;this.height=height;this.x=55+Math.random()*(width-110);this.y=-40-Math.random()*700;this.phase=Math.random()*6;this.jump=0;this.dead=false;}
+  update(dt,fairy,chick,sound){this.y+=40*dt;const d=Math.min(Math.hypot(this.x-fairy.x,this.y-fairy.y),Math.hypot(this.x-chick.x,this.y-chick.y));if(!this.jump&&d<82){this.jump=.9;sound.frog();}if(this.jump>0){this.jump-=dt;this.x+=Math.sin(this.phase+this.jump*9)*65*dt;}if(this.y>1040)this.dead=true;}
+  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y-Math.sin(Math.max(0,this.jump)*Math.PI)*18);const bob=Math.sin(time*3+this.phase)*1.3;ctx.fillStyle='rgba(34,64,38,.16)';ctx.beginPath();ctx.ellipse(0,12,17,5,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#70bd5b';ctx.strokeStyle='#315d35';ctx.lineWidth=2.5;ctx.beginPath();ctx.ellipse(0,bob,16,11,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.arc(-8,-7+bob,6,0,Math.PI*2);ctx.arc(8,-7+bob,6,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-8,-8+bob,2.8,0,Math.PI*2);ctx.arc(8,-8+bob,2.8,0,Math.PI*2);ctx.fill();ctx.fillStyle='#243a28';ctx.beginPath();ctx.arc(-8,-8+bob,1.2,0,Math.PI*2);ctx.arc(8,-8+bob,1.2,0,Math.PI*2);ctx.fill();ctx.restore();}
 }
 
-class Dragonfly {
-  constructor(width,height){this.width=width;this.height=height;this.x=Math.random()*width;this.y=-30-Math.random()*300;this.vx=(Math.random()<.5?-1:1)*(18+Math.random()*24);this.vy=34+Math.random()*18;this.phase=Math.random()*6.28;this.dead=false;}
-  update(dt,time){this.x+=this.vx*dt+Math.sin(time*3+this.phase)*16*dt;this.y+=this.vy*dt;if(this.x<20||this.x>this.width-20)this.vx*=-1;if(this.y>1030)this.dead=true;}
-  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);ctx.rotate(Math.atan2(this.vy,this.vx)-Math.PI/2);ctx.strokeStyle='#234b54';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(0,-10);ctx.lineTo(0,12);ctx.stroke();ctx.fillStyle='#5ad4d0';ctx.beginPath();ctx.arc(0,-12,4,0,Math.PI*2);ctx.fill();const flap=Math.sin(time*18+this.phase)*.3;ctx.fillStyle='rgba(210,250,255,.58)';for(const side of [-1,1]){ctx.beginPath();ctx.ellipse(side*8,-2,10,3,side*flap,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(side*7,5,9,2.5,-side*flap,0,Math.PI*2);ctx.fill();}ctx.restore();}
+class WetlandDragonfly {
+  constructor(width,height){this.width=width;this.height=height;this.x=Math.random()*width;this.y=-30-Math.random()*600;this.phase=Math.random()*6;this.dead=false;}
+  update(dt,time){this.y+=45*dt;this.x+=Math.sin(time*2.2+this.phase)*42*dt;if(this.y>1020)this.dead=true;}
+  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);ctx.rotate(Math.sin(time*1.3+this.phase)*.45);ctx.strokeStyle='#314a43';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(-7,0);ctx.lineTo(9,0);ctx.stroke();ctx.fillStyle='rgba(198,244,255,.56)';const f=Math.sin(time*18+this.phase)*3;for(const [sx,sy] of [[-1,-5-f],[-1,5+f],[5,-5-f],[5,5+f]]){ctx.beginPath();ctx.ellipse(sx,sy,9,3,sy<0?-.35:.35,0,Math.PI*2);ctx.fill();}ctx.fillStyle='#5ab8b1';ctx.beginPath();ctx.arc(-8,0,4,0,Math.PI*2);ctx.fill();ctx.restore();}
+}
+
+class Cattail {
+  constructor(width,height){this.width=width;this.height=height;this.x=45+Math.random()*(width-90);this.y=-70-Math.random()*850;this.phase=Math.random()*6;this.blown=false;this.age=0;this.dead=false;this.seeds=[];}
+  windHit(x,y,r){if(this.blown||Math.hypot(this.x-x,this.y-y)>r+24)return false;this.blown=true;for(let i=0;i<16;i++)this.seeds.push({x:0,y:-18,vx:(Math.random()-.5)*75,vy:-40-Math.random()*65,age:0});return true;}
+  update(dt){this.y+=40*dt;if(this.blown){this.age+=dt;for(const q of this.seeds){q.age+=dt;q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy-=4*dt;}}if(this.y>1030||this.age>2.2)this.dead=true;}
+  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);ctx.strokeStyle='#456d3f';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,20);ctx.quadraticCurveTo(Math.sin(time*2+this.phase)*4,0,0,-25);ctx.stroke();if(!this.blown){ctx.fillStyle='#8a5a31';ctx.beginPath();ctx.roundRect(-6,-36,12,27,6);ctx.fill();}for(const q of this.seeds){const a=Math.max(0,1-q.age/1.8);ctx.fillStyle=`rgba(238,244,222,${a})`;ctx.beginPath();ctx.arc(q.x,q.y,2.6,0,Math.PI*2);ctx.fill();}ctx.restore();}
+}
+
+class MudPatch {
+  constructor(width,height){this.width=width;this.height=height;this.x=80+Math.random()*(width-160);this.y=-100-Math.random()*1000;this.w=80+Math.random()*70;this.h=35+Math.random()*28;this.dry=0;this.dead=false;}
+  windHit(x,y,r){if(this.dry>=1||Math.hypot(this.x-x,this.y-y)>r+this.w*.35)return false;this.dry=Math.min(1,this.dry+.36);return true;}
+  update(dt,chick){this.y+=40*dt;const inside=Math.abs(chick.x-this.x)<this.w*.45&&Math.abs(chick.y-this.y)<this.h*.5;if(inside&&this.dry<.75)chick.x+=(this.x-chick.x)*dt*.05;if(this.y>1030)this.dead=true;}
+  draw(ctx){ctx.save();ctx.translate(this.x,this.y);ctx.fillStyle=this.dry>.75?'rgba(135,112,74,.45)':'rgba(83,71,49,.68)';ctx.beginPath();ctx.moveTo(-this.w*.5,-4);ctx.quadraticCurveTo(-this.w*.34,-this.h*.7,-5,-this.h*.45);ctx.quadraticCurveTo(this.w*.35,-this.h*.6,this.w*.5,0);ctx.quadraticCurveTo(this.w*.25,this.h*.62,-12,this.h*.44);ctx.quadraticCurveTo(-this.w*.42,this.h*.5,-this.w*.5,-4);ctx.fill();ctx.restore();}
+}
+
+class WetlandCrocodile {
+  constructor(width,height){this.width=width;this.height=height;this.x=80+Math.random()*(width-160);this.y=-130-Math.random()*850;this.state='hidden';this.timer=.5+Math.random()*2;this.dead=false;this.escape=0;}
+  update(dt,chick){this.y+=40*dt;this.timer-=dt;const d=Math.hypot(this.x-chick.x,this.y-chick.y);if(this.state==='hidden'&&d<150){this.state='charge';this.timer=2.3;}if(this.state==='charge'){this.x+=(chick.x-this.x)*Math.min(1,dt*1.8);this.y+=(chick.y-this.y)*Math.min(1,dt*1.1);}if(this.state==='retreat'){this.escape+=dt;this.y-=150*dt;if(this.escape>.9)this.dead=true;}if(this.y>1040)this.dead=true;}
+  scare(){if(this.state==='retreat')return false;this.state='retreat';return true;}
+  draw(ctx,time){ctx.save();ctx.translate(this.x,this.y);if(this.state==='hidden'){ctx.fillStyle='#2e5f48';ctx.beginPath();ctx.arc(-12,0,5,0,Math.PI*2);ctx.arc(12,0,5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-12,-1,2.2,0,Math.PI*2);ctx.arc(12,-1,2.2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(185,240,220,.5)';ctx.beginPath();ctx.ellipse(0,7,30+Math.sin(time*3)*3,9,0,0,Math.PI*2);ctx.stroke();}
+    else{const wig=Math.sin(time*8)*4;ctx.fillStyle='rgba(34,57,42,.17)';ctx.beginPath();ctx.ellipse(0,22,34,8,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#284e38';ctx.lineWidth=3;ctx.fillStyle='#5f9b58';ctx.beginPath();ctx.moveTo(-30,15);ctx.quadraticCurveTo(-45,8+wig,-53,-2);ctx.lineTo(-30,-4);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.roundRect(-28,-17,56,38,15);ctx.fill();ctx.stroke();ctx.fillStyle='#77b86b';ctx.beginPath();ctx.roundRect(-22,-28,44,24,13);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-10,-25,4,0,Math.PI*2);ctx.arc(10,-25,4,0,Math.PI*2);ctx.fill();ctx.fillStyle='#263c2b';ctx.beginPath();ctx.arc(-10,-25,1.7,0,Math.PI*2);ctx.arc(10,-25,1.7,0,Math.PI*2);ctx.fill();}
+    ctx.restore();}
 }
 
 class Game {
@@ -2619,21 +2565,20 @@ class Game {
     this.sound = sound;
     this.previousMinus = 0;
     this.mode = 'meadow';
+    this.wetlandMode = false;
     this.flowerRoute = false;
     this.routePromptShown = false;
     this.pausedForRoute = false;
     this.nextRouteAt = 2500;
     this.routeStartPlus = null;
     this.returnNotice = 0;
-    this.commonMeadowLevel = 0;
-    this.lastRoute = null;
     this.onRouteChoice = null;
     this.mushrooms = [];
     this.cavePuddles = [];
     this.cavePebbles = [];
     this.caveCrystals = [];
     this.glowMoss = [];
-    this.wetlandPonds=[];this.lilyPads=[];this.wetlandFrogs=[];this.dragonflies=[];this.dragonflySpawnTimer=1.2;
+    this.wetlandFrogs=[]; this.wetlandDragonflies=[]; this.cattails=[]; this.mudPatches=[]; this.crocodiles=[];
     this.width = canvas.width;
     this.height = canvas.height;
     this.running = false;
@@ -2711,11 +2656,10 @@ class Game {
   }
 
   enterCaveRoute() {
-    this.lastRoute='cave';
     this.mode='cave'; this.flowerRoute=false; this.pausedForRoute=false; this.sound.caveMode=true;
     this.routeStartPlus=this.plus;
     this.stage=new CaveStage(this.width,this.height);
-    this.mushrooms=[]; this.cavePuddles=[]; this.cavePebbles=[]; this.caveCrystals=[]; this.glowMoss=[]; this.wetlandPonds=[];this.lilyPads=[];this.wetlandFrogs=[];this.dragonflies=[];
+    this.mushrooms=[]; this.cavePuddles=[]; this.cavePebbles=[]; this.caveCrystals=[]; this.glowMoss=[];
     const notes=[0,1,2,3,4,2,4]; const rows=[105,285,465];
     for(let row=0;row<rows.length;row++){ const count=row%2?4:5; for(let i=0;i<count;i++) this.mushrooms.push(new CaveMushroom(105+i*(330/(count-1)),rows[row]+(i%2)*18,notes[(i+row)%notes.length],row,i)); }
     this.cavePuddles=[new CavePuddle(170,205,0),new CavePuddle(382,400,1)];
@@ -2728,32 +2672,31 @@ class Game {
   }
 
   enterFlowerRoute() {
-    this.lastRoute='flowers';
     this.mode='meadow'; this.flowerRoute=true; this.pausedForRoute=false; this.sound.caveMode=false;
     this.routeStartPlus=this.plus;
-    this.wetlandPonds=[];this.lilyPads=[];this.wetlandFrogs=[];this.dragonflies=[];
     this.flowerSpawnTimer=.35; this.dandelionSpawnTimer=1.2; this.butterflySpawnTimer=.6;
     this.birdSpawnTimer=Math.max(this.birdSpawnTimer,12); this.catSpawnTimer=Math.max(this.catSpawnTimer,15);
     this.riverSpawnTimer=Math.max(this.riverSpawnTimer,24); this.ledgeSpawnTimer=Math.max(this.ledgeSpawnTimer,26);
     for(let i=0;i<3;i++){ const f=this.spawnScenery(()=>new MeadowFlower(this.width,this.height),54); if(f){f.y=80+i*95;this.flowers.push(f);} }
   }
 
+
   enterWetlandRoute() {
-    this.lastRoute='wetland';
-    this.mode='wetland';this.flowerRoute=false;this.pausedForRoute=false;this.sound.caveMode=false;
-    this.routeStartPlus=this.plus;this.stage=new WetlandStage(this.width,this.height);
-    this.mushrooms=[];this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];this.wetlandPonds=[];this.lilyPads=[];this.wetlandFrogs=[];this.dragonflies=[];
+    this.mode='wetland'; this.wetlandMode=true; this.flowerRoute=false; this.pausedForRoute=false; this.sound.caveMode=false;
+    this.routeStartPlus=this.plus; this.stage=new WetlandStage(this.width,this.height);
     this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
-    this.wetlandPonds=[new WetlandPond(150,160,0),new WetlandPond(385,360,1),new WetlandPond(220,610,2),new WetlandPond(400,820,0)];
-    this.lilyPads=[];this.wetlandFrogs=[];
-    this.wetlandPonds.forEach((p,pi)=>{for(let i=0;i<2+(pi%2);i++)this.lilyPads.push(new LilyPad(p,i*2.1+pi));for(let i=0;i<2;i++)this.wetlandFrogs.push(new WetlandFrog(p,i));});
-    this.dragonflies=[];this.dragonflySpawnTimer=.3;
-    this.birdSpawnTimer=6;this.catSpawnTimer=9;
+    this.mushrooms=[];this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];
+    this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandMode=false;
+    this.wetlandFrogs=Array.from({length:7},()=>new WetlandFrog(this.width,this.height));
+    this.wetlandDragonflies=Array.from({length:5},()=>new WetlandDragonfly(this.width,this.height));
+    this.cattails=Array.from({length:7},()=>new Cattail(this.width,this.height));
+    this.mudPatches=Array.from({length:4},()=>new MudPatch(this.width,this.height));
+    this.crocodiles=Array.from({length:2},()=>new WetlandCrocodile(this.width,this.height));
+    this.birdSpawnTimer=3.5;this.catSpawnTimer=5.0;
     this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=99999;
   }
 
   enterCommonMeadow() {
-    this.commonMeadowLevel += 1;
     this.mode='meadow';
     this.flowerRoute=false;
     this.pausedForRoute=false;
@@ -2761,7 +2704,8 @@ class Game {
     this.stage=new Stage(this.width,this.height);
 
     // Route-specific scenery is removed; scores and the two characters remain.
-    this.mushrooms=[];this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];this.wetlandPonds=[];this.lilyPads=[];this.wetlandFrogs=[];this.dragonflies=[];
+    this.mushrooms=[];this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];
+    this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandMode=false;
     this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];
     this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
     this.effects=[];
@@ -2769,20 +2713,7 @@ class Game {
     this.birdSpawnTimer=4.5;this.catSpawnTimer=8.0;this.riverSpawnTimer=12.0;
     this.ledgeSpawnTimer=24.0;this.leafPileSpawnTimer=6.5;this.flowerSpawnTimer=2.8;
     this.dandelionSpawnTimer=7.0;this.sideBranchSpawnTimer=9.0;this.rockSpawnTimer=12.0;
-    // Returning from a side path makes the familiar meadow visibly richer.
-    this.butterflySpawnTimer=this.lastRoute==='flowers' ? .45 : .9;
-    this.ladybugSpawnTimer=this.lastRoute==='flowers' ? 1.1 : 2.0;
-    const clusterCount=Math.min(5,2+this.commonMeadowLevel+(this.lastRoute==='flowers'?1:0));
-    for(let i=0;i<clusterCount;i++){
-      const cluster=new ReturnBudCluster(this.width,this.height,this.lastRoute,i,this.commonMeadowLevel);
-      cluster.y=70+i*128;
-      this.flowers.push(cluster);
-    }
-    for(let i=0;i<Math.min(4,1+this.commonMeadowLevel);i++){
-      const f=new MeadowFlower(this.width,this.height);
-      f.y=145+i*150;
-      if(!this.isSceneryBlocked(f.x,f.y,54))this.flowers.push(f);
-    }
+    this.butterflySpawnTimer=2.2;this.ladybugSpawnTimer=4.5;
 
     this.routeStartPlus=null;
     this.routePromptShown=false;
@@ -2943,21 +2874,30 @@ class Game {
     this.flowerAdmireCooldown = Math.max(0, this.flowerAdmireCooldown - dt);
     this.butterflySpawnTimer -= dt;
     this.ladybugSpawnTimer -= dt;
-    if (this.mode==='meadow' && this.butterflySpawnTimer <= 0 && this.butterflies.length < (this.flowerRoute ? 7 : (this.commonMeadowLevel>0 ? 6 : 4))) {
+    if (this.mode==='meadow' && this.butterflySpawnTimer <= 0 && this.butterflies.length < (this.flowerRoute ? 7 : 4)) {
       this.butterflies.push(new AmbientButterfly(this.width, this.height));
-      this.butterflySpawnTimer = (this.flowerRoute ? 1.8 : (this.commonMeadowLevel>0 ? 2.6 : 4)) + Math.random() * (this.flowerRoute ? 2.8 : (this.commonMeadowLevel>0 ? 3.8 : 5));
+      this.butterflySpawnTimer = (this.flowerRoute ? 1.8 : 4) + Math.random() * (this.flowerRoute ? 2.8 : 5);
     }
-    if (this.mode==='meadow' && this.ladybugSpawnTimer <= 0 && this.ladybugs.length < (this.flowerRoute ? 5 : (this.commonMeadowLevel>0 ? 4 : 3))) {
+    if (this.mode==='meadow' && this.ladybugSpawnTimer <= 0 && this.ladybugs.length < (this.flowerRoute ? 5 : 3)) {
       this.ladybugs.push(new AmbientLadybug(this.width, this.height));
-      this.ladybugSpawnTimer = (this.flowerRoute ? 3.8 : (this.commonMeadowLevel>0 ? 4.8 : 6)) + Math.random() * (this.flowerRoute ? 4 : (this.commonMeadowLevel>0 ? 5 : 7));
+      this.ladybugSpawnTimer = (this.flowerRoute ? 3.8 : 6) + Math.random() * (this.flowerRoute ? 4 : 7);
     }
     for (const butterfly of this.butterflies) butterfly.update(dt, this.elapsed, this.flowers, this.fairy);
     for (const ladybug of this.ladybugs) ladybug.update(dt, this.elapsed);
     for (const frog of this.frogs) frog.update(dt);
     this.stage.update(dt);
     if(this.mode==='wetland'){
-      this.dragonflySpawnTimer-=dt;if(this.dragonflySpawnTimer<=0&&this.dragonflies.length<6){this.dragonflies.push(new Dragonfly(this.width,this.height));this.dragonflySpawnTimer=1.5+Math.random()*2.8;}
-      for(const p of this.wetlandPonds)p.update(dt);for(const f of this.wetlandFrogs)f.update(dt,this.fairy,this.chick,this.sound);for(const d of this.dragonflies)d.update(dt,this.elapsed);this.dragonflies=this.dragonflies.filter(d=>!d.dead);
+      for(const f of this.wetlandFrogs)f.update(dt,this.fairy,this.chick,this.sound);
+      for(const d of this.wetlandDragonflies)d.update(dt,this.elapsed);
+      for(const c of this.cattails)c.update(dt);
+      for(const m of this.mudPatches)m.update(dt,this.chick);
+      for(const w of this.crocodiles){w.update(dt,this.chick);if(w.state==='charge'&&Math.hypot(w.x-this.chick.x,w.y-this.chick.y)<38){this.minus+=45;w.scare();this.sound.penalty();}}
+      this.wetlandFrogs=this.wetlandFrogs.filter(x=>!x.dead);this.wetlandDragonflies=this.wetlandDragonflies.filter(x=>!x.dead);this.cattails=this.cattails.filter(x=>!x.dead);this.mudPatches=this.mudPatches.filter(x=>!x.dead);this.crocodiles=this.crocodiles.filter(x=>!x.dead);
+      while(this.wetlandFrogs.length<7)this.wetlandFrogs.push(new WetlandFrog(this.width,this.height));
+      while(this.wetlandDragonflies.length<5)this.wetlandDragonflies.push(new WetlandDragonfly(this.width,this.height));
+      while(this.cattails.length<7)this.cattails.push(new Cattail(this.width,this.height));
+      while(this.mudPatches.length<4)this.mudPatches.push(new MudPatch(this.width,this.height));
+      while(this.crocodiles.length<2)this.crocodiles.push(new WetlandCrocodile(this.width,this.height));
     }
     if(this.mode==='cave') {
       for(const p of this.cavePuddles) p.update(dt);
@@ -2995,13 +2935,13 @@ class Game {
     for (const pile of this.leafPiles) {
       if (pile.update(dt, this.chick) === 'bump') this.minus += 15;
     }
-    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < (this.flowerRoute ? 10 : (this.commonMeadowLevel>0 ? 13 : 5))) {
+    if (this.flowerSpawnTimer <= 0 && this.flowers.filter(f => !f.dead).length < (this.flowerRoute ? 10 : 5)) {
       const flower = this.spawnScenery(() => new MeadowFlower(this.width, this.height), 54);
       if (flower) this.flowers.push(flower);
-      this.flowerSpawnTimer = flower ? (this.flowerRoute ? 2.0 + Math.random() * 2.2 : (this.commonMeadowLevel>0 ? 2.8 + Math.random() * 2.8 : 5.4 + Math.random() * 3.8)) : 1.2;
+      this.flowerSpawnTimer = flower ? (this.flowerRoute ? 2.0 + Math.random() * 2.2 : 5.4 + Math.random() * 3.8) : 1.2;
     }
     for (const flower of this.flowers) flower.update(dt);
-    if (this.dandelionSpawnTimer <= 0 && this.dandelions.filter(d => !d.dead).length < (this.flowerRoute ? 5 : (this.commonMeadowLevel>0 ? 4 : 2))) {
+    if (this.dandelionSpawnTimer <= 0 && this.dandelions.filter(d => !d.dead).length < (this.flowerRoute ? 5 : 2)) {
       const dandelion = this.spawnScenery(() => new Dandelion(this.width, this.height), 54);
       if (dandelion) {
         this.dandelions.push(dandelion);
@@ -3013,7 +2953,7 @@ class Game {
           if (!this.isSceneryBlocked(friend.x, friend.y, 50)) this.dandelions.push(friend);
         }
       }
-      this.dandelionSpawnTimer = dandelion ? (this.flowerRoute ? 5 + Math.random() * 5 : (this.commonMeadowLevel>0 ? 7 + Math.random() * 6 : 13 + Math.random() * 9)) : 2.0;
+      this.dandelionSpawnTimer = dandelion ? (this.flowerRoute ? 5 + Math.random() * 5 : 13 + Math.random() * 9) : 2.0;
     }
     for (const d of this.dandelions) d.update(dt);
     if (this.sideBranchSpawnTimer <= 0 && this.sideBranches.filter(b => !b.dead).length < 2) {
@@ -3127,9 +3067,6 @@ class Game {
           e.x += (e.vx || 0) * dt + Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
         }
         if (e.kind === 'water') {
-          if(this.mode==='wetland'){
-            for(const p of this.wetlandPonds){if(p.contains(e.x,e.y,e.spreadShot?9:15)){p.splash(e.x,e.y);if(Math.random()<.32)this.sound.frog();}}
-          }
           if(this.mode==='cave'){
             for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,e.spreadShot?13:20)){this.plus+=25;this.sound.mushroom(m.note);this.registerMushroomHit(m);e.phase='burst';e.age=0;break;}}
           }
@@ -3171,6 +3108,15 @@ class Game {
               this.triggerPuddleSplash(puddle); e.phase='burst'; e.age=0; break;
             }
           }
+        }
+        if (e.phase === 'travel' && e.kind === 'wind' && this.mode==='wetland') {
+          const rr=20+(e.charge||0)*22;
+          for(const w of this.crocodiles){if(Math.hypot(w.x-e.x,w.y-e.y)<rr+30&&w.scare()){this.plus+=80;this.sound.cavePuddle();e.phase='burst';e.age=0;break;}}
+          if(e.phase==='travel')for(const c of this.cattails){if(c.windHit(e.x,e.y,rr)){this.plus+=25;this.sound.dandelion();e.phase='burst';e.age=0;break;}}
+          if(e.phase==='travel')for(const m of this.mudPatches){if(m.windHit(e.x,e.y,rr)){this.plus+=15;this.sound.leaves();e.phase='burst';e.age=0;break;}}
+        }
+        if (e.phase === 'travel' && e.kind === 'water' && this.mode==='wetland') {
+          for(const w of this.crocodiles){if(Math.hypot(w.x-e.x,w.y-e.y)<35&&w.scare()){this.plus+=80;this.sound.cavePuddle();e.phase='burst';e.age=0;break;}}
         }
         if (e.phase === 'travel' && e.kind === 'wind') {
           for (const pile of this.leafPiles) {
@@ -3450,13 +3396,19 @@ class Game {
 
   draw() {
     this.stage.draw(this.ctx, this.elapsed);
-    if(this.mode==='wetland'){for(const p of this.wetlandPonds)p.draw(this.ctx,this.elapsed);for(const pad of this.lilyPads)pad.draw(this.ctx,this.elapsed);for(const f of this.wetlandFrogs)f.draw(this.ctx,this.elapsed);for(const d of this.dragonflies)d.draw(this.ctx,this.elapsed);}
     if(this.mode==='cave') {
       for(const moss of this.glowMoss)moss.draw(this.ctx,this.elapsed);
       for(const p of this.cavePuddles) p.draw(this.ctx,this.elapsed);
       for(const c of this.caveCrystals)c.draw(this.ctx,this.elapsed);
       for(const pebble of this.cavePebbles)pebble.draw(this.ctx);
       for(const m of this.mushrooms) m.draw(this.ctx,this.elapsed);
+    }
+    if(this.mode==='wetland'){
+      for(const m of this.mudPatches)m.draw(this.ctx);
+      for(const c of this.cattails)c.draw(this.ctx,this.elapsed);
+      for(const f of this.wetlandFrogs)f.draw(this.ctx,this.elapsed);
+      for(const d of this.wetlandDragonflies)d.draw(this.ctx,this.elapsed);
+      for(const w of this.crocodiles)w.draw(this.ctx,this.elapsed);
     }
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
     for (const frog of this.frogs) frog.draw(this.ctx, this.elapsed);
@@ -3659,6 +3611,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.7.0</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.7.1</div>
 </body>
 </html>
