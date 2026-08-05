@@ -92,8 +92,8 @@ function fireWindUp(){cast('windUp',{type:'windUp',x:fairy.x,y:fairy.y-16,vx:0,v
 function fireWindDown(){cast('windDown',{type:'windDown',x:fairy.x,y:fairy.y+12,vx:0,vy:78,t:0,life:.27,r:18})}
 function fireWaterUp(){cast('waterUp',{type:'waterUp',x:fairy.x,y:fairy.y-10,vx:0,vy:-210,t:0,life:.76,r:12,height:36})}
 function fireWaterDown(){cast('waterDown',{type:'waterDown',x:fairy.x,y:fairy.y+8,vx:0,vy:46,t:0,life:.38,r:13,height:20})}
-function spawnEnemy(y=-60){const air=Math.random()<.38;const type=air?'bird':(Math.random()<.5?'fox':'cat');enemies.push({type,air,x:42+Math.random()*(W-84),y,r:air?20:18,vx:(Math.random()-.5)*18,vy:air?44:30,hp:1,cool:0,anim:Math.random()*10,angle:Math.PI/2,flee:false,fleeT:0})}
-function spawnObstacle(y=-70){const p=Math.random();let type=p<.34?'leafPile':p<.66?'ledge':'sproutWater';let w,h,x;if(type==='leafPile'){w=96+Math.random()*54;h=48;x=w/2+18+Math.random()*Math.max(20,W-w-36)}else{w=W+24;x=W/2;h=type==='ledge'?42:62}obstacles.push({type,x,y,w,h,done:false,hit:false,growing:false,growth:0,seed:Math.random()*1000})}
+function spawnEnemy(y=-60){const air=Math.random()<.38;const type=air?'bird':(Math.random()<.5?'catOrange':'catGray');enemies.push({type,air,x:42+Math.random()*(W-84),y,r:air?20:18,vx:(Math.random()-.5)*18,vy:air?44:30,hp:1,cool:0,anim:Math.random()*10,angle:Math.PI/2,flee:false,fleeT:0})}
+function spawnObstacle(y=-70){const p=Math.random();let type=p<.34?'leafPile':p<.66?'ledge':'sproutWater';let w,h,x;if(type==='leafPile'){w=96+Math.random()*54;h=48;x=w/2+18+Math.random()*Math.max(20,W-w-36)}else{w=W+24;x=W/2;h=type==='ledge'?42:62}const o={type,x,y,w,h,done:false,hit:false,growing:false,growth:0,seed:Math.random()*1000};if(type==='sproutWater')o.bridges=[{x:-W*.31,growth:0,growing:false,done:false},{x:0,growth:0,growing:false,done:false},{x:W*.31,growth:0,growing:false,done:false}];obstacles.push(o)}
 function crossLedge(o){if(o.done)return;o.done=true;chick.stuck=null;chick.y=Math.max(H*.58,chick.y-o.h-22);addPlus(80,'大ジャンプで段差を越えた');effects.push({type:'sparkle',x:chick.x,y:chick.y,t:0,life:.55,r:34});burst(chick.x,chick.y,'wind')}
 function update(dt){worldT+=dt;chick.jumpBoost=Math.max(0,chick.jumpBoost-dt);for(const k in cooldown)cooldown[k]=Math.max(0,cooldown[k]-dt);distance-=dt*6;if(distance<=0){finish();return}
  let ix=input.x+(keys.arrowleft?-1:0)+(keys.arrowright?1:0),iy=input.y+(keys.arrowup?-1:0)+(keys.arrowdown?1:0);let m=Math.hypot(ix,iy);if(m>0){ix/=m;iy/=m}fairy.x+=ix*fairy.speed*dt;fairy.y+=iy*fairy.speed*dt;fairy.x=Math.max(18,Math.min(W-18,fairy.x));fairy.y=Math.max(55,Math.min(H-26,fairy.y));
@@ -113,13 +113,13 @@ function update(dt){worldT+=dt;chick.jumpBoost=Math.max(0,chick.jumpBoost-dt);fo
    }
  }
  enemies=enemies.filter(e=>e.y<H+90&&e.y>-130&&e.x>-100&&e.x<W+100);
- for(const o of obstacles){o.y+=scroll*dt;if(o.growing){o.growth=Math.min(1,o.growth+dt*1.75);if(o.growth>=1){o.growing=false;o.done=true;effects.push({type:'sparkle',x:o.x,y:o.y,t:0,life:.65,r:42})}}}obstacles=obstacles.filter(o=>o.y<H+70);
+ for(const o of obstacles){o.y+=scroll*dt;if(o.type==='sproutWater'){for(const b of o.bridges||[]){if(b.growing){b.growth=Math.min(1,b.growth+dt*1.75);if(b.growth>=1){b.growing=false;b.done=true;effects.push({type:'sparkle',x:o.x+b.x,y:o.y,t:0,life:.65,r:42})}}}}else if(o.growing){o.growth=Math.min(1,o.growth+dt*1.75);if(o.growth>=1){o.growing=false;o.done=true;effects.push({type:'sparkle',x:o.x,y:o.y,t:0,life:.65,r:42})}}}obstacles=obstacles.filter(o=>o.y<H+70);
  // chick wandering
  chick.wander-=dt;if(chick.wander<=0&&!chick.stuck){chick.wander=.6+Math.random()*1.4;const a=Math.random()*Math.PI*2;chick.vx=Math.cos(a)*(20+Math.random()*32);chick.vy=Math.sin(a)*(12+Math.random()*24)}
  chick.bounce+=dt*(chick.jumpBoost>0?12:9);
- if(chick.stuck){chick.vx=chick.vy=0;const o=chick.stuck;if(o.done)chick.stuck=null;else if(o.type==='ledge'&&chick.jumpBoost>0)crossLedge(o)}
+ if(chick.stuck){chick.vx=chick.vy=0;const o=chick.stuck;if(o.type==='sproutWater'){const localX=chick.x-o.x;const pass=(o.bridges||[]).some(b=>b.done&&Math.abs(localX-b.x)<44);if(pass)chick.stuck=null}else if(o.done)chick.stuck=null;else if(o.type==='ledge'&&chick.jumpBoost>0)crossLedge(o)}
  else{chick.x+=chick.vx*dt;chick.y+=chick.vy*dt;chick.x=Math.max(16,Math.min(W-16,chick.x));chick.y=Math.max(H*.58,Math.min(H-18,chick.y))}
- for(const o of obstacles){if(o.done)continue;const near=chick.x>o.x-o.w/2&&chick.x<o.x+o.w/2&&Math.abs(chick.y-o.y)<Math.max(20,o.h*.42);if(near){if(o.type==='ledge'){if(chick.jumpBoost>0)crossLedge(o);else{chick.stuck=o;if(!o.hit){o.hit=true;addMinus(25,'段差で足止め')}}}else if(o.type==='sproutWater'){chick.stuck=o;if(!o.hit){o.hit=true;addMinus(45,'小川で足止め')}}else if(o.type==='leafPile'&&!o.hit){o.hit=true;addMinus(30,'葉っぱの山に接触')}}}
+ for(const o of obstacles){if(o.done&&o.type!=='sproutWater')continue;const near=chick.x>o.x-o.w/2&&chick.x<o.x+o.w/2&&Math.abs(chick.y-o.y)<Math.max(20,o.h*.42);if(near){if(o.type==='ledge'){if(chick.jumpBoost>0)crossLedge(o);else{chick.stuck=o;if(!o.hit){o.hit=true;addMinus(25,'段差で足止め')}}}else if(o.type==='sproutWater'){const localX=chick.x-o.x;const pass=(o.bridges||[]).some(b=>b.done&&Math.abs(localX-b.x)<44);if(pass){if(chick.stuck===o)chick.stuck=null}else{chick.stuck=o;if(!o.hit){o.hit=true;addMinus(45,'小川で足止め')}}}else if(o.type==='leafPile'&&!o.hit){o.hit=true;addMinus(30,'葉っぱの山に接触')}}}
  // shots
  for(const s of shots){s.t+=dt;s.x+=s.vx*dt;s.y+=s.vy*dt;if(s.type==='waterUp'||s.type==='waterDown')s.height=Math.max(0,s.height-75*dt);if(s.type==='windDown')s.r+=35*dt;
    for(const e of enemies){if(e.dead)continue;const canAir=s.type!=='waterDown';if(e.air&&!canAir)continue;if(!e.flee&&Math.hypot(s.x-e.x,s.y-e.y)<s.r+e.r+((s.type==='windUp'||s.type==='windDown')?16:4)){e.flee=true;e.fleeT=0;addPlus(e.air?60:45,'敵を追い払った');effects.push({type:'surprise',x:e.x,y:e.y-24,t:0,life:.45,r:16});explodeShot(s,s.type.startsWith('water')?'water':'wind');s.t=s.life}}
@@ -128,7 +128,7 @@ function update(dt){worldT+=dt;chick.jumpBoost=Math.max(0,chick.jumpBoost-dt);fo
     const hit=Math.abs(s.x-o.x)<o.w/2+s.r&&Math.abs(s.y-o.y)<o.h/2+s.r;
     const growZone=o.type==='sproutWater'&&Math.abs(s.x-o.x)<o.w/2-8&&s.y>o.y+o.h/2-4&&s.y<o.y+o.h/2+56;
     if(s.type.startsWith('wind')&&o.type==='leafPile'&&!o.done&&hit){o.done=true;addPlus(35,'葉っぱの山を吹き払った');explodeShot(s,'wind');burst(o.x,o.y,'wind');s.t=s.life}
-    if(s.type.startsWith('water')&&o.type==='sproutWater'&&!o.done&&!o.growing&&growZone){o.growing=true;o.growth=.02;addPlus(120,'草の橋を育てた');burst(s.x,o.y+o.h/2+18,'leaf');explodeShot(s,'water');s.t=s.life}
+    if(s.type.startsWith('water')&&o.type==='sproutWater'&&growZone){const localX=s.x-o.x;let b=(o.bridges||[]).reduce((best,v)=>Math.abs(localX-v.x)<Math.abs(localX-best.x)?v:best,(o.bridges||[])[0]);if(b&&!b.done&&!b.growing&&Math.abs(localX-b.x)<W*.19){b.growing=true;b.growth=.02;addPlus(60,'草の橋を育てた');burst(o.x+b.x,o.y+o.h/2+18,'leaf');explodeShot(s,'water');s.t=s.life}}
    }
  }
  for(const s of shots){if(!s.exploded&&(s.t>=s.life||s.y<=-75||s.y>=H+35))explodeShot(s,s.type.startsWith('water')?'water':'wind')}
@@ -244,14 +244,14 @@ function drawEnemy(e){
       ctx.strokeStyle='#e45a72';ctx.lineWidth=1.8;ctx.beginPath();ctx.moveTo(40,3);ctx.lineTo(46,3);ctx.moveTo(46,3);ctx.lineTo(50,0);ctx.moveTo(46,3);ctx.lineTo(50,6);ctx.stroke();
     }
   }else{
-    const isFox=e.type==='fox',c=isFox?'#dc7b32':'#777d84',leg=frame===0?3:frame===1?-2:0;
+    const isOrange=e.type==='catOrange',c=isOrange?'#d98a45':'#777d84',leg=frame===0?3:frame===1?-2:0;
     ctx.fillStyle=c;ctx.beginPath();ctx.ellipse(-2,3,17,10,-.05,0,Math.PI*2);ctx.fill();ctx.stroke();
     ctx.beginPath();ctx.arc(12,-5,9,0,Math.PI*2);ctx.fill();ctx.stroke();
     ctx.beginPath();ctx.moveTo(7,-11);ctx.lineTo(9,-21);ctx.lineTo(14,-12);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(15,-12);ctx.lineTo(21,-20);ctx.lineTo(20,-9);ctx.closePath();ctx.fill();ctx.stroke();
     ctx.lineWidth=4.5;ctx.beginPath();ctx.moveTo(-10,9);ctx.lineTo(-12+leg,17);ctx.moveTo(7,9);ctx.lineTo(9-leg,17);ctx.stroke();
     ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-17,2);ctx.quadraticCurveTo(-29,-8+leg,-24,-15);ctx.stroke();
     ctx.fillStyle='#171713';ctx.beginPath();ctx.arc(15,-7,1.4,0,Math.PI*2);ctx.fill();
-    if(isFox){ctx.fillStyle='#fff2dc';ctx.beginPath();ctx.ellipse(16,-1,6,4,.1,0,Math.PI*2);ctx.fill();ctx.stroke();}
+    ctx.fillStyle=isOrange?'#fff0d6':'#e8edf0';ctx.beginPath();ctx.ellipse(16,-1,6,4,.1,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.strokeStyle=isOrange?'#8c512c':'#4e5359';ctx.lineWidth=1.6;ctx.beginPath();ctx.moveTo(-5,-4);ctx.lineTo(1,-1);ctx.moveTo(-8,1);ctx.lineTo(-1,4);ctx.stroke();
   }
   ctx.restore();
 }
@@ -283,13 +283,17 @@ function drawObstacle(o){
     const zoneY=o.h/2+24;ctx.fillStyle='rgba(124,190,83,.34)';ctx.beginPath();ctx.roundRect(left+8,o.h/2+5,W-16,42,12);ctx.fill();
     ctx.strokeStyle='rgba(205,239,153,.65)';ctx.lineWidth=1.5;ctx.setLineDash([5,7]);ctx.strokeRect(left+14,o.h/2+10,W-28,31);ctx.setLineDash([]);
     for(let x=left+24;x<right-12;x+=25){const sway=Math.sin(x*.17+worldT*2)*2;ctx.strokeStyle='#78b95a';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(x,zoneY+11);ctx.quadraticCurveTo(x+sway,zoneY+2,x+3,zoneY-5);ctx.stroke()}
-    // 草の橋は川の上へ伸びる。完成後も川面は左右に見え続ける。
-    if(o.growing||o.done){const g=o.done?1:o.growth,ease=1-Math.pow(1-g,3),bridgeW=Math.min(118,W*.32),bridgeTop=-o.h/2-5,bridgeBottom=o.h/2+12;ctx.save();ctx.globalAlpha=.98;
+    for(const b of o.bridges||[]){ctx.fillStyle='rgba(184,229,125,.18)';ctx.beginPath();ctx.roundRect(b.x-42,o.h/2+7,84,38,12);ctx.fill()}
+    // 川の左・中央・右の3か所に、それぞれ独立した草の橋を育てられる。
+    for(const b of o.bridges||[]){
+      if(!(b.growing||b.done))continue;
+      const g=b.done?1:b.growth,ease=1-Math.pow(1-g,3),bridgeW=Math.min(82,W*.22),bridgeTop=-o.h/2-5,bridgeBottom=o.h/2+12;
+      ctx.save();ctx.translate(b.x,0);ctx.globalAlpha=.98;
       const bx=-bridgeW/2;ctx.fillStyle='#315f31';ctx.beginPath();ctx.roundRect(bx-3,bridgeTop,bridgeW+6,(bridgeBottom-bridgeTop)*ease,14);ctx.fill();
       const grad=ctx.createLinearGradient(0,bridgeBottom,0,bridgeTop);grad.addColorStop(0,'#66bd58');grad.addColorStop(.5,'#4fae4f');grad.addColorStop(1,'#7bd36a');ctx.fillStyle=grad;ctx.beginPath();ctx.roundRect(bx,bridgeBottom-(bridgeBottom-bridgeTop)*ease,bridgeW,(bridgeBottom-bridgeTop)*ease,12);ctx.fill();
-      ctx.strokeStyle='#2d7137';ctx.lineWidth=4;for(let i=0;i<5;i++){const xx=bx+12+i*(bridgeW-24)/4;ctx.beginPath();ctx.moveTo(xx,bridgeBottom);ctx.quadraticCurveTo(xx+(i%2?8:-8),0,xx,bridgeTop);ctx.stroke()}
-      for(let i=0;i<18;i++){const t=i/17;if(t>ease+.05)continue;const yy=bridgeBottom-(bridgeBottom-bridgeTop)*t,xx=(i%3-1)*bridgeW*.27;ctx.save();ctx.translate(xx,yy);ctx.rotate((i%2?1:-1)*.45);ctx.fillStyle=i%2?'#78d26b':'#55b954';ctx.strokeStyle='#2c7438';ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(0,0,11,5.5,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore()}
-      if(g<1){ctx.fillStyle='rgba(255,255,190,.88)';for(let i=0;i<9;i++){const a=i*2.1+worldT*5,r=18+g*48;ctx.beginPath();ctx.arc(Math.cos(a)*r,bridgeBottom-(bridgeBottom-bridgeTop)*ease+Math.sin(a)*10,2.6,0,Math.PI*2);ctx.fill()}}
+      ctx.strokeStyle='#2d7137';ctx.lineWidth=4;for(let i=0;i<4;i++){const xx=bx+10+i*(bridgeW-20)/3;ctx.beginPath();ctx.moveTo(xx,bridgeBottom);ctx.quadraticCurveTo(xx+(i%2?7:-7),0,xx,bridgeTop);ctx.stroke()}
+      for(let i=0;i<14;i++){const t=i/13;if(t>ease+.05)continue;const yy=bridgeBottom-(bridgeBottom-bridgeTop)*t,xx=(i%3-1)*bridgeW*.25;ctx.save();ctx.translate(xx,yy);ctx.rotate((i%2?1:-1)*.45);ctx.fillStyle=i%2?'#78d26b':'#55b954';ctx.strokeStyle='#2c7438';ctx.lineWidth=1.2;ctx.beginPath();ctx.ellipse(0,0,9,4.8,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore()}
+      if(g<1){ctx.fillStyle='rgba(255,255,190,.88)';for(let i=0;i<7;i++){const a=i*2.1+worldT*5,r=14+g*35;ctx.beginPath();ctx.arc(Math.cos(a)*r,bridgeBottom-(bridgeBottom-bridgeTop)*ease+Math.sin(a)*9,2.4,0,Math.PI*2);ctx.fill()}}
       ctx.restore();
     }
   }
