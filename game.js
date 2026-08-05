@@ -2,6 +2,7 @@ import { Fairy } from './fairy.js';
 import { Chick } from './chick.js';
 import { Stage } from './stage.js';
 import { Bird } from './bird.js';
+import { Cat } from './cat.js';
 
 export class Game {
   constructor(canvas, input, hud) {
@@ -21,6 +22,8 @@ export class Game {
     this.cooldowns = { wind: 0, water: 0 };
     this.birds = [];
     this.birdSpawnTimer = 2.8;
+    this.cats = [];
+    this.catSpawnTimer = 8.5;
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -68,17 +71,34 @@ export class Game {
     this.cooldowns.wind = Math.max(0, this.cooldowns.wind - dt);
     this.cooldowns.water = Math.max(0, this.cooldowns.water - dt);
 
-    // Keep the pace gentle: normally only one bird is present at a time.
+    // Keep the pace gentle: only one approaching animal is normally present.
+    const threatPresent = this.birds.some(b => b.state === 'approach') || this.cats.some(c => c.state === 'approach');
     this.birdSpawnTimer -= dt;
-    if (this.birdSpawnTimer <= 0 && this.birds.length === 0) {
-      this.birds.push(new Bird(this.width, this.height, Math.floor(Math.random() * 3)));
-      this.birdSpawnTimer = 5.5 + Math.random() * 3.5;
+    this.catSpawnTimer -= dt;
+    if (!threatPresent) {
+      if (this.birdSpawnTimer <= 0 && this.catSpawnTimer > 0) {
+        this.birds.push(new Bird(this.width, this.height, Math.floor(Math.random() * 3)));
+        this.birdSpawnTimer = 7.0 + Math.random() * 4.0;
+        this.catSpawnTimer = Math.max(this.catSpawnTimer, 5.5);
+      } else if (this.catSpawnTimer <= 0) {
+        // Start with the warm tabby. A grey colour variant can be enabled later.
+        this.cats.push(new Cat(this.width, this.height, 0));
+        this.catSpawnTimer = 9.0 + Math.random() * 5.0;
+        this.birdSpawnTimer = Math.max(this.birdSpawnTimer, 5.0);
+      }
     }
     for (const bird of this.birds) {
       bird.update(dt, this.chick, this.elapsed);
       if (bird.state === 'approach' && Math.hypot(bird.x - this.chick.x, bird.y - this.chick.y) < 34) {
         this.minus += 25;
         bird.scare(this.chick.x, this.chick.y + 25);
+      }
+    }
+    for (const cat of this.cats) {
+      cat.update(dt, this.chick, this.elapsed);
+      if (cat.state === 'approach' && Math.hypot(cat.x - this.chick.x, cat.y - this.chick.y) < 38) {
+        this.minus += 30;
+        cat.scare(this.chick.x, this.chick.y + 28);
       }
     }
 
@@ -96,6 +116,16 @@ export class Game {
             break;
           }
         }
+        if (e.phase === 'travel') {
+          for (const cat of this.cats) {
+            if (cat.state === 'approach' && Math.hypot(e.x - cat.x, e.y - cat.y) < cat.hitRadius + 18) {
+              if (cat.scare(e.x, e.y)) this.plus += 60;
+              e.phase = 'burst';
+              e.age = 0;
+              break;
+            }
+          }
+        }
         if (e.age >= e.travel) {
           e.phase = 'burst';
           e.age = 0;
@@ -108,10 +138,16 @@ export class Game {
             if (bird.scare(e.x, e.y)) this.plus += 50;
           }
         }
+        for (const cat of this.cats) {
+          if (cat.state === 'approach' && Math.hypot(e.x - cat.x, e.y - cat.y) < radius + cat.hitRadius) {
+            if (cat.scare(e.x, e.y)) this.plus += 60;
+          }
+        }
       }
     }
     this.effects = this.effects.filter(e => e.phase !== 'burst' || e.age < e.burst);
     this.birds = this.birds.filter(bird => !bird.isOffscreen());
+    this.cats = this.cats.filter(cat => !cat.isOffscreen());
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -204,6 +240,7 @@ export class Game {
   draw() {
     this.stage.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
+    for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
     for (const e of this.effects) this.drawEffect(e);
     this.fairy.draw(this.ctx, this.elapsed, this.chick);
