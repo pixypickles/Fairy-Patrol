@@ -614,6 +614,9 @@ class Chick {
     this.turnTime = 0;
     this.moveDir = 0;
     this.autoTargetX = null;
+    this.assistTargetX = null;
+    this.assistTimer = 0;
+    this.panicTimer = 0;
   }
 
   guide(direction) {
@@ -623,11 +626,31 @@ class Chick {
 
   setAutoTarget(x) { this.autoTargetX = x; }
 
+  assistTo(x) {
+    this.assistTargetX = x;
+    this.assistTimer = 1.5;
+    this.panicTimer = 0.75;
+    const nearestLane = this.lanes.reduce((best, laneX, i) =>
+      Math.abs(laneX - x) < Math.abs(this.lanes[best] - x) ? i : best, 0);
+    this.lane = nearestLane;
+    this.targetX = this.lanes[nearestLane];
+  }
+
   update(dt, time) {
     // Terrain guidance is deliberately gentle. It nudges the chick toward a
     // usable crossing, then stops pulling once the chick is safely inside it.
+    this.assistTimer = Math.max(0, this.assistTimer - dt);
+    this.panicTimer = Math.max(0, this.panicTimer - dt);
     let activeTarget = this.targetX;
-    if (this.autoTargetX != null) {
+    let steeringSpeed = 1.45;
+    if (this.assistTargetX != null && this.assistTimer > 0) {
+      activeTarget = this.assistTargetX;
+      steeringSpeed = 3.4;
+      if (Math.abs(this.assistTargetX - this.x) < 7) {
+        this.assistTargetX = null;
+        this.assistTimer = 0;
+      }
+    } else if (this.autoTargetX != null) {
       const autoDx = this.autoTargetX - this.x;
       activeTarget = Math.abs(autoDx) <= 30
         ? this.x
@@ -647,7 +670,8 @@ class Chick {
     if (this.turnTime <= 0) this.lookMode = 'forward';
 
     const wander = Math.sin(time * 1.45) * 6 + Math.sin(time * .69) * 3.5;
-    this.x += (activeTarget + wander - this.x) * Math.min(1, dt * 1.45);
+    const assistWobble = this.assistTargetX != null ? Math.sin(time * 9) * 2.4 : 0;
+    this.x += (activeTarget + wander + assistWobble - this.x) * Math.min(1, dt * steeringSpeed);
   }
 
   draw(ctx, time) {
@@ -720,6 +744,12 @@ class Chick {
       ctx.beginPath();
       ctx.moveTo(sx * 11, -10); ctx.lineTo(sx * 4, -6); ctx.lineTo(sx * 4, -13); ctx.closePath();
       ctx.fill(); ctx.stroke();
+    }
+    if (this.panicTimer > 0) {
+      const a = Math.min(1, this.panicTimer * 2.2);
+      ctx.fillStyle = `rgba(120,210,255,${a})`;
+      ctx.beginPath();
+      ctx.moveTo(21, -22); ctx.quadraticCurveTo(28, -14, 21, -8); ctx.quadraticCurveTo(14, -14, 21, -22); ctx.fill();
     }
     ctx.restore();
   }
@@ -1057,6 +1087,9 @@ class River {
     this.speed = 42;
     this.dead = false;
     this.blocking = false;
+    this.blockTime = 0;
+    this.rescueDone = false;
+    this.rescueRequest = null;
     this.lanes = [width * 0.25, width * 0.5, width * 0.75];
     const count = seed < 0.55 ? 1 : 2;
     const choices = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, count);
@@ -1069,8 +1102,20 @@ class River {
     const aligned = complete.some(s => Math.abs(chick.x - s.x) < 60);
     this.blocking = nearChick && !aligned;
 
-    if (!this.blocking) this.y += this.speed * dt;
-    else this.y = Math.min(this.y, chick.y - this.height * 0.5 - 22);
+    if (!this.blocking) {
+      this.y += this.speed * dt;
+      this.blockTime = 0;
+    } else {
+      this.y = Math.min(this.y, chick.y - this.height * 0.5 - 22);
+      if (complete.length) {
+        this.blockTime += dt;
+        if (this.blockTime > 1.15 && !this.rescueDone) {
+          const nearest = complete.reduce((a, b) => Math.abs(a.x - chick.x) < Math.abs(b.x - chick.x) ? a : b);
+          this.rescueRequest = nearest.x;
+          this.rescueDone = true;
+        }
+      }
+    }
 
     for (const slot of this.slots) {
       if (slot.growing && !slot.complete) {
@@ -1080,6 +1125,12 @@ class River {
       if (slot.bloomStarted) slot.bloomTime = Math.min(1.4, slot.bloomTime + dt);
     }
     if (this.y - this.height * 0.5 > this.screenHeight + 80) this.dead = true;
+  }
+
+  takeRescueRequest() {
+    const x = this.rescueRequest;
+    this.rescueRequest = null;
+    return x;
   }
 
   waterHit(x, y, radius = 22) {
@@ -1241,6 +1292,9 @@ class Ledge {
     this.speed = 42;
     this.dead = false;
     this.blocking = false;
+    this.blockTime = 0;
+    this.rescueDone = false;
+    this.rescueRequest = null;
     this.lanes = [width * 0.25, width * 0.5, width * 0.75];
     const count = seed < 0.58 ? 1 : 2;
     const choices = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, count);
@@ -1253,8 +1307,20 @@ class Ledge {
     const aligned = complete.some(s => Math.abs(chick.x - s.x) < 48);
     this.blocking = nearChick && !aligned;
 
-    if (!this.blocking) this.y += this.speed * dt;
-    else this.y = Math.min(this.y, chick.y - this.height * 0.5 - 22);
+    if (!this.blocking) {
+      this.y += this.speed * dt;
+      this.blockTime = 0;
+    } else {
+      this.y = Math.min(this.y, chick.y - this.height * 0.5 - 22);
+      if (complete.length) {
+        this.blockTime += dt;
+        if (this.blockTime > 1.15 && !this.rescueDone) {
+          const nearest = complete.reduce((a, b) => Math.abs(a.x - chick.x) < Math.abs(b.x - chick.x) ? a : b);
+          this.rescueRequest = nearest.x;
+          this.rescueDone = true;
+        }
+      }
+    }
 
     for (const slot of this.slots) {
       if (slot.carving && !slot.complete) {
@@ -1263,6 +1329,12 @@ class Ledge {
       }
     }
     if (this.y - this.height * 0.5 > this.screenHeight + 90) this.dead = true;
+  }
+
+  takeRescueRequest() {
+    const x = this.rescueRequest;
+    this.rescueRequest = null;
+    return x;
   }
 
   windHit(x, y, radius = 24) {
@@ -1881,6 +1953,17 @@ class Game {
     for (const d of this.dandelions) d.update(dt);
     for (const river of this.rivers) river.update(dt, this.chick);
     for (const ledge of this.ledges) ledge.update(dt, this.chick);
+
+    // A missed steering cue never ends the stroll. After a short pause, apply
+    // a small penalty and guide only the chick to the nearest completed route.
+    for (const terrain of [...this.rivers, ...this.ledges]) {
+      const rescueX = terrain.takeRescueRequest?.();
+      if (rescueX != null) {
+        this.minus += 20;
+        this.chick.assistTo(rescueX);
+        break;
+      }
+    }
     const guideX = [
       ...this.rivers.map(r => r.getGuidance(this.chick)),
       ...this.ledges.map(l => l.getGuidance(this.chick))
@@ -2354,6 +2437,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.1</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.2.2</div>
 </body>
 </html>
