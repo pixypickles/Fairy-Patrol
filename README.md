@@ -1,25 +1,12 @@
-# Fairy Guardian v3.0.1 Pages Fix
+# Fairy Guardian v3.0.3
 
-画面が白地の通常HTML表示になる場合、`css` と `js` フォルダがGitHubへアップロードされていません。
+見た目と手触りを磨く小規模アップデートです。
 
-## 推奨アップロード方法
+- 人型として分かりやすい妖精へ描き直し
+- 形のある半透明7色の4枚羽、羽脈、きらめき
+- ヒヨコの目線・首振り・歩行アニメーション
+- 草、花、クローバー、小石、色むらを増やした草原
+- 風と水の移動・炸裂エフェクトを維持
+- GitHub Pages向け複数ファイル版と single-file.html を同梱
 
-このZIPを展開し、ZIPの中身をすべてリポジトリ直下へ置いてください。
-
-```text
-index.html
-.nojekyll
-css/style.css
-js/main.js
-js/game.js
-js/input.js
-js/stage.js
-js/fairy.js
-js/chick.js
-```
-
-GitHub Pagesの設定は `Deploy from a branch`、対象を `main / (root)` にします。
-
-## すぐ試す方法
-
-フォルダ構成を気にせず確認したい場合は、`single-file.html` を `index.html` に名前変更してアップロードしてください。CSSとJavaScriptが1ファイルに内蔵されています。
+GitHub Pagesで確実に使う場合は `single-file.html` を `index.html` に変更してください。
