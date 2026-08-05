@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.1.0</title>
+  <title>Fairy Guardian v3.1.1</title>
   <style>
 :root {
   color-scheme: light;
@@ -312,6 +312,102 @@ class InputController {
   }
 }
 
+
+class Stage {
+  constructor(width, height) {
+    this.width = width;
+    this.height = height;
+    this.offset = 0;
+    this.speed = 42;
+    this.patches = this.createPatches();
+  }
+
+  createPatches() {
+    const patches = [];
+    let seed = 20260805;
+    const rnd = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+    for (let i = 0; i < 155; i++) {
+      patches.push({
+        x: rnd() * this.width,
+        y: rnd() * (this.height + 260),
+        size: 7 + rnd() * 30,
+        type: rnd(),
+        phase: rnd() * Math.PI * 2,
+        tone: rnd()
+      });
+    }
+    return patches;
+  }
+
+  update(dt) {
+    this.offset = (this.offset + this.speed * dt) % (this.height + 260);
+  }
+
+  draw(ctx, time) {
+    const base = ctx.createLinearGradient(0, 0, this.width, this.height);
+    base.addColorStop(0, '#89b86a');
+    base.addColorStop(.5, '#78a85a');
+    base.addColorStop(1, '#6f9e52');
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, this.width, this.height);
+
+    // Broad, soft patches make the meadow less tiled.
+    for (const p of this.patches) {
+      const y = (p.y + this.offset) % (this.height + 260) - 130;
+      if (p.type < .28) {
+        ctx.fillStyle = p.tone < .5 ? 'rgba(189,213,126,.13)' : 'rgba(45,111,54,.11)';
+        ctx.beginPath();
+        ctx.ellipse(p.x, y, p.size * 1.8, p.size, p.phase, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.type < .68) {
+        const sway = Math.sin(time * 1.7 + p.phase) * 1.5;
+        ctx.strokeStyle = p.tone < .5 ? 'rgba(38,105,48,.44)' : 'rgba(73,130,58,.5)';
+        ctx.lineWidth = 1.25 + p.tone;
+        ctx.beginPath();
+        ctx.moveTo(p.x, y + 5);
+        ctx.quadraticCurveTo(p.x - 5 + sway, y - 3, p.x - 2 + sway, y - 11);
+        ctx.moveTo(p.x + 1, y + 5);
+        ctx.quadraticCurveTo(p.x + 7 + sway, y - 1, p.x + 5 + sway, y - 9);
+        ctx.moveTo(p.x - 2, y + 5);
+        ctx.quadraticCurveTo(p.x + sway, y - 5, p.x + 1 + sway, y - 15);
+        ctx.stroke();
+      } else if (p.type < .83) {
+        ctx.fillStyle = p.tone < .55 ? 'rgba(104,103,78,.38)' : 'rgba(150,132,83,.28)';
+        ctx.beginPath(); ctx.ellipse(p.x, y, 3 + p.size * .12, 2 + p.size * .07, p.phase, 0, Math.PI * 2); ctx.fill();
+      } else if (p.type < .94) {
+        const sway = Math.sin(time * 2 + p.phase) * 1.4;
+        const petals = p.tone < .5 ? '#fff7d7' : '#f6c4df';
+        ctx.fillStyle = petals;
+        for (let i = 0; i < 4; i++) {
+          const a = i * Math.PI / 2;
+          ctx.beginPath(); ctx.arc(p.x + sway + Math.cos(a) * 3, y + Math.sin(a) * 3, 2, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.fillStyle = '#f4d661'; ctx.beginPath(); ctx.arc(p.x + sway, y, 1.7, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // Clover-like accent.
+        ctx.fillStyle = 'rgba(39,128,57,.62)';
+        ctx.beginPath();
+        ctx.arc(p.x - 3, y, 3.5, 0, Math.PI * 2);
+        ctx.arc(p.x + 3, y, 3.5, 0, Math.PI * 2);
+        ctx.arc(p.x, y - 3, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // A faint moving light veil gives depth without looking like a pattern.
+    const light = ctx.createLinearGradient(0, 0, this.width, 0);
+    light.addColorStop(0, 'rgba(255,255,220,.02)');
+    light.addColorStop(.45, 'rgba(255,255,220,.09)');
+    light.addColorStop(1, 'rgba(255,255,220,.02)');
+    ctx.fillStyle = light;
+    ctx.fillRect(0, 0, this.width, this.height);
+  }
+}
+
+
 class Fairy {
   constructor(width, height) {
     this.x = width * 0.5;
@@ -493,6 +589,7 @@ class Fairy {
   }
 }
 
+
 class Chick {
   constructor(width, height) {
     this.lanes = [width * 0.25, width * 0.5, width * 0.75];
@@ -608,99 +705,6 @@ class Chick {
   }
 }
 
-class Stage {
-  constructor(width, height) {
-    this.width = width;
-    this.height = height;
-    this.offset = 0;
-    this.speed = 42;
-    this.patches = this.createPatches();
-  }
-
-  createPatches() {
-    const patches = [];
-    let seed = 20260805;
-    const rnd = () => {
-      seed = (seed * 16807) % 2147483647;
-      return (seed - 1) / 2147483646;
-    };
-    for (let i = 0; i < 155; i++) {
-      patches.push({
-        x: rnd() * this.width,
-        y: rnd() * (this.height + 260),
-        size: 7 + rnd() * 30,
-        type: rnd(),
-        phase: rnd() * Math.PI * 2,
-        tone: rnd()
-      });
-    }
-    return patches;
-  }
-
-  update(dt) {
-    this.offset = (this.offset + this.speed * dt) % (this.height + 260);
-  }
-
-  draw(ctx, time) {
-    const base = ctx.createLinearGradient(0, 0, this.width, this.height);
-    base.addColorStop(0, '#89b86a');
-    base.addColorStop(.5, '#78a85a');
-    base.addColorStop(1, '#6f9e52');
-    ctx.fillStyle = base;
-    ctx.fillRect(0, 0, this.width, this.height);
-
-    // Broad, soft patches make the meadow less tiled.
-    for (const p of this.patches) {
-      const y = (p.y + this.offset) % (this.height + 260) - 130;
-      if (p.type < .28) {
-        ctx.fillStyle = p.tone < .5 ? 'rgba(189,213,126,.13)' : 'rgba(45,111,54,.11)';
-        ctx.beginPath();
-        ctx.ellipse(p.x, y, p.size * 1.8, p.size, p.phase, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (p.type < .68) {
-        const sway = Math.sin(time * 1.7 + p.phase) * 1.5;
-        ctx.strokeStyle = p.tone < .5 ? 'rgba(38,105,48,.44)' : 'rgba(73,130,58,.5)';
-        ctx.lineWidth = 1.25 + p.tone;
-        ctx.beginPath();
-        ctx.moveTo(p.x, y + 5);
-        ctx.quadraticCurveTo(p.x - 5 + sway, y - 3, p.x - 2 + sway, y - 11);
-        ctx.moveTo(p.x + 1, y + 5);
-        ctx.quadraticCurveTo(p.x + 7 + sway, y - 1, p.x + 5 + sway, y - 9);
-        ctx.moveTo(p.x - 2, y + 5);
-        ctx.quadraticCurveTo(p.x + sway, y - 5, p.x + 1 + sway, y - 15);
-        ctx.stroke();
-      } else if (p.type < .83) {
-        ctx.fillStyle = p.tone < .55 ? 'rgba(104,103,78,.38)' : 'rgba(150,132,83,.28)';
-        ctx.beginPath(); ctx.ellipse(p.x, y, 3 + p.size * .12, 2 + p.size * .07, p.phase, 0, Math.PI * 2); ctx.fill();
-      } else if (p.type < .94) {
-        const sway = Math.sin(time * 2 + p.phase) * 1.4;
-        const petals = p.tone < .5 ? '#fff7d7' : '#f6c4df';
-        ctx.fillStyle = petals;
-        for (let i = 0; i < 4; i++) {
-          const a = i * Math.PI / 2;
-          ctx.beginPath(); ctx.arc(p.x + sway + Math.cos(a) * 3, y + Math.sin(a) * 3, 2, 0, Math.PI * 2); ctx.fill();
-        }
-        ctx.fillStyle = '#f4d661'; ctx.beginPath(); ctx.arc(p.x + sway, y, 1.7, 0, Math.PI * 2); ctx.fill();
-      } else {
-        // Clover-like accent.
-        ctx.fillStyle = 'rgba(39,128,57,.62)';
-        ctx.beginPath();
-        ctx.arc(p.x - 3, y, 3.5, 0, Math.PI * 2);
-        ctx.arc(p.x + 3, y, 3.5, 0, Math.PI * 2);
-        ctx.arc(p.x, y - 3, 3.5, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // A faint moving light veil gives depth without looking like a pattern.
-    const light = ctx.createLinearGradient(0, 0, this.width, 0);
-    light.addColorStop(0, 'rgba(255,255,220,.02)');
-    light.addColorStop(.45, 'rgba(255,255,220,.09)');
-    light.addColorStop(1, 'rgba(255,255,220,.02)');
-    ctx.fillStyle = light;
-    ctx.fillRect(0, 0, this.width, this.height);
-  }
-}
 
 class Bird {
   constructor(width, height, variant = 0) {
@@ -847,6 +851,7 @@ class Bird {
     ctx.restore();
   }
 }
+
 
 class Cat {
   constructor(width, height, variant = 0) {
@@ -1022,6 +1027,7 @@ class Cat {
   }
 }
 
+
 class River {
   constructor(width, height, seed = Math.random()) {
     this.width = width;
@@ -1142,6 +1148,148 @@ class River {
 }
 
 
+class Ledge {
+  constructor(width, height, seed = Math.random()) {
+    this.width = width;
+    this.screenHeight = height;
+    this.height = 92;
+    this.y = -130;
+    this.speed = 42;
+    this.dead = false;
+    this.blocking = false;
+    this.lanes = [width * 0.25, width * 0.5, width * 0.75];
+    const count = seed < 0.58 ? 1 : 2;
+    const choices = [0, 1, 2].sort(() => Math.random() - 0.5).slice(0, count);
+    this.slots = choices.map(lane => ({ lane, x: this.lanes[lane], carve: 0, carving: false, complete: false }));
+  }
+
+  update(dt, chick) {
+    const complete = this.slots.filter(s => s.complete);
+    const nearChick = this.y + this.height * 0.5 > chick.y - 70 && this.y - this.height * 0.5 < chick.y + 42;
+    const aligned = complete.some(s => Math.abs(chick.x - s.x) < 48);
+    this.blocking = nearChick && !aligned;
+
+    if (!this.blocking) this.y += this.speed * dt;
+    else this.y = Math.min(this.y, chick.y - this.height * 0.5 - 22);
+
+    for (const slot of this.slots) {
+      if (slot.carving && !slot.complete) {
+        slot.carve = Math.min(1, slot.carve + dt / 0.62);
+        if (slot.carve >= 1) slot.complete = true;
+      }
+    }
+    if (this.y - this.height * 0.5 > this.screenHeight + 90) this.dead = true;
+  }
+
+  windHit(x, y, radius = 24) {
+    for (const slot of this.slots) {
+      if (slot.carving || slot.complete) continue;
+      const weakY = this.y + this.height * 0.10;
+      if (Math.hypot(x - slot.x, y - weakY) < radius + 34) {
+        slot.carving = true;
+        slot.carve = 0.02;
+        return slot;
+      }
+    }
+    return null;
+  }
+
+  getGuidance(chick) {
+    if (this.y < chick.y - 290 || this.y > chick.y + 40) return null;
+    const complete = this.slots.filter(s => s.complete);
+    if (!complete.length) return null;
+    return complete.reduce((best, slot) => Math.abs(slot.x - chick.x) < Math.abs(best.x - chick.x) ? slot : best).x;
+  }
+
+  draw(ctx, time) {
+    ctx.save();
+    ctx.translate(0, this.y);
+
+    // Broad earthen ledge spanning the whole playfield.
+    const soil = ctx.createLinearGradient(0, -this.height / 2, 0, this.height / 2);
+    soil.addColorStop(0, '#9b744e');
+    soil.addColorStop(.42, '#795338');
+    soil.addColorStop(1, '#5d402e');
+    ctx.fillStyle = soil;
+    ctx.fillRect(0, -this.height / 2, this.width, this.height);
+
+    ctx.fillStyle = '#5f954d';
+    ctx.fillRect(0, -this.height / 2 - 10, this.width, 17);
+    ctx.fillStyle = '#a9855f';
+    ctx.fillRect(0, this.height / 2 - 5, this.width, 9);
+
+    // Small stones and roots make the cliff look natural rather than tiled.
+    for (let i = 0; i < 18; i++) {
+      const xx = (i * 71 + 29) % this.width;
+      const yy = -25 + (i % 4) * 19;
+      ctx.fillStyle = i % 3 === 0 ? '#bea17d' : '#6c4934';
+      ctx.beginPath();
+      ctx.ellipse(xx, yy, 4 + (i % 4), 2.5 + (i % 2), (i % 5) * .17, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (const slot of this.slots) {
+      const weakY = this.height * 0.10;
+      if (!slot.complete) {
+        ctx.strokeStyle = '#3e2b21';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(slot.x - 17, weakY - 23);
+        ctx.lineTo(slot.x - 5, weakY - 8);
+        ctx.lineTo(slot.x - 13, weakY + 6);
+        ctx.lineTo(slot.x + 3, weakY + 18);
+        ctx.lineTo(slot.x + 15, weakY + 31);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,244,196,.55)';
+        ctx.beginPath();
+        ctx.arc(slot.x, weakY - 8, 4 + Math.sin(time * 4 + slot.lane), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (slot.carve > 0) {
+        const g = slot.carve;
+        const rampW = 72 * g;
+        const rampH = 86 * g;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(slot.x - rampW / 2, -this.height / 2 - 2, rampW, this.height + 6);
+        ctx.clip();
+        const ramp = ctx.createLinearGradient(0, -this.height / 2, 0, this.height / 2);
+        ramp.addColorStop(0, '#bea071');
+        ramp.addColorStop(1, '#8a6847');
+        ctx.fillStyle = ramp;
+        ctx.beginPath();
+        ctx.moveTo(slot.x - rampW / 2, -this.height / 2);
+        ctx.lineTo(slot.x + rampW / 2, -this.height / 2);
+        ctx.lineTo(slot.x + rampW * .30, this.height / 2);
+        ctx.lineTo(slot.x - rampW * .30, this.height / 2);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(78,54,36,.45)';
+        ctx.lineWidth = 2;
+        for (let n = 0; n < 5; n++) {
+          const yy = -this.height / 2 + 16 + n * (rampH / 5);
+          ctx.beginPath();
+          ctx.moveTo(slot.x - rampW * .28, yy);
+          ctx.lineTo(slot.x + rampW * .28, yy + 3);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+  }
+}
+
+
+
+
+
+
+
+
+
 class Game {
   constructor(canvas, input, hud) {
     this.canvas = canvas;
@@ -1164,6 +1312,8 @@ class Game {
     this.catSpawnTimer = 8.5;
     this.rivers = [];
     this.riverSpawnTimer = 10.0;
+    this.ledges = [];
+    this.ledgeSpawnTimer = 22.0;
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -1207,12 +1357,23 @@ class Game {
     this.distance += dt * 5;
     this.stage.update(dt);
     this.riverSpawnTimer -= dt;
-    if (this.riverSpawnTimer <= 0 && this.rivers.length === 0) {
+    this.ledgeSpawnTimer -= dt;
+    const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
+    if (!terrainPresent && this.riverSpawnTimer <= 0) {
       this.rivers.push(new River(this.width, this.height));
-      this.riverSpawnTimer = 24 + Math.random() * 8;
+      this.riverSpawnTimer = 30 + Math.random() * 8;
+      this.ledgeSpawnTimer = Math.max(this.ledgeSpawnTimer, 15);
+    } else if (!terrainPresent && this.ledgeSpawnTimer <= 0) {
+      this.ledges.push(new Ledge(this.width, this.height));
+      this.ledgeSpawnTimer = 30 + Math.random() * 8;
+      this.riverSpawnTimer = Math.max(this.riverSpawnTimer, 15);
     }
     for (const river of this.rivers) river.update(dt, this.chick);
-    const guideX = this.rivers.map(r => r.getGuidance(this.chick)).find(x => x !== null && x !== undefined);
+    for (const ledge of this.ledges) ledge.update(dt, this.chick);
+    const guideX = [
+      ...this.rivers.map(r => r.getGuidance(this.chick)),
+      ...this.ledges.map(l => l.getGuidance(this.chick))
+    ].find(x => x !== null && x !== undefined);
     this.chick.setAutoTarget(guideX ?? null);
     this.fairy.update(dt, this.input.getVector(), this.width, this.height);
     this.chick.update(dt, this.elapsed);
@@ -1267,6 +1428,17 @@ class Game {
             }
           }
         }
+        if (e.phase === 'travel' && e.kind === 'wind') {
+          for (const ledge of this.ledges) {
+            const carved = ledge.windHit(e.x, e.y, 18 + (e.charge || 0) * 10);
+            if (carved) {
+              this.plus += 100;
+              e.phase = 'burst';
+              e.age = 0;
+              break;
+            }
+          }
+        }
         // A direct hit scares the bird immediately.
         if (e.phase === 'travel') for (const bird of this.birds) {
           if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < bird.hitRadius + 18) {
@@ -1293,6 +1465,12 @@ class Game {
       } else {
         const t = e.age / e.burst;
         const radius = e.kind === 'wind' ? 18 + t * 65 * (e.power || 1) : 13 + t * 56;
+        if (e.kind === 'wind') {
+          for (const ledge of this.ledges) {
+            const carved = ledge.windHit(e.x, e.y, radius * .55);
+            if (carved) this.plus += 100;
+          }
+        }
         for (const bird of this.birds) {
           if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < radius + bird.hitRadius) {
             if (bird.scare(e.x, e.y)) this.plus += 50;
@@ -1309,6 +1487,7 @@ class Game {
     this.birds = this.birds.filter(bird => !bird.isOffscreen());
     this.cats = this.cats.filter(cat => !cat.isOffscreen());
     this.rivers = this.rivers.filter(river => !river.dead);
+    this.ledges = this.ledges.filter(ledge => !ledge.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -1401,6 +1580,7 @@ class Game {
   draw() {
     this.stage.draw(this.ctx, this.elapsed);
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
+    for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
@@ -1417,6 +1597,8 @@ class Game {
     requestAnimationFrame(this.loop);
   }
 }
+
+
 
 
 const canvas = document.querySelector('#gameCanvas');
@@ -1494,6 +1676,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'q') game.guideChick(-1);
   if (e.key === 'e') game.guideChick(1);
 });
+
 </script>
 </body>
 </html>

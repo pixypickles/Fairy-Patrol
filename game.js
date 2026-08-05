@@ -4,6 +4,7 @@ import { Stage } from './stage.js';
 import { Bird } from './bird.js';
 import { Cat } from './cat.js';
 import { River } from './river.js';
+import { Ledge } from './ledge.js';
 
 export class Game {
   constructor(canvas, input, hud) {
@@ -27,6 +28,8 @@ export class Game {
     this.catSpawnTimer = 8.5;
     this.rivers = [];
     this.riverSpawnTimer = 10.0;
+    this.ledges = [];
+    this.ledgeSpawnTimer = 22.0;
     this.stage = new Stage(this.width, this.height);
     this.fairy = new Fairy(this.width, this.height);
     this.chick = new Chick(this.width, this.height);
@@ -70,12 +73,23 @@ export class Game {
     this.distance += dt * 5;
     this.stage.update(dt);
     this.riverSpawnTimer -= dt;
-    if (this.riverSpawnTimer <= 0 && this.rivers.length === 0) {
+    this.ledgeSpawnTimer -= dt;
+    const terrainPresent = this.rivers.length > 0 || this.ledges.length > 0;
+    if (!terrainPresent && this.riverSpawnTimer <= 0) {
       this.rivers.push(new River(this.width, this.height));
-      this.riverSpawnTimer = 24 + Math.random() * 8;
+      this.riverSpawnTimer = 30 + Math.random() * 8;
+      this.ledgeSpawnTimer = Math.max(this.ledgeSpawnTimer, 15);
+    } else if (!terrainPresent && this.ledgeSpawnTimer <= 0) {
+      this.ledges.push(new Ledge(this.width, this.height));
+      this.ledgeSpawnTimer = 30 + Math.random() * 8;
+      this.riverSpawnTimer = Math.max(this.riverSpawnTimer, 15);
     }
     for (const river of this.rivers) river.update(dt, this.chick);
-    const guideX = this.rivers.map(r => r.getGuidance(this.chick)).find(x => x !== null && x !== undefined);
+    for (const ledge of this.ledges) ledge.update(dt, this.chick);
+    const guideX = [
+      ...this.rivers.map(r => r.getGuidance(this.chick)),
+      ...this.ledges.map(l => l.getGuidance(this.chick))
+    ].find(x => x !== null && x !== undefined);
     this.chick.setAutoTarget(guideX ?? null);
     this.fairy.update(dt, this.input.getVector(), this.width, this.height);
     this.chick.update(dt, this.elapsed);
@@ -130,6 +144,17 @@ export class Game {
             }
           }
         }
+        if (e.phase === 'travel' && e.kind === 'wind') {
+          for (const ledge of this.ledges) {
+            const carved = ledge.windHit(e.x, e.y, 18 + (e.charge || 0) * 10);
+            if (carved) {
+              this.plus += 100;
+              e.phase = 'burst';
+              e.age = 0;
+              break;
+            }
+          }
+        }
         // A direct hit scares the bird immediately.
         if (e.phase === 'travel') for (const bird of this.birds) {
           if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < bird.hitRadius + 18) {
@@ -156,6 +181,12 @@ export class Game {
       } else {
         const t = e.age / e.burst;
         const radius = e.kind === 'wind' ? 18 + t * 65 * (e.power || 1) : 13 + t * 56;
+        if (e.kind === 'wind') {
+          for (const ledge of this.ledges) {
+            const carved = ledge.windHit(e.x, e.y, radius * .55);
+            if (carved) this.plus += 100;
+          }
+        }
         for (const bird of this.birds) {
           if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < radius + bird.hitRadius) {
             if (bird.scare(e.x, e.y)) this.plus += 50;
@@ -172,6 +203,7 @@ export class Game {
     this.birds = this.birds.filter(bird => !bird.isOffscreen());
     this.cats = this.cats.filter(cat => !cat.isOffscreen());
     this.rivers = this.rivers.filter(river => !river.dead);
+    this.ledges = this.ledges.filter(ledge => !ledge.dead);
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -264,6 +296,7 @@ export class Game {
   draw() {
     this.stage.draw(this.ctx, this.elapsed);
     for (const river of this.rivers) river.draw(this.ctx, this.elapsed);
+    for (const ledge of this.ledges) ledge.draw(this.ctx, this.elapsed);
     this.chick.draw(this.ctx, this.elapsed);
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
