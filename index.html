@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v4.1.2</title>
+  <title>Fairy Guardian v4.1.6</title>
   <style>
 :root {
   color-scheme: light;
@@ -3175,6 +3175,69 @@ class Game {
     for (const l of this.wetlandLotuses) tryTarget(l, 'lotus');
   }
 
+
+  applyIceWaveTick(effect, previousRadius, radius) {
+    const fx=effect.startX, fy=effect.startY;
+    const band=38;
+    const inBand=(x,y,pad=0)=>{
+      const d=Math.hypot(x-fx,y-fy);
+      return d>=Math.max(0,previousRadius-band-pad) && d<=radius+band+pad;
+    };
+    const touched=effect.windTouched||(effect.windTouched=new Set());
+    const once=(obj,fn)=>{if(touched.has(obj))return false;const ok=fn();if(ok)touched.add(obj);return ok;};
+
+    const d=this.dragonRescue;
+    if(d?.active){
+      const panic=Math.max(0,d.tailHealth/d.maxTailHealth);
+      const tailX=d.x-d.facing*(57+Math.sin(d.age*4.2)*8*panic);
+      const tailY=d.y+35+Math.cos(d.age*3.1)*7;
+      if(d.tailHealth>0&&inBand(tailX,tailY,34)){
+        d.tailHealth=Math.max(0,d.tailHealth-3);this.plus+=45;this.sound.impact('water',1.45,true);
+      }
+      for(const c of d.craters)if(c.fireActive&&inBand(c.x,c.y,c.r)){c.fireHealth=0;c.fireActive=false;this.plus+=100;this.sound.grow('bridge');}
+      for(const f of d.fires)if(!f.dead&&inBand(f.x,f.y,f.r)){f.dead=true;this.plus+=25;}
+      for(const b of d.fireballs)if(!b.dead&&inBand(b.x,b.y,20)){b.dead=true;this.plus+=35;}
+    }
+
+    for(const bird of this.birds)if(bird.state==='approach'&&inBand(bird.x,bird.y,bird.hitRadius)&&bird.scare(fx,fy)){this.plus+=50;this.sound.scare('bird');}
+    for(const cat of this.cats)if(cat.state==='approach'&&inBand(cat.x,cat.y,cat.hitRadius)&&cat.scare(fx,fy)){this.plus+=60;this.sound.scare('cat');}
+
+    if(this.mode==='cave'){
+      for(const m of this.mushrooms)if(inBand(m.x,m.y,24)&&m.waterHit(m.x,m.y,30)){this.plus+=8;this.sound.mushroom(m.note);this.registerMushroomHit(m);}
+      for(const pebble of this.cavePebbles)once(pebble,()=>{if(!inBand(pebble.x,pebble.y,28))return false;const h=pebble.windHit(pebble.x,pebble.y,74,1);if(h)for(const c of this.caveCrystals)c.resonate(pebble.x,pebble.y,92,this.sound);return h;});
+      for(const puddle of this.cavePuddles)once(puddle,()=>{if(!inBand(puddle.x,puddle.y,38))return false;const h=puddle.windHit(puddle.x,puddle.y,78);if(h)this.triggerPuddleSplash(puddle);return h;});
+    }
+    if(this.mode==='wetland'){
+      for(const f of this.wetlandFrogs)if(inBand(f.x,f.y,28)&&f.waterHit(f.x,f.y,34)){this.plus+=12;this.frogRoomMode?this.sound.frogGarden(f.note):this.sound.frogNote(f.note);}
+      for(const l of this.wetlandLotuses)if(inBand(l.x,l.y,28)&&l.waterHit(l.x,l.y,34)){this.plus+=8;this.frogRoomMode?this.sound.lotusGarden(l.note):this.sound.flower(1);}
+      for(const w of this.crocodiles)once(w,()=>{if(inBand(w.x,w.y,40)&&w.scare()){this.plus+=80;this.sound.cavePuddle();return true;}return false;});
+      for(const c of this.cattails)once(c,()=>{if(inBand(c.x,c.y,30)&&c.windHit(c.x,c.y,74)){this.plus+=25;this.sound.dandelion();return true;}return false;});
+      for(const m of this.mudPatches)once(m,()=>{if(inBand(m.x,m.y,40)&&m.windHit(m.x,m.y,80)){this.plus+=15;this.sound.leaves();return true;}return false;});
+    }
+    for(const pile of this.leafPiles)once(pile,()=>{if(inBand(pile.x,pile.y,36)&&pile.windHit(pile.x,pile.y,78)){this.plus+=30;this.sound.leaves();return true;}return false;});
+    for(const dan of this.dandelions)once(dan,()=>{if(inBand(dan.x,dan.y,30)&&dan.windHit(dan.x,dan.y,76)){this.plus+=45;this.sound.dandelion();return true;}return false;});
+    for(const branch of this.sideBranches)once(branch,()=>{if(inBand(branch.x,branch.y,44)&&branch.windHit(branch.x,branch.y,82)){this.plus+=40;this.sound.leaves();return true;}return false;});
+    for(const rock of this.rocks)once(rock,()=>{if(!inBand(rock.x,rock.y,42)||rock.dead)return false;rock.hitCooldown=0;rock.hp=1;const h=rock.windHit(rock.x,rock.y,96);if(h){this.plus+=40;this.sound.rock(true);return true;}return false;});
+    for(const ledge of this.ledges)once(ledge,()=>{if(!inBand(ledge.x||this.width/2,ledge.y,74))return false;const h=ledge.windHit(fx,ledge.y,90);if(h){this.plus+=100;this.sound.grow('ledge');return true;}return false;});
+    for(const b of this.butterflies)if(inBand(b.x,b.y,28))b.gust(fx,b.y,105);
+    for(const l of this.ladybugs)if(inBand(l.x,l.y,24))l.gust(fx,l.y,95);
+
+    if(this.trainingMode&&this.trainingState&&!this.trainingState.complete){
+      const t=this.trainingState,p=this.trainingPapa;
+      for(const f of t.fireballs)if(!f.dead&&inBand(f.x,f.y,22))f.dead=true;
+      if(inBand(p.x,p.y,96)){
+        if(t.shieldActive>0){t.shieldFlashes.push({x:p.x,y:p.y-20,age:0});this.sound?.windBurst?.(.7);}
+        else{
+          const gain=85;t.gauge=Math.min(t.target,t.gauge+gain);this.plus+=gain;this.sound?.caveChord?.();
+          if(t.gauge>=t.target){
+            t.complete=true;t.fireballs=[];t.resultAge=0;
+            if(!this.iceMagicUnlocked){this.iceMagicUnlocked=true;this.iceMagicNotice=6;try{localStorage.setItem('fairyGuardianIceMagicUnlocked','1');}catch(_){} }
+          }
+        }
+      }
+    }
+  }
+
   cast(kind, chargeSeconds = 0) {
     if (!this.running || this.pausedForRoute || this.cooldowns[kind] > 0) return;
     const isWater = kind === 'water';
@@ -3188,9 +3251,10 @@ class Game {
       this.sound.cast('wind', charged ? 1 : .28);
       if (charged) {
         this.effects.push({
-          kind:'wind', phase:'musicWave', age:0, duration:1.55,
+          kind:'wind', phase:'musicWave', age:0, duration:2.35,
           startX:this.fairy.x, startY:this.fairy.y, radius:0, previousRadius:0,
-          maxRadius:Math.hypot(this.width,this.height), touched:new Set(), dead:false
+          maxRadius:Math.hypot(this.width,this.height), touched:new Set(),
+          trails:[], trailTimer:0, dead:false
         });
       } else {
         this.effects.push({
@@ -3214,11 +3278,17 @@ class Game {
     this.sound.cast(kind, (iceBlizzard || iceIcicleVolley) ? 1 : charge);
 
     if (iceBlizzard) {
-      const startX=this.fairy.x, startY=this.fairy.y-28;
+      // Ice magic now uses the same slow, circular snow-wave enjoyed in the
+      // music rooms. In normal stages it also carries full combat/gimmick
+      // effects while expanding from the fairy to every edge of the screen.
       this.effects.push({
-        x:startX,y:startY,startX,startY,endY:42,nearWidth:34,farWidth:66,age:0,duration:.82,
-        frostDuration:3.0,kind:'wind',phase:'blizzard',iceBlizzard:true,piercing:true,
-        tick:0,trainingTick:0,windTouched:new Set(),pillarHits:[],multiHits:new Map()
+        kind:'wind', phase:'musicWave', combatWave:true, iceBlizzard:true,
+        age:0, duration:2.35,
+        startX:this.fairy.x, startY:this.fairy.y,
+        radius:0, previousRadius:0,
+        maxRadius:Math.hypot(this.width,this.height),
+        touched:new Set(), windTouched:new Set(), multiHits:new Map(),
+        trails:[], trailTimer:0, dead:false, trainingTick:0
       });
       return;
     }
@@ -3246,6 +3316,23 @@ class Game {
       return;
     }
 
+    // Before ice magic is learned, a charged Wind cast becomes one strong
+    // formation: a central mini tornado with two smaller tornadoes orbiting it.
+    // After the route upgrade, a normal tap uses the same formation. It stays
+    // intact to the top edge and never bursts.
+    const orbitingWind = !isWater && !iceBlizzard && (this.magicUpgradeUnlocked || rawCharge >= .30);
+    if (orbitingWind) {
+      const startX=this.fairy.x, startY=this.fairy.y-24;
+      this.effects.push({
+        x:startX,y:startY,startX,startY,age:0,
+        travel:Math.max(.78,(startY+90)/330),speed:330,vx:0,
+        power:2.25,charge:1,piercing:true,miniTornado:true,orbitingTornado:true,
+        orbitRadius:31,orbitSpeed:7.8,pillarHits:[],windTouched:new Set(),
+        kind:'wind',phase:'travel'
+      });
+      return;
+    }
+
     const chargedWater = isWater && charge >= .18;
     const count = (isWater
       ? (charge < .18 ? 1 : charge < .58 ? 3 : charge < .9 ? 5 : 7)
@@ -3258,7 +3345,13 @@ class Game {
       const waterRadius = 176;
       const angle = -Math.PI / 2 + fanRatio * (Math.PI * .31);
       const windSideSpeed = isWater ? 0 : fanRatio * (72 + charge * 34);
-      const windTravel = 0.64 + charge * 0.46 - Math.abs(fanRatio) * .07;
+      const isMiniTornado = !isWater && charge < .30;
+      // A normal Wind cast is now one compact mini tornado that keeps its
+      // shape all the way to the top edge. Charged/strengthened Wind keeps the
+      // existing multi-shot behaviour for the next balancing step.
+      const windTravel = isMiniTornado
+        ? Math.max(.72, (startY + 90) / (292 + charge * 20))
+        : 0.64 + charge * 0.46 - Math.abs(fanRatio) * .07;
       this.effects.push({
         x: startX,
         y: startY,
@@ -3277,7 +3370,8 @@ class Game {
         vx: windSideSpeed,
         power: isWater ? (chargedWater ? .62 : 1) : 1.08 + charge * 1.10,
         charge,
-        piercing: false,
+        piercing: isMiniTornado,
+        miniTornado: isMiniTornado,
         pillarHits: [],
         windTouched: new Set(),
         kind,
@@ -3670,10 +3764,20 @@ class Game {
       if(e.phase==='musicWave'){
         const prev=e.radius||0;
         const p=Math.min(1,e.age/e.duration);
-        e.radius=e.maxRadius*(1-Math.pow(1-p,2.15));
+        e.radius=e.maxRadius*(1-Math.pow(1-p,2.05));
         e.previousRadius=prev;
-        this.applyMusicWave(e,prev,e.radius);
-        if(e.age>=e.duration)e.dead=true;
+        if(e.age<=e.duration){
+          this.applyMusicWave(e,prev,e.radius);
+          if(e.combatWave)this.applyIceWaveTick(e,prev,e.radius);
+        }
+        e.trailTimer=(e.trailTimer||0)-dt;
+        if(e.age<=e.duration&&e.trailTimer<=0){
+          e.trailTimer=.11;
+          e.trails.push({radius:e.radius,age:0});
+        }
+        for(const tr of e.trails)tr.age+=dt;
+        e.trails=e.trails.filter(tr=>tr.age<.72);
+        if(e.age>=e.duration+.72)e.dead=true;
         continue;
       }
       if(e.phase==='blizzard'){
@@ -3705,7 +3809,10 @@ class Game {
         } else {
           e.y-=e.speed*dt; e.x+=(e.vx||0)*dt+Math.sin(e.age*10)*.8;
         }
-        if(this.hitTrainingPapa(e) && !e.piercing){e.phase='burst';e.age=0;}
+        if (e.miniTornado) {
+          if (!e.trainingHit) this.hitTrainingPapa(e);
+          if (e.y < -72 || e.age >= e.travel) e.dead = true;
+        } else if(this.hitTrainingPapa(e) && !e.piercing){e.phase='burst';e.age=0;}
         else if(e.age>=e.travel){e.phase='burst';e.age=0;}
       } else if(e.age>=e.burst){e.dead=true;}
     }
@@ -4514,10 +4621,20 @@ class Game {
       if(e.phase==='musicWave'){
         const prev=e.radius||0;
         const p=Math.min(1,e.age/e.duration);
-        e.radius=e.maxRadius*(1-Math.pow(1-p,2.15));
+        e.radius=e.maxRadius*(1-Math.pow(1-p,2.05));
         e.previousRadius=prev;
-        this.applyMusicWave(e,prev,e.radius);
-        if(e.age>=e.duration)e.dead=true;
+        if(e.age<=e.duration){
+          this.applyMusicWave(e,prev,e.radius);
+          if(e.combatWave)this.applyIceWaveTick(e,prev,e.radius);
+        }
+        e.trailTimer=(e.trailTimer||0)-dt;
+        if(e.age<=e.duration&&e.trailTimer<=0){
+          e.trailTimer=.11;
+          e.trails.push({radius:e.radius,age:0});
+        }
+        for(const tr of e.trails)tr.age+=dt;
+        e.trails=e.trails.filter(tr=>tr.age<.72);
+        if(e.age>=e.duration+.72)e.dead=true;
         continue;
       }
       if(e.phase==='blizzard'){
@@ -4542,6 +4659,87 @@ class Game {
         } else {
           e.y -= e.speed * dt;
           e.x += (e.vx || 0) * dt + Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
+        }
+        if (e.miniTornado) {
+          // The normal mini tornado pierces and keeps flying. Each target can
+          // react only once to the same tornado, so it never farms points while
+          // overlapping an object for several frames.
+          const rr = e.orbitingTornado ? 56 : 27;
+          const touched = e.windTouched || (e.windTouched = new Set());
+          const once = (obj, fn) => {
+            if (touched.has(obj)) return false;
+            const hit = fn();
+            if (hit) touched.add(obj);
+            return hit;
+          };
+
+          if (this.mode === 'cave') {
+            for (const pebble of this.cavePebbles) once(pebble, () => {
+              const hit = pebble.windHit(e.x, e.y, rr + 8, 0);
+              if (hit) for (const c of this.caveCrystals) c.resonate(pebble.x, pebble.y, 70, this.sound);
+              return hit;
+            });
+            for (const puddle of this.cavePuddles) once(puddle, () => {
+              const hit = puddle.windHit(e.x, e.y, rr + 9);
+              if (hit) this.triggerPuddleSplash(puddle);
+              return hit;
+            });
+          }
+          if (this.mode === 'wetland') {
+            for (const w of this.crocodiles) once(w, () => {
+              if (Math.hypot(w.x - e.x, w.y - e.y) < rr + 30 && w.scare()) {
+                this.plus += 80; this.sound.cavePuddle(); return true;
+              }
+              return false;
+            });
+            for (const c of this.cattails) once(c, () => {
+              if (c.windHit(e.x, e.y, rr + 7)) { this.plus += 25; this.sound.dandelion(); return true; }
+              return false;
+            });
+            for (const m of this.mudPatches) once(m, () => {
+              if (m.windHit(e.x, e.y, rr + 9)) { this.plus += 15; this.sound.leaves(); return true; }
+              return false;
+            });
+          }
+          for (const pile of this.leafPiles) once(pile, () => {
+            if (pile.windHit(e.x, e.y, rr + 5)) { this.plus += 30; this.sound.leaves(); return true; }
+            return false;
+          });
+          for (const dandelion of this.dandelions) once(dandelion, () => {
+            if (dandelion.windHit(e.x, e.y, rr + 5)) { this.plus += 45; this.sound.dandelion(); return true; }
+            return false;
+          });
+          for (const branch of this.sideBranches) once(branch, () => {
+            if (branch.windHit(e.x, e.y, rr + 7)) { this.plus += 40; this.sound.leaves(); return true; }
+            return false;
+          });
+          for (const rock of this.rocks) once(rock, () => {
+            const hit = rock.windHit(e.x, e.y, rr + 5);
+            if (hit) { this.plus += hit === 2 ? 40 : 15; this.sound.rock(hit === 2); return true; }
+            return false;
+          });
+          for (const ledge of this.ledges) once(ledge, () => {
+            const hit = ledge.windHit(e.x, e.y, rr + 3);
+            if (hit) { this.plus += 100; this.sound.grow('ledge'); return true; }
+            return false;
+          });
+          for (const bird of this.birds) once(bird, () => {
+            if (bird.state === 'approach' && Math.hypot(e.x - bird.x, e.y - bird.y) < rr + bird.hitRadius) {
+              if (bird.scare(e.x, e.y)) { this.plus += 50; this.sound.scare('bird'); return true; }
+            }
+            return false;
+          });
+          for (const cat of this.cats) once(cat, () => {
+            if (cat.state === 'approach' && Math.hypot(e.x - cat.x, e.y - cat.y) < rr + cat.hitRadius) {
+              if (cat.scare(e.x, e.y)) { this.plus += 60; this.sound.scare('cat'); return true; }
+            }
+            return false;
+          });
+          for (const b of this.butterflies) b.gust(e.x, e.y, rr * .9);
+          for (const l of this.ladybugs) l.gust(e.x, e.y, rr * .8);
+
+          if (e.y < -72 || e.age >= e.travel) e.dead = true;
+          continue;
         }
         if (e.iceTornado) {
           const rr = 66;
@@ -4796,40 +4994,60 @@ class Game {
   }
 
   drawWindTravel(ctx, e) {
-    // Keep the projectile compact all the way to impact. The rings spin
-    // quickly inside a stable cone, so the last frame never stretches into
-    // a long feather-like shape.
-    const charge = e.charge || 0;
-    const scale = 1 + charge * .42;
-    ctx.scale(scale, scale);
-    ctx.rotate(Math.sin(e.age * 18) * .025);
-    ctx.globalCompositeOperation = 'lighter';
+    // Wind keeps a compact tornado silhouette until it leaves the screen.
+    // Strengthened Wind is one formation: a central tornado plus two smaller
+    // tornadoes revolving around it, rather than three unrelated fan shots.
+    const drawOne = (x, y, scale, phase, alpha=1) => {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.rotate(Math.sin(e.age * 18 + phase) * .025);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha *= alpha;
+      const layers = 5;
+      for (let i = 0; i < layers; i++) {
+        const yy = 12 - i * 7;
+        const width = 7 + i * 4.1;
+        const spin = e.age * 22 + i * 1.18 + phase;
+        const squash = .82 + Math.sin(spin) * .08;
+        ctx.strokeStyle = `rgba(${185 + i * 10},255,${205 + i * 8},${.48 + i * .07})`;
+        ctx.lineWidth = 4.5 - i * .45;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.ellipse(Math.sin(spin) * 1.35, yy, width, (3.7 + i * .42) * squash, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      const glow = ctx.createRadialGradient(0, -4, 1, 0, -4, 27);
+      glow.addColorStop(0, 'rgba(245,255,246,.72)');
+      glow.addColorStop(.45, 'rgba(143,244,171,.22)');
+      glow.addColorStop(1, 'rgba(74,216,130,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.ellipse(0, -2, 25, 31, 0, 0, Math.PI * 2); ctx.fill();
+      for (let i = 0; i < 4; i++) {
+        const a = e.age * 8 + i * Math.PI / 2 + phase;
+        ctx.fillStyle = 'rgba(220,255,228,.7)';
+        ctx.beginPath();
+        ctx.arc(Math.cos(a) * (17 + i), -3 + Math.sin(a) * 10, 1.8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    };
 
-    const layers = 5;
-    for (let i = 0; i < layers; i++) {
-      const y = 12 - i * 7;
-      const width = 7 + i * 4.1;
-      const spin = e.age * 22 + i * 1.18;
-      const squash = .82 + Math.sin(spin) * .08;
-      ctx.strokeStyle = `rgba(${185 + i * 10},255,${205 + i * 8},${.48 + i * .07})`;
-      ctx.lineWidth = 4.5 - i * .45;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.ellipse(Math.sin(spin) * 1.35, y, width, (3.7 + i * .42) * squash, 0, 0, Math.PI * 2);
-      ctx.stroke();
-    }
-    const glow = ctx.createRadialGradient(0, -4, 1, 0, -4, 27);
-    glow.addColorStop(0, 'rgba(245,255,246,.72)');
-    glow.addColorStop(.45, 'rgba(143,244,171,.22)');
-    glow.addColorStop(1, 'rgba(74,216,130,0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath(); ctx.ellipse(0, -2, 25, 31, 0, 0, Math.PI * 2); ctx.fill();
-    for (let i = 0; i < 4; i++) {
-      const a = e.age * 8 + i * Math.PI / 2;
-      ctx.fillStyle = 'rgba(220,255,228,.7)';
-      ctx.beginPath();
-      ctx.arc(Math.cos(a) * (17 + i), -3 + Math.sin(a) * 10, 1.8, 0, Math.PI * 2);
-      ctx.fill();
+    if (e.orbitingTornado) {
+      const a = e.age * (e.orbitSpeed || 7.8);
+      const r = e.orbitRadius || 31;
+      // A faint curved trace helps the two satellites read as one formation.
+      ctx.save();
+      ctx.globalCompositeOperation='lighter';
+      ctx.strokeStyle='rgba(178,255,213,.22)';
+      ctx.lineWidth=3;
+      ctx.beginPath();ctx.ellipse(0,-2,r,r*.58,0,0,Math.PI*2);ctx.stroke();
+      ctx.restore();
+      drawOne(0, 0, 1.16, 0, 1);
+      drawOne(Math.cos(a)*r, -2+Math.sin(a)*r*.58, .68, a, .92);
+      drawOne(Math.cos(a+Math.PI)*r, -2+Math.sin(a+Math.PI)*r*.58, .68, a+Math.PI, .92);
+    } else {
+      drawOne(0, 0, 1 + (e.charge || 0) * .16, 0, 1);
     }
   }
 
@@ -5032,22 +5250,45 @@ class Game {
     const r=e.radius||0;
     ctx.save();
     ctx.globalCompositeOperation='screen';
+
+    for(const tr of (e.trails||[])){
+      const life=Math.max(0,1-tr.age/.72);
+      ctx.strokeStyle=`rgba(130,226,255,${life*.15})`;
+      ctx.lineWidth=12*life+2;
+      ctx.beginPath();ctx.arc(0,0,tr.radius,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle=`rgba(229,255,250,${life*.12})`;
+      ctx.lineWidth=3.2;
+      ctx.beginPath();ctx.arc(0,0,Math.max(0,tr.radius-7),0,Math.PI*2);ctx.stroke();
+    }
+
+    if(r>8){
+      const glow=ctx.createRadialGradient(0,0,0,0,0,r);
+      glow.addColorStop(0,'rgba(186,242,255,.025)');
+      glow.addColorStop(.72,'rgba(139,229,255,.035)');
+      glow.addColorStop(1,'rgba(219,255,251,.08)');
+      ctx.fillStyle=glow;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();
+    }
+
     for(let k=0;k<3;k++){
-      const rr=Math.max(0,r-k*24);
+      const rr=Math.max(0,r-k*26);
       if(rr<=0)continue;
-      ctx.strokeStyle=`rgba(${k===0?'205,255,247':'139,229,255'},${.56*(1-p)+.12})`;
-      ctx.lineWidth=7-k*1.6;
+      ctx.strokeStyle=`rgba(${k===0?'205,255,247':'139,229,255'},${.58*(1-p)+.13})`;
+      ctx.lineWidth=7.5-k*1.7;
       ctx.beginPath();ctx.arc(0,0,rr,0,Math.PI*2);ctx.stroke();
     }
-    for(let i=0;i<42;i++){
-      const a=i*2.399+Math.sin(i*12.9898)*.35;
-      const d=Math.max(12,r-12-(i%5)*8);
-      const alpha=Math.max(0,.76-p*.48-(i%4)*.05);
-      ctx.save();ctx.translate(Math.cos(a)*d,Math.sin(a)*d);ctx.rotate(a+e.age*2);
-      ctx.strokeStyle=`rgba(230,253,255,${alpha})`;ctx.lineWidth=1.4;
+
+    for(let i=0;i<68;i++){
+      const a=i*2.399+e.age*.46+Math.sin(i*12.9898)*.28;
+      const d=Math.max(12,r-7-(i%4)*7);
+      const alpha=Math.max(0,.82-p*.43-(i%5)*.045);
+      const size=4.5+(i%4)*.75;
+      ctx.save();ctx.translate(Math.cos(a)*d,Math.sin(a)*d);ctx.rotate(a+e.age*.72);
+      ctx.strokeStyle=`rgba(232,254,255,${alpha})`;ctx.lineWidth=1.45;
       ctx.beginPath();
       for(let arm=0;arm<3;arm++){
-        const aa=arm*Math.PI/3;ctx.moveTo(-5*Math.cos(aa),-5*Math.sin(aa));ctx.lineTo(5*Math.cos(aa),5*Math.sin(aa));
+        const aa=arm*Math.PI/3;
+        ctx.moveTo(-size*Math.cos(aa),-size*Math.sin(aa));
+        ctx.lineTo(size*Math.cos(aa),size*Math.sin(aa));
       }
       ctx.stroke();ctx.restore();
     }
@@ -5412,6 +5653,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.1.2</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.1.6</div>
 </body>
 </html>
