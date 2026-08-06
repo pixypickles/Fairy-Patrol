@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v4.0.4</title>
+  <title>Fairy Guardian v4.0.5</title>
   <style>
 :root {
   color-scheme: light;
@@ -3394,7 +3394,7 @@ class Game {
               const gain=85;t.gauge=Math.min(t.target,t.gauge+gain);this.plus+=gain;this.sound?.caveChord?.();
               if(t.gauge>=t.target){
                 t.complete=true;t.fireballs=[];t.resultAge=0;
-                if(!this.iceMagicUnlocked){this.iceMagicUnlocked=true;this.iceMagicNotice=6;try{localStorage.setItem('fairyGuardianIceMagicUnlocked','1');}catch(_){} const label=document.querySelector('#windButton span:last-child');if(label)label.textContent='風・猛吹雪';}
+                if(!this.iceMagicUnlocked){this.iceMagicUnlocked=true;this.iceMagicNotice=6;try{localStorage.setItem('fairyGuardianIceMagicUnlocked','1');}catch(_){} const label=document.querySelector('#windButton span:last-child');if(label)label.textContent='風・猛吹雪'; const waterLabel=document.querySelector('#waterButton span:last-child');if(waterLabel)waterLabel.textContent='水・氷つらら';}
               }
             }
           }
@@ -4922,7 +4922,7 @@ soundButton.addEventListener('click', (e) => {
 });
 
 const windButton = document.querySelector('#windButton');
-if(game.iceMagicUnlocked){const label=windButton.querySelector('span:last-child');if(label)label.textContent='風・猛吹雪';}
+if(game.iceMagicUnlocked){const label=windButton.querySelector('span:last-child');if(label)label.textContent='風・猛吹雪'; const waterLabel=document.querySelector('#waterButton span:last-child');if(waterLabel)waterLabel.textContent='水・氷つらら';}
 let windChargeStarted = 0;
 let windChargeFrame = 0;
 
@@ -4980,7 +4980,7 @@ function releaseWater(e) {
 waterButton.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   if (game.pausedForRoute || waterChargeStarted) return;
-  if (game.magicUpgradeUnlocked) { game.cast('water', 0); return; }
+  if (game.magicUpgradeUnlocked && !game.iceMagicUnlocked) { game.cast('water', 0); return; }
   waterChargeStarted = performance.now();
   waterButton.classList.add('charging');
   waterButton.setPointerCapture?.(e.pointerId);
@@ -5012,6 +5012,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.4</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.5</div>
 </body>
 </html>
