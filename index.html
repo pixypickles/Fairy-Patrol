@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v4.0.0</title>
+  <title>Fairy Guardian v4.0.1</title>
   <style>
 :root {
   color-scheme: light;
@@ -3105,6 +3105,7 @@ class Game {
         iceTornado,
         piercing: iceTornado,
         pillarHits: [],
+        windTouched: new Set(),
         kind,
         phase: 'travel'
       });
@@ -3192,6 +3193,11 @@ class Game {
 
     if (t.complete) {
       t.resultAge += dt;
+      // Give the player a moment to read the reward, then return to title.
+      if (t.resultAge > 4.8 && !t.returningToTitle) {
+        t.returningToTitle = true;
+        setTimeout(() => location.reload(), 250);
+      }
       return;
     }
 
@@ -3406,7 +3412,7 @@ class Game {
     ctx.fillStyle='#36516a';ctx.font='700 13px system-ui';ctx.fillText(`訓練 ${Math.round(t.gauge)} / ${t.target}　被弾 ${t.mistakes}`,this.width/2,164);ctx.restore();
 
     if(t.complete){
-      ctx.save();ctx.globalAlpha=Math.min(1,t.resultAge/.45);ctx.fillStyle='rgba(255,252,224,.94)';ctx.strokeStyle='rgba(102,126,90,.68)';ctx.lineWidth=4;ctx.beginPath();ctx.roundRect(78,665,this.width-156,104,24);ctx.fill();ctx.stroke();ctx.fillStyle='#496348';ctx.textAlign='center';ctx.font='900 27px system-ui';ctx.fillText('特訓 合格！',this.width/2,705);ctx.font='700 15px system-ui';ctx.fillText(this.iceMagicUnlocked?'青い氷竜巻を覚えました！':'パパドラゴンが、静かにうなずきました',this.width/2,738);ctx.restore();
+      ctx.save();ctx.globalAlpha=Math.min(1,t.resultAge/.45);ctx.fillStyle='rgba(255,252,224,.94)';ctx.strokeStyle='rgba(102,126,90,.68)';ctx.lineWidth=4;ctx.beginPath();ctx.roundRect(78,665,this.width-156,104,24);ctx.fill();ctx.stroke();ctx.fillStyle='#496348';ctx.textAlign='center';ctx.font='900 27px system-ui';ctx.fillText('特訓 合格！',this.width/2,705);ctx.font='700 15px system-ui';ctx.fillText(this.iceMagicUnlocked?'青い氷竜巻を覚えました！':'パパドラゴンが、静かにうなずきました',this.width/2,733);ctx.font='700 12px system-ui';ctx.fillText('まもなくタイトルへ戻ります',this.width/2,754);ctx.restore();
     }
   }
 
@@ -4096,7 +4102,7 @@ class Game {
           e.x += (e.vx || 0) * dt + Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
         }
         if (e.iceTornado) {
-          const rr = 48;
+          const rr = 66;
           // A learned ice tornado pierces scenery and enemies. In the rescue
           // event it extinguishes every fire pillar it touches in one pass.
           const d=this.dragonRescue;
@@ -4113,6 +4119,28 @@ class Game {
           }
           for(const bird of this.birds){if(bird.state==='approach'&&Math.hypot(e.x-bird.x,e.y-bird.y)<rr+bird.hitRadius){if(bird.scare(e.x,e.y)){this.plus+=50;this.sound.scare('bird');}}}
           for(const cat of this.cats){if(cat.state==='approach'&&Math.hypot(e.x-cat.x,e.y-cat.y)<rr+cat.hitRadius){if(cat.scare(e.x,e.y)){this.plus+=60;this.sound.scare('cat');}}}
+
+          // The ice tornado keeps every utility of ordinary wind while piercing.
+          // Each scenery object is affected at most once by the same tornado.
+          const touched=e.windTouched||(e.windTouched=new Set());
+          const once=(obj,fn)=>{if(touched.has(obj))return false;const hit=fn();if(hit)touched.add(obj);return hit;};
+          if(this.mode==='cave'){
+            for(const pebble of this.cavePebbles) once(pebble,()=>{const hit=pebble.windHit(e.x,e.y,rr*.72,1);if(hit){for(const c of this.caveCrystals)c.resonate(pebble.x,pebble.y,82,this.sound);}return hit;});
+            for(const puddle of this.cavePuddles) once(puddle,()=>{const hit=puddle.windHit(e.x,e.y,rr*.72);if(hit)this.triggerPuddleSplash(puddle);return hit;});
+          }
+          if(this.mode==='wetland'){
+            for(const w of this.crocodiles) once(w,()=>{if(Math.hypot(w.x-e.x,w.y-e.y)<rr+30&&w.scare()){this.plus+=80;this.sound.cavePuddle();return true;}return false;});
+            for(const c of this.cattails) once(c,()=>{if(c.windHit(e.x,e.y,rr)){this.plus+=25;this.sound.dandelion();return true;}return false;});
+            for(const m of this.mudPatches) once(m,()=>{if(m.windHit(e.x,e.y,rr)){this.plus+=15;this.sound.leaves();return true;}return false;});
+          }
+          for(const pile of this.leafPiles) once(pile,()=>{if(pile.windHit(e.x,e.y,rr*.78)){this.plus+=30;this.sound.leaves();return true;}return false;});
+          for(const dandelion of this.dandelions) once(dandelion,()=>{if(dandelion.windHit(e.x,e.y,rr*.78)){this.plus+=45;this.sound.dandelion();return true;}return false;});
+          for(const branch of this.sideBranches) once(branch,()=>{if(branch.windHit(e.x,e.y,rr*.8)){this.plus+=40;this.sound.leaves();return true;}return false;});
+          for(const rock of this.rocks) once(rock,()=>{const hit=rock.windHit(e.x,e.y,rr*.78);if(hit){this.plus+=hit===2?40:15;this.sound.rock(hit===2);return true;}return false;});
+          for(const ledge of this.ledges) once(ledge,()=>{const hit=ledge.windHit(e.x,e.y,rr*.72);if(hit){this.plus+=100;this.sound.grow('ledge');return true;}return false;});
+          for(const b of this.butterflies)b.gust(e.x,e.y,rr*.9);
+          for(const l of this.ladybugs)l.gust(e.x,e.y,rr*.8);
+
           if(e.age>=e.travel){e.phase='burst';e.age=0;}
           continue;
         }
@@ -4365,23 +4393,36 @@ class Game {
 
   drawIceTornado(ctx,e){
     ctx.globalCompositeOperation='lighter';
-    ctx.rotate(Math.sin(e.age*15)*.035);
-    const spin=e.age*25;
-    for(let i=0;i<7;i++){
-      const y=20-i*9;
-      const w=12+i*6.2;
-      ctx.strokeStyle=`rgba(${165+i*8},${222+i*4},255,${.40+i*.065})`;
-      ctx.lineWidth=6-i*.45;ctx.lineCap='round';ctx.beginPath();
-      ctx.ellipse(Math.sin(spin+i)*2.2,y,w,5+i*.55,0,0,Math.PI*2);ctx.stroke();
+    ctx.scale(1.34,1.34);
+    ctx.rotate(Math.sin(e.age*16)*.025);
+    const spin=e.age*29;
+    // Deeper blues and a broader cone make the learned spell unmistakable.
+    for(let i=0;i<8;i++){
+      const y=25-i*10;
+      const w=15+i*7.2;
+      const alpha=.48+i*.055;
+      ctx.strokeStyle=`rgba(${65+i*8},${145+i*9},255,${alpha})`;
+      ctx.lineWidth=7.2-i*.48;ctx.lineCap='round';ctx.beginPath();
+      ctx.ellipse(Math.sin(spin+i*.92)*2.7,y,w,6+i*.62,0,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle=`rgba(210,245,255,${.24+i*.035})`;ctx.lineWidth=2.2;ctx.beginPath();
+      ctx.ellipse(-Math.sin(spin+i*.92)*1.4,y,w*.82,3.6+i*.4,0,0,Math.PI*2);ctx.stroke();
     }
-    const glow=ctx.createRadialGradient(0,-10,3,0,-8,54);
-    glow.addColorStop(0,'rgba(255,255,255,.88)');glow.addColorStop(.35,'rgba(125,218,255,.38)');glow.addColorStop(1,'rgba(55,130,255,0)');
-    ctx.fillStyle=glow;ctx.beginPath();ctx.ellipse(0,-7,48,66,0,0,Math.PI*2);ctx.fill();
-    for(let i=0;i<12;i++){
-      const a=spin*.35+i*Math.PI*2/12, d=26+(i%4)*8;
-      ctx.save();ctx.translate(Math.cos(a)*d, -8+Math.sin(a)*d*.72);ctx.rotate(a);
-      ctx.strokeStyle='rgba(225,248,255,.88)';ctx.lineWidth=1.7;
-      ctx.beginPath();ctx.moveTo(-4,0);ctx.lineTo(4,0);ctx.moveTo(0,-4);ctx.lineTo(0,4);ctx.stroke();ctx.restore();
+    const glow=ctx.createRadialGradient(0,-12,2,0,-8,70);
+    glow.addColorStop(0,'rgba(255,255,255,.96)');
+    glow.addColorStop(.24,'rgba(92,205,255,.62)');
+    glow.addColorStop(.58,'rgba(25,112,255,.35)');
+    glow.addColorStop(1,'rgba(5,45,190,0)');
+    ctx.fillStyle=glow;ctx.beginPath();ctx.ellipse(0,-8,62,82,0,0,Math.PI*2);ctx.fill();
+    // Snow crystals orbit around the cone instead of merely trailing behind.
+    for(let i=0;i<16;i++){
+      const a=spin*.30+i*Math.PI*2/16;
+      const d=36+(i%4)*10;
+      const px=Math.cos(a)*d, py=-9+Math.sin(a)*d*.78;
+      ctx.save();ctx.translate(px,py);ctx.rotate(-a+spin*.12);
+      ctx.strokeStyle=i%3===0?'rgba(255,255,255,.98)':'rgba(170,228,255,.92)';
+      ctx.lineWidth=1.8;
+      for(let arm=0;arm<3;arm++){ctx.rotate(Math.PI/3);ctx.beginPath();ctx.moveTo(-5,0);ctx.lineTo(5,0);ctx.moveTo(2,-2);ctx.lineTo(5,0);ctx.lineTo(2,2);ctx.stroke();}
+      ctx.restore();
     }
   }
 
@@ -4786,6 +4827,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.0</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.1</div>
 </body>
 </html>

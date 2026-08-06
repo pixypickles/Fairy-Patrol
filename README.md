@@ -1,7 +1,5 @@
-# Fairy Guardian v4.0.0
+Fairy Guardian v4.0.1
 
-- パパドラゴン特訓合格で氷魔法を保存・解放
-- 風ボタン長押し（約0.5秒以上）で大きな青い氷竜巻
-- 氷竜巻は貫通し、火柱を一撃で消火
-- 通常タップは従来の強化風魔法
-- 水チャージの氷つららは次版予定
+- Training completion returns automatically to the title.
+- Ice tornado is larger, deeper blue, with orbiting snow crystals.
+- Ice tornado keeps normal wind interactions, including rocks, ledges, leaves, branches, cave puddles, and wetland objects.
