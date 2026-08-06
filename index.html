@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.9.5</title>
+  <title>Fairy Guardian v3.9.6</title>
   <style>
 :root {
   color-scheme: light;
@@ -3383,6 +3383,16 @@ class Game {
     if (!d.active && !d.completed && this.dragonEventReady && !this.forestAnomaly?.active) this.startDragonRescue();
     if (!d.active) {
       d.notice = Math.max(0, (d.notice || 0) - dt);
+      if (d.completed) {
+        // Let each scorched hole recover in clearly separated stages:
+        // steam/smoke, a new sprout, then a tiny flower.
+        for (const c of d.craters || []) {
+          c.recoveryAge = (c.recoveryAge || 0) + dt;
+          c.smoke = Math.max(0, 1 - c.recoveryAge / 1.45);
+          c.sprout = Math.max(0, Math.min(1, (c.recoveryAge - 1.25) / 1.45));
+          c.flower = Math.max(0, Math.min(1, (c.recoveryAge - 2.85) / 1.0));
+        }
+      }
       if (d.completed && !d.resultShown) {
         d.familyAge = (d.familyAge || 0) + dt;
         d.resultDelay = Math.max(0,(d.resultDelay ?? 10.5)-dt);
@@ -3477,7 +3487,7 @@ class Game {
     const activePillars = d.craters.some(c=>c.fireActive);
     if (d.tailHealth <= 0 && d.fires.length === 0 && d.fireballs.length === 0 && !activePillars) {
       d.active = false; d.completed = true; d.notice = 5.0; d.familyAge = 0; d.resultDelay = 10.5;
-      for(const c of d.craters){c.fireActive=false;c.sprout=.01;}
+      for(const c of d.craters){c.fireActive=false;c.sprout=0;c.flower=0;c.smoke=1;c.recoveryAge=0;}
       if (!d.rewardGiven) { d.rewardGiven = true; this.plus += 700; this.sound.flower(5); }
     }
   }
@@ -3540,7 +3550,23 @@ class Game {
         ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-24,14);ctx.quadraticCurveTo(-35,-25,-8,-h*.72);ctx.quadraticCurveTo(0,-h,11,-h*.65);ctx.quadraticCurveTo(37,-24,24,14);ctx.closePath();ctx.fill();
         ctx.fillStyle='rgba(255,239,128,.82)';ctx.beginPath();ctx.ellipse(0,-h*.35,11,27,0,0,Math.PI*2);ctx.fill();
       }
-      if((c.sprout||0)>0){const q=c.sprout;ctx.strokeStyle='#397e45';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,-4);ctx.lineTo(0,-4-22*q);ctx.stroke();ctx.fillStyle='#75c96a';ctx.beginPath();ctx.ellipse(-7*q,-16*q,9*q,5*q,-.45,0,Math.PI*2);ctx.ellipse(7*q,-20*q,9*q,5*q,.45,0,Math.PI*2);ctx.fill();}
+      if((c.smoke||0)>0){
+        const sm=c.smoke;
+        ctx.save();ctx.globalAlpha=.5*sm;ctx.fillStyle='#edf3ef';
+        for(let i=0;i<4;i++){const rise=(1-sm)*22+i*7;ctx.beginPath();ctx.arc(-9+i*6,-14-rise,7+i*1.4,0,Math.PI*2);ctx.fill();}
+        ctx.restore();
+      }
+      if((c.sprout||0)>0){
+        const q=c.sprout;ctx.strokeStyle='#397e45';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,-4);ctx.lineTo(0,-4-25*q);ctx.stroke();
+        ctx.fillStyle='#75c96a';ctx.beginPath();ctx.ellipse(-8*q,-17*q,10*q,5.5*q,-.45,0,Math.PI*2);ctx.ellipse(8*q,-21*q,10*q,5.5*q,.45,0,Math.PI*2);ctx.fill();
+      }
+      if((c.flower||0)>0){
+        const f=c.flower, fy=-31;
+        ctx.save();ctx.globalAlpha=f;ctx.translate(0,fy);ctx.scale(.65+.35*f,.65+.35*f);
+        ctx.fillStyle='#fff4b6';
+        for(let i=0;i<5;i++){const a=i*Math.PI*2/5;ctx.beginPath();ctx.ellipse(Math.cos(a)*7,Math.sin(a)*7,5,8,a,0,Math.PI*2);ctx.fill();}
+        ctx.fillStyle='#f4b94e';ctx.beginPath();ctx.arc(0,0,4.2,0,Math.PI*2);ctx.fill();ctx.restore();
+      }
       ctx.restore();
     }
     for(const b of d.fireballs||[]){ctx.save();ctx.translate(b.x,b.y);const pulse=1+Math.sin(this.elapsed*16)*.1;ctx.scale(pulse,pulse);const g=ctx.createRadialGradient(-5,-6,2,0,0,22);g.addColorStop(0,'#fff7a2');g.addColorStop(.38,'#ff9a32');g.addColorStop(1,'rgba(214,38,22,.2)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,22,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(255,97,35,.5)';ctx.beginPath();ctx.moveTo(-15,8);ctx.quadraticCurveTo(-38,16,-49,3);ctx.quadraticCurveTo(-30,-7,-13,-5);ctx.fill();ctx.restore();}
@@ -3631,7 +3657,10 @@ class Game {
     }
 
     if (d.notice > 0) {
-      ctx.save();ctx.globalAlpha=Math.min(1,d.notice/.5);ctx.fillStyle='rgba(255,251,235,.94)';ctx.strokeStyle='rgba(116,72,61,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(78,165,this.width-156,58,20);ctx.fill();ctx.stroke();ctx.fillStyle='#704539';ctx.font='800 18px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(d.completed?'火が消え、穴から芽が出ました！':'しっぽと地面の火を消そう！',this.width/2,194);ctx.restore();
+      ctx.save();ctx.globalAlpha=Math.min(1,d.notice/.5);ctx.fillStyle='rgba(255,251,235,.94)';ctx.strokeStyle='rgba(116,72,61,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(78,165,this.width-156,58,20);ctx.fill();ctx.stroke();ctx.fillStyle='#704539';ctx.font='800 18px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+      let rescueText='しっぽと地面の火を消そう！';
+      if(d.completed){const a=d.familyAge||0;rescueText=a<1.6?'火は消えました！':'森が元気を取り戻しています…';}
+      ctx.fillText(rescueText,this.width/2,194);ctx.restore();
     }
   }
 
@@ -4608,6 +4637,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.9.5</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.9.6</div>
 </body>
 </html>
