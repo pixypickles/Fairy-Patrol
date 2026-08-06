@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.7.4</title>
+  <title>Fairy Guardian v3.7.5</title>
   <style>
 :root {
   color-scheme: light;
@@ -2795,13 +2795,13 @@ class Game {
   chooseRoute(target) {
     if (!['cave','flowers','wetland'].includes(target)) return;
     this.pausedForRoute = false;
-    this.transition = { type:'toRoute', age:0, duration:4.6, target };
+    this.transition = { type:'toRoute', age:0, duration:6.2, target };
   }
 
   beginReturnTransition() {
     if (this.transition) return;
     const from = this.mode === 'cave' ? 'cave' : this.mode === 'wetland' ? 'wetland' : 'flowers';
-    this.transition = { type:'return', age:0, duration:5.5, target:'meadow', from };
+    this.transition = { type:'return', age:0, duration:7.0, target:'meadow', from };
   }
 
   updateTransition(dt) {
@@ -2864,9 +2864,9 @@ class Game {
     ctx.fillStyle=`rgba(${tint},${arrive*.16})`;ctx.fillRect(0,0,this.width,this.height);
     // Near the end of the outbound path, show a readable entrance instead of
     // changing the whole world in a single frame.
-    if (tr.type === 'toRoute' && q > .62) {
-      const k = Math.min(1, (q - .62) / .38);
-      ctx.save(); ctx.globalAlpha = k; ctx.translate(this.width/2, 155);
+    if (tr.type === 'toRoute' && q > .38) {
+      const k = Math.min(1, (q - .38) / .42);
+      ctx.save(); ctx.globalAlpha = k; ctx.translate(this.width/2, 245);
       if (tr.target === 'cave') {
         ctx.fillStyle='rgba(15,48,57,.92)'; ctx.beginPath(); ctx.ellipse(0,0,105,68,0,Math.PI,Math.PI*2); ctx.lineTo(105,42); ctx.lineTo(-105,42); ctx.closePath(); ctx.fill();
         ctx.strokeStyle='rgba(93,205,210,.75)';ctx.lineWidth=5;ctx.stroke();
@@ -2881,10 +2881,37 @@ class Game {
       }
       ctx.restore();
     }
+    // On the way home, keep a bright meadow opening visible for several
+    // seconds so the return does not feel like an abrupt palette swap.
+    if (tr.type === 'return' && q > .24) {
+      const k = Math.min(1, (q - .24) / .46);
+      ctx.save();
+      ctx.globalAlpha = k;
+      ctx.translate(this.width/2, 250);
+      const glow = ctx.createRadialGradient(0, 12, 12, 0, 12, 155);
+      glow.addColorStop(0, 'rgba(244,255,205,.88)');
+      glow.addColorStop(.48, 'rgba(173,226,112,.56)');
+      glow.addColorStop(1, 'rgba(112,175,79,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.ellipse(0, 15, 150, 105, 0, 0, Math.PI*2); ctx.fill();
+      // Grass-framed opening at the end of the return path.
+      ctx.strokeStyle = 'rgba(70,126,65,.88)'; ctx.lineWidth = 12; ctx.lineCap='round';
+      for (let i=-5;i<=5;i++) {
+        const x=i*24;
+        ctx.beginPath();ctx.moveTo(x,73);ctx.quadraticCurveTo(x-8,32,x-4,-10);ctx.stroke();
+      }
+      for(let i=-4;i<=4;i++){
+        const cols=['#fff4a8','#ffc4da','#b9d8ff','#f7f3df'];
+        ctx.fillStyle=cols[(i+8)%cols.length];ctx.beginPath();ctx.arc(i*29,45-Math.abs(i)*3,7,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#f2c94c';ctx.beginPath();ctx.arc(i*29,45-Math.abs(i)*3,2.5,0,Math.PI*2);ctx.fill();
+      }
+      ctx.fillStyle='rgba(255,255,225,.72)';ctx.beginPath();ctx.arc(0,-18,9+4*pulse,0,Math.PI*2);ctx.fill();
+      ctx.restore();
+    }
     ctx.fillStyle=`rgba(248,255,239,${.55 + pulse*.12})`;
     ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='800 18px system-ui,sans-serif';
     const label=tr.type==='fork'?'分かれ道へ向かっています…':tr.type==='return'?'いつもの草原へ帰っています…':'新しい道へ進んでいます…';
-    ctx.fillText(label,this.width/2,82);
+    ctx.fillText(label,this.width/2,174);
     ctx.restore();
   }
 
@@ -3585,6 +3612,9 @@ class Game {
 
   draw() {
     this.stage.draw(this.ctx, this.elapsed);
+    // Transition scenery belongs behind characters and effects. This call was
+    // missing in v3.7.4, which made entrances invisible and returns abrupt.
+    if (this.transition) this.drawTransition(this.ctx);
     if(this.mode==='cave') {
       for(const moss of this.glowMoss)moss.draw(this.ctx,this.elapsed);
       for(const p of this.cavePuddles) p.draw(this.ctx,this.elapsed);
@@ -3816,6 +3846,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.7.4</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.7.5</div>
 </body>
 </html>
