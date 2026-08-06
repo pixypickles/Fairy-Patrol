@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.8.4</title>
+  <title>Fairy Guardian v3.8.5</title>
   <style>
 :root {
   color-scheme: light;
@@ -2653,7 +2653,7 @@ class Game {
     this.dragonEventReady = false;
     this.magicUpgradeUnlocked = false;
     this.magicUpgradeNotice = 0;
-      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:225, tailHealth:6, maxTailHealth:6, fireTimer:1.0, fires:[], notice:0, rewardGiven:false };
+      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:245, prevX:this.width/2, facing:1, tailHealth:15, maxTailHealth:15, fireTimer:.75, fires:[], notice:0, rewardGiven:false };
     this.returnNotice = 0;
     this.transition = null;
     this.transitionPass = false;
@@ -3132,7 +3132,10 @@ class Game {
     d.active = true;
     d.age = 0;
     d.x = this.width * .5;
-    d.y = 228;
+    d.y = 248;
+    d.prevX = d.x;
+    d.facing = 1;
+    d.maxTailHealth = 15;
     // The rescue event is its own scene: ordinary birds and cats leave first.
     this.birds = [];
     this.cats = [];
@@ -3153,18 +3156,30 @@ class Game {
     if (!d.active) { d.notice = Math.max(0, (d.notice || 0) - dt); return; }
     d.age += dt;
     d.notice = Math.max(0, d.notice - dt);
-    // Nervous, uneven flight, kept below the HUD so the face stays visible.
-    d.x = this.width * .5 + Math.sin(d.age * 1.18) * 142 + Math.sin(d.age * 2.77) * 28;
-    d.y = 224 + Math.sin(d.age * 1.72) * 25 + Math.sin(d.age * 3.35) * 7;
+    // Panic is strongest at the beginning and eases as the tail fire is cooled.
+    const panic = Math.max(0, d.tailHealth / d.maxTailHealth);
+    d.prevX = d.x;
+    const speedScale = .55 + panic * .95;
+    d.x = this.width * .5 + Math.sin(d.age * 1.38 * speedScale) * (112 + panic * 62)
+      + Math.sin(d.age * 3.25) * (10 + panic * 22);
+    d.y = 246 + Math.sin(d.age * 1.9 * speedScale) * (12 + panic * 23)
+      + Math.sin(d.age * 4.1) * (3 + panic * 8);
+    const dx = d.x - d.prevX;
+    if (Math.abs(dx) > .7) d.facing = dx >= 0 ? 1 : -1;
     if (d.tailHealth > 0) {
       d.fireTimer -= dt;
       if (d.fireTimer <= 0) {
-        d.fireTimer = 1.45 + Math.random() * 1.25;
-        d.fires.push({ x:d.x + (Math.random()-.5)*38, y:d.y+72, age:0, life:9, r:12, dead:false, hitChick:false });
+        const burst = panic > .7 ? (2 + Math.floor(Math.random()*3)) : panic > .35 ? (1 + Math.floor(Math.random()*2)) : 1;
+        d.fireTimer = Math.max(.42, 1.18 - panic * .52) + Math.random() * .55;
+        for (let i=0;i<burst;i++) {
+          const tailX = d.x - d.facing * (58 + Math.random()*12);
+          const tailY = d.y + 34 + (Math.random()-.5)*22;
+          d.fires.push({ x:tailX, y:tailY, vx:(Math.random()-.5)*44-d.facing*12, age:0, life:9, r:11+Math.random()*3, dead:false, hitChick:false });
+        }
       }
     }
     for (const f of d.fires) {
-      f.age += dt; f.y += 48 * dt;
+      f.age += dt; f.x += (f.vx || 0) * dt; f.y += 48 * dt;
       if (!f.dead && !f.hitChick && Math.hypot(f.x-this.chick.x,f.y-this.chick.y) < f.r+20) {
         f.hitChick = true; f.dead = true; this.minus += 20;
       }
@@ -3181,9 +3196,10 @@ class Game {
     const d = this.dragonRescue;
     if (!d?.active) return false;
     let hit = false;
-    const tailX = d.x + Math.sin(d.age*2.2)*12;
-    const tailY = d.y + 66;
-    if (!e.dragonTailHit && d.tailHealth > 0 && Math.hypot(e.x-tailX,e.y-tailY) < radius+28) {
+    const panic = Math.max(0, d.tailHealth / d.maxTailHealth);
+    const tailX = d.x - d.facing * (57 + Math.sin(d.age*4.2)*8*panic);
+    const tailY = d.y + 35 + Math.cos(d.age*3.1)*7;
+    if (!e.dragonTailHit && d.tailHealth > 0 && Math.hypot(e.x-tailX,e.y-tailY) < radius+31) {
       e.dragonTailHit = true;
       d.tailHealth = Math.max(0,d.tailHealth-1);
       this.plus += 40;
@@ -3202,48 +3218,71 @@ class Game {
     const d = this.dragonRescue;
     if (!d) return;
     if (d.active) {
-      ctx.save(); ctx.translate(d.x,d.y);
-      const flap=Math.sin(d.age*10)*.34;
-      const bob=Math.sin(d.age*7)*2;
-      ctx.translate(0,bob);
-      // A soft distant shadow reinforces that this little dragon is airborne.
-      ctx.globalAlpha=.12;ctx.fillStyle='#18383e';ctx.beginPath();ctx.ellipse(0,78,55,15,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
-      // Soft aqua body: the fire is an accident, not the dragon's nature.
-      const body='#62c9c2', belly='#b9eee0', outline='#286a70', wing='#8fe0d6';
+      const panic = Math.max(0, d.tailHealth / d.maxTailHealth);
+      const facing = d.facing || 1;
+      const flapPhase = (d.age * (8.5 + panic * 7.5)) % (Math.PI * 2);
+      const flap = Math.sin(flapPhase);
+      const bob = Math.sin(d.age * (5.5 + panic*3)) * (1.5 + panic*3.5);
+      ctx.save();
+      ctx.translate(d.x,d.y+bob);
+      ctx.scale(facing,1);
+
+      // A separated, soft shadow makes the dragon read as airborne.
+      ctx.globalAlpha=.1;ctx.fillStyle='#17383e';ctx.beginPath();ctx.ellipse(0,82,62,13,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+      const body='#67cec2', belly='#c8f0df', outline='#285f68', wing='#98e4d8', horn='#f3dd9d';
       ctx.strokeStyle=outline;ctx.lineWidth=4;ctx.lineJoin='round';ctx.lineCap='round';
-      // Rounded wings, two-frame-like flapping.
-      ctx.fillStyle=wing;
-      ctx.save();ctx.rotate(-.28+flap);ctx.beginPath();ctx.moveTo(-20,-3);ctx.quadraticCurveTo(-62,-33,-76,-5);ctx.quadraticCurveTo(-65,23,-26,17);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
-      ctx.save();ctx.rotate(.28-flap);ctx.beginPath();ctx.moveTo(20,-3);ctx.quadraticCurveTo(62,-33,76,-5);ctx.quadraticCurveTo(65,23,26,17);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
-      // Body, belly and tiny feet.
-      ctx.fillStyle=body;ctx.beginPath();ctx.ellipse(0,16,36,48,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.fillStyle=belly;ctx.beginPath();ctx.ellipse(0,24,20,31,0,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#4caeaa';ctx.beginPath();ctx.ellipse(-17,59,12,7,-.15,0,Math.PI*2);ctx.ellipse(17,59,12,7,.15,0,Math.PI*2);ctx.fill();ctx.stroke();
-      // Large chibi head and small horns.
-      ctx.fillStyle=body;ctx.beginPath();ctx.ellipse(0,-31,34,28,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.fillStyle='#f1d995';ctx.beginPath();ctx.moveTo(-23,-51);ctx.lineTo(-17,-69);ctx.lineTo(-8,-50);ctx.closePath();ctx.moveTo(23,-51);ctx.lineTo(17,-69);ctx.lineTo(8,-50);ctx.closePath();ctx.fill();ctx.stroke();
-      // Worried eyes, eyebrows and open panting mouth.
-      ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(-11,-34,7,8,0,0,Math.PI*2);ctx.ellipse(11,-34,7,8,0,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#243d43';ctx.beginPath();ctx.arc(-10,-32,3,0,Math.PI*2);ctx.arc(10,-32,3,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='#286a70';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(-18,-45);ctx.lineTo(-6,-42);ctx.moveTo(18,-45);ctx.lineTo(6,-42);ctx.stroke();
-      ctx.fillStyle='#31545a';ctx.beginPath();ctx.ellipse(0,-17,8,6,0,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#f49ba5';ctx.beginPath();ctx.ellipse(0,-15,4,2.5,0,0,Math.PI*2);ctx.fill();
-      // Lots of animated sweat droplets make the panic readable without dialogue.
-      for(let i=0;i<5;i++){
-        const side=i%2?-1:1, phase=(d.age*2.8+i*.31)%1;
-        const sx=side*(31+phase*13), sy=-47+i*9+phase*18;
-        ctx.globalAlpha=.85*(1-phase);ctx.fillStyle='#a9ecff';ctx.beginPath();ctx.moveTo(sx,sy-6);ctx.quadraticCurveTo(sx-5,sy+2,sx,sy+7);ctx.quadraticCurveTo(sx+5,sy+2,sx,sy-6);ctx.fill();
+
+      // Back wing: large two-to-three frame flapping silhouette.
+      ctx.save();
+      ctx.translate(-7,-2);
+      ctx.rotate(-.18 - flap*.48);
+      ctx.fillStyle='rgba(143,224,214,.86)';
+      ctx.beginPath();ctx.moveTo(-6,0);ctx.quadraticCurveTo(-48,-55,-80,-35);ctx.quadraticCurveTo(-58,-8,-20,18);ctx.quadraticCurveTo(-49,22,-63,52);ctx.quadraticCurveTo(-25,45,5,14);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.restore();
+
+      // Tail trails behind the direction of travel; its tip is the water target.
+      const tailWave = Math.sin(d.age*(4.4+panic*2))*10*panic;
+      const tailTipX = -62 - tailWave;
+      const tailTipY = 34 + Math.cos(d.age*3.2)*7;
+      ctx.strokeStyle=outline;ctx.lineWidth=15;ctx.beginPath();ctx.moveTo(-17,28);ctx.quadraticCurveTo(-45,30,-63,44);ctx.quadraticCurveTo(-78,56,tailTipX,tailTipY);ctx.stroke();
+      ctx.strokeStyle=body;ctx.lineWidth=9;ctx.beginPath();ctx.moveTo(-17,28);ctx.quadraticCurveTo(-45,30,-63,44);ctx.quadraticCurveTo(-78,56,tailTipX,tailTipY);ctx.stroke();
+
+      // Rounded flying body and belly.
+      ctx.fillStyle=body;ctx.beginPath();ctx.ellipse(2,18,40,36,-.1,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle=belly;ctx.beginPath();ctx.ellipse(10,25,23,24,-.05,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#4eadab';ctx.beginPath();ctx.ellipse(-5,54,13,7,-.25,0,Math.PI*2);ctx.ellipse(24,52,13,7,.15,0,Math.PI*2);ctx.fill();ctx.stroke();
+
+      // Chibi side-profile head points in the travel direction.
+      ctx.fillStyle=body;ctx.beginPath();ctx.ellipse(31,-22,37,31,-.08,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.ellipse(59,-14,22,15,-.08,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle=horn;
+      ctx.beginPath();ctx.moveTo(12,-45);ctx.lineTo(19,-68);ctx.lineTo(29,-45);ctx.closePath();ctx.moveTo(35,-47);ctx.lineTo(47,-65);ctx.lineTo(50,-40);ctx.closePath();ctx.fill();ctx.stroke();
+      // Small front wing flaps in the opposite phase.
+      ctx.save();ctx.translate(12,5);ctx.rotate(.06 + flap*.42);ctx.fillStyle='rgba(167,235,223,.94)';ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(34,-45,58,-22);ctx.quadraticCurveTo(43,-1,12,17);ctx.quadraticCurveTo(41,19,48,43);ctx.quadraticCurveTo(22,38,0,14);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+
+      // Worried side-facing eye, brow and panting mouth.
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(47,-28,8,9,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#203d43';ctx.beginPath();ctx.arc(50,-27,3.3,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=outline;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(38,-40);ctx.lineTo(51,-37);ctx.stroke();
+      ctx.fillStyle='#31545a';ctx.beginPath();ctx.ellipse(69,-15,3,2.5,0,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#31545a';ctx.lineWidth=3;ctx.beginPath();ctx.arc(60,-7,9,.12,Math.PI-.15);ctx.stroke();
+      ctx.fillStyle='#f59aa5';ctx.beginPath();ctx.ellipse(61,-2,5,3,0,0,Math.PI*2);ctx.fill();
+
+      // Many large sweat drops; their number eases as the rescue succeeds.
+      const sweatCount = 2 + Math.ceil(panic*7);
+      for(let i=0;i<sweatCount;i++){
+        const phase=(d.age*(2.5+panic*1.5)+i*.23)%1;
+        const sx=58+(i%3)*11+phase*15, sy=-50+(i%4)*13+phase*22;
+        ctx.globalAlpha=.9*(1-phase);ctx.fillStyle='#a9ecff';ctx.beginPath();ctx.moveTo(sx,sy-7);ctx.quadraticCurveTo(sx-6,sy+1,sx,sy+8);ctx.quadraticCurveTo(sx+6,sy+1,sx,sy-7);ctx.fill();
       }
       ctx.globalAlpha=1;
-      // Tail swishes wildly while the accidental flame hangs on its tip.
-      const tx=Math.sin(d.age*3.1)*19, ty=73+Math.cos(d.age*2.3)*4;
-      ctx.strokeStyle=outline;ctx.lineWidth=13;ctx.beginPath();ctx.moveTo(0,49);ctx.quadraticCurveTo(25,62,tx,ty);ctx.stroke();
-      ctx.strokeStyle=body;ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(0,49);ctx.quadraticCurveTo(25,62,tx,ty);ctx.stroke();
+
       if(d.tailHealth>0){
-        const g=ctx.createRadialGradient(tx,ty,2,tx,ty,28);g.addColorStop(0,'rgba(255,249,145,.98)');g.addColorStop(.43,'rgba(255,138,45,.94)');g.addColorStop(1,'rgba(220,42,26,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(tx,ty,29,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle='#ff7138';ctx.beginPath();ctx.moveTo(tx,ty+13);ctx.quadraticCurveTo(tx-17,ty-4,tx-2,ty-30);ctx.quadraticCurveTo(tx+20,ty-5,tx,ty+13);ctx.fill();
+        const g=ctx.createRadialGradient(tailTipX,tailTipY,2,tailTipX,tailTipY,31);g.addColorStop(0,'rgba(255,249,145,.98)');g.addColorStop(.43,'rgba(255,138,45,.94)');g.addColorStop(1,'rgba(220,42,26,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(tailTipX,tailTipY,31,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#ff7138';ctx.beginPath();ctx.moveTo(tailTipX,tailTipY+14);ctx.quadraticCurveTo(tailTipX-17,tailTipY-4,tailTipX-2,tailTipY-31);ctx.quadraticCurveTo(tailTipX+20,tailTipY-5,tailTipX,tailTipY+14);ctx.fill();
       }
       ctx.restore();
+
       for(const f of d.fires){ctx.save();ctx.translate(f.x,f.y);const pulse=1+Math.sin(this.elapsed*10+f.x)*.12;ctx.scale(pulse,pulse);ctx.fillStyle='rgba(255,104,32,.9)';ctx.beginPath();ctx.moveTo(0,14);ctx.quadraticCurveTo(-14,0,0,-22);ctx.quadraticCurveTo(15,0,0,14);ctx.fill();ctx.fillStyle='#ffe06a';ctx.beginPath();ctx.moveTo(0,9);ctx.quadraticCurveTo(-7,0,0,-11);ctx.quadraticCurveTo(8,0,0,9);ctx.fill();ctx.restore();}
       const ratio=d.tailHealth/d.maxTailHealth;ctx.save();ctx.fillStyle='rgba(255,250,235,.9)';ctx.strokeStyle='rgba(111,58,54,.6)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(128,132,this.width-256,24,12);ctx.fill();ctx.stroke();ctx.fillStyle='#58aee8';ctx.beginPath();ctx.roundRect(132,136,(this.width-264)*(1-ratio),16,8);ctx.fill();ctx.fillStyle='#69433d';ctx.font='800 13px system-ui';ctx.textAlign='center';ctx.fillText('しっぽの火を水で消そう',this.width/2,125);ctx.restore();
     }
@@ -4186,6 +4225,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.4</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.5</div>
 </body>
 </html>
