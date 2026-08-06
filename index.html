@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v4.0.7</title>
+  <title>Fairy Guardian v4.0.8</title>
   <style>
 :root {
   color-scheme: light;
@@ -281,7 +281,6 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
           <button id="startButton" class="primary-button" type="button">おさんぽを始める</button>
           <button id="trainingButton" class="primary-button cave-choice hidden" type="button">🐉 パパドラゴンの特訓</button>
           <button id="mushroomRoomButton" class="primary-button cave-choice hidden" type="button">🍄 光るキノコ部屋</button>
-          <button id="dragonTestButton" class="primary-button cave-choice" type="button">テスト：ドラゴンから開始</button>
         </div>
       </div>
 
@@ -3264,6 +3263,14 @@ class Game {
   enterMushroomRoom() {
     this.mushroomRoomMode = true;
     this.trainingMode = false;
+    // The reward room always uses the fully upgraded spell set:
+    // taps fire the upgraded normal magic, holds fire the ice techniques.
+    this.magicUpgradeUnlocked = true;
+    this.iceMagicUnlocked = true;
+    const windLabel = document.querySelector('#windButton span:last-child');
+    const waterLabel = document.querySelector('#waterButton span:last-child');
+    if (windLabel) windLabel.textContent = '風・猛吹雪';
+    if (waterLabel) waterLabel.textContent = '水・氷つらら';
     this.mode = 'cave';
     this.flowerRoute = false;
     this.activeRoute = null;
@@ -3402,13 +3409,27 @@ class Game {
     // Broad silhouette check first. Papa is intentionally a large training target.
     if (Math.hypot(lx,ly+8) > 135) return false;
 
-    // While the round wind shield is active, its mirror-like air membrane guards
-    // the whole body evenly. Outside that phase Papa can be hit normally.
-    if (this.trainingState.shieldActive > 0 && Math.hypot(lx,ly) < 146) {
-      effect.trainingHit=true;
-      this.trainingState.shieldFlashes.push({x:effect.x,y:effect.y,age:0});
-      this.sound?.windBurst?.(.45);
-      return true;
+    // Two circular wind mirrors orbit Papa. Only the discs themselves block;
+    // gaps between them remain valid attack openings.
+    if (this.trainingState.shieldActive > 0) {
+      const orbitRadius = 116;
+      const shieldRadius = 52;
+      let blocked = false;
+      for (let i = 0; i < 2; i++) {
+        const a = this.trainingState.shieldAngle + i * Math.PI;
+        const sx = p.x + Math.cos(a) * orbitRadius;
+        const sy = p.y + 5 + Math.sin(a) * orbitRadius * .72;
+        if (Math.hypot(effect.x - sx, effect.y - sy) < shieldRadius) {
+          blocked = true;
+          break;
+        }
+      }
+      if (blocked) {
+        effect.trainingHit=true;
+        this.trainingState.shieldFlashes.push({x:effect.x,y:effect.y,age:0});
+        this.sound?.windBurst?.(.45);
+        return true;
+      }
     }
 
     // Head, chest, arms, feet and the central tail base are valid practice zones.
@@ -3533,37 +3554,40 @@ class Game {
     ctx.fillStyle='#263d4b';ctx.beginPath();ctx.ellipse(-10,-38,3,2,0,0,Math.PI*2);ctx.ellipse(10,-38,3,2,0,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-18,-27);ctx.quadraticCurveTo(0,-20,18,-27);ctx.stroke();
 
-    // A round, mirror-like wind shield surrounds Papa evenly from every angle.
-    // The surface itself stays circular while the wind texture rotates inside it.
+    // Two round, mirror-like wind shields orbit Papa on opposite sides.
+    // Their circles stay visually round even when passing above or below him.
     if(t.shieldActive>0){
-      const shieldPulse=.5+.5*Math.sin(p.age*5.2);
-      ctx.save();
-      ctx.globalCompositeOperation='screen';
-      const sg=ctx.createRadialGradient(-34,-42,12,0,4,148);
-      sg.addColorStop(0,`rgba(235,255,250,${.20+.05*shieldPulse})`);
-      sg.addColorStop(.54,'rgba(135,244,213,.13)');
-      sg.addColorStop(.82,'rgba(88,218,191,.20)');
-      sg.addColorStop(1,'rgba(198,255,239,.08)');
-      ctx.fillStyle=sg;ctx.beginPath();ctx.arc(0,5,143,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='rgba(188,255,233,.88)';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,5,141,0,Math.PI*2);ctx.stroke();
-      ctx.strokeStyle='rgba(255,255,255,.42)';ctx.lineWidth=2.2;ctx.beginPath();ctx.arc(-8,-4,126,-2.65,-1.15);ctx.stroke();
-      ctx.save();ctx.beginPath();ctx.arc(0,5,138,0,Math.PI*2);ctx.clip();
-      for(let band=0;band<5;band++){
-        const rr=42+band*21;
-        const phase=t.shieldAngle*(band%2?-.72:.82)+band*1.3;
-        ctx.strokeStyle=`rgba(${band%2?'156,255,223':'208,255,242'},${.24+band*.035})`;
-        ctx.lineWidth=2.2+band*.45;ctx.beginPath();
-        ctx.arc(0,5,rr,phase,phase+Math.PI*1.18);ctx.stroke();
+      const orbitRadius=116;
+      const shieldRadius=52;
+      for(let disc=0;disc<2;disc++){
+        const a=t.shieldAngle+disc*Math.PI;
+        const sx=Math.cos(a)*orbitRadius;
+        const sy=5+Math.sin(a)*orbitRadius*.72;
+        const pulse=.5+.5*Math.sin(p.age*7+disc*Math.PI);
+        ctx.save();
+        ctx.translate(sx,sy);
+        ctx.globalCompositeOperation='screen';
+        const sg=ctx.createRadialGradient(-13,-16,3,0,0,shieldRadius);
+        sg.addColorStop(0,`rgba(250,255,255,${.46+.10*pulse})`);
+        sg.addColorStop(.45,'rgba(178,255,236,.28)');
+        sg.addColorStop(.78,'rgba(99,226,203,.31)');
+        sg.addColorStop(1,'rgba(205,255,244,.10)');
+        ctx.fillStyle=sg;ctx.beginPath();ctx.arc(0,0,shieldRadius,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='rgba(210,255,245,.96)';ctx.lineWidth=4.5;ctx.beginPath();ctx.arc(0,0,shieldRadius-2,0,Math.PI*2);ctx.stroke();
+        ctx.strokeStyle='rgba(255,255,255,.58)';ctx.lineWidth=2;ctx.beginPath();ctx.arc(-7,-5,shieldRadius-12,-2.75,-1.15);ctx.stroke();
+        for(let band=0;band<3;band++){
+          const phase=t.shieldAngle*(band%2?-.95:1.05)+disc+band*1.8;
+          ctx.strokeStyle=`rgba(183,255,237,${.32+band*.10})`;
+          ctx.lineWidth=2+band*.45;ctx.beginPath();ctx.arc(0,0,19+band*11,phase,phase+Math.PI*1.18);ctx.stroke();
+        }
+        for(let i=0;i<10;i++){
+          const q=t.shieldAngle*1.2+i*Math.PI*2/10;
+          const rr=shieldRadius-5+Math.sin(p.age*5+i)*2;
+          ctx.fillStyle='rgba(235,255,250,.72)';
+          ctx.beginPath();ctx.ellipse(Math.cos(q)*rr,Math.sin(q)*rr,2.8,1.25,q,0,Math.PI*2);ctx.fill();
+        }
+        ctx.restore();
       }
-      ctx.restore();
-      for(let i=0;i<18;i++){
-        const a=t.shieldAngle*.85+i*Math.PI*2/18;
-        const rr=141+Math.sin(p.age*4+i)*4;
-        const px=Math.cos(a)*rr,py=5+Math.sin(a)*rr;
-        ctx.fillStyle=`rgba(226,255,245,${.45+.3*((i%3)/2)})`;
-        ctx.beginPath();ctx.ellipse(px,py,3.6,1.5,a,0,Math.PI*2);ctx.fill();
-      }
-      ctx.restore();
     }
 
     ctx.restore();
@@ -3582,7 +3606,7 @@ class Game {
     // Training gauge.
     ctx.save();ctx.fillStyle='rgba(235,247,255,.94)';ctx.strokeStyle='rgba(78,102,128,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(58,84,this.width-116,91,22);ctx.fill();ctx.stroke();
     ctx.fillStyle='#36516a';ctx.textAlign='center';ctx.font='800 18px system-ui';
-    const heading=t.complete?'特訓合格！':'丸い風の盾が消えた時に魔法を当てよう';
+    const heading=t.complete?'特訓合格！':'2枚の風の盾のすき間を狙おう';
     ctx.fillText(heading,this.width/2,111);
     ctx.fillStyle='rgba(44,75,91,.2)';ctx.beginPath();ctx.roundRect(92,128,this.width-184,18,9);ctx.fill();
     const ratio=Math.min(1,t.gauge/t.target);const gg=ctx.createLinearGradient(92,0,this.width-92,0);gg.addColorStop(0,'#80e6c5');gg.addColorStop(1,'#9fd8ff');ctx.fillStyle=gg;ctx.beginPath();ctx.roundRect(92,128,(this.width-184)*ratio,18,9);ctx.fill();
@@ -4863,7 +4887,6 @@ const startButton = document.querySelector('#startButton');
 const trainingButton = document.querySelector('#trainingButton');
 const mushroomRoomButton = document.querySelector('#mushroomRoomButton');
 const roomExitButton = document.querySelector('#roomExitButton');
-const dragonTestButton = document.querySelector('#dragonTestButton');
 const dragonResultScreen = document.querySelector('#dragonResultScreen');
 const dragonResultText = document.querySelector('#dragonResultText');
 const goTrainingButton = document.querySelector('#goTrainingButton');
@@ -4948,22 +4971,6 @@ goTrainingButton.addEventListener('click', () => {
   location.reload();
 });
 returnTitleButton.addEventListener('click', () => { location.reload(); });
-
-dragonTestButton.addEventListener('click', () => {
-  sound.unlock();
-  titleScreen.classList.add('hidden');
-  controls.classList.remove('hidden');
-  hudElement.classList.remove('hidden');
-  game.start('meadow');
-  game.completedRoutes = new Set(['flowers','cave','wetland']);
-  game.unlockMagicUpgrade();
-  game.magicUpgradeNotice = 0;
-  game.forestAnomalySeen = true;
-  game.forestAnomaly = { active:false, age:0, duration:9.0, soundPlayed:true };
-  game.dragonEventReady = true;
-  game.startDragonRescue();
-});
-
 
 routeCaveButton.addEventListener('click', () => {
   if (routeCaveButton.disabled) return;
@@ -5100,6 +5107,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.7</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.8</div>
 </body>
 </html>
