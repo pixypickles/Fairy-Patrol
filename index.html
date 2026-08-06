@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.8.6</title>
+  <title>Fairy Guardian v3.9.4</title>
   <style>
 :root {
   color-scheme: light;
@@ -3166,7 +3166,7 @@ class Game {
     this.mushrooms=[];this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];
     this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandLotuses=[];
     this.birdSpawnTimer=this.catSpawnTimer=this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=99999;
-    this.trainingPapa = { x:this.width/2, y:360, age:0, facing:1, turned:false };
+    this.trainingPapa = { x:this.width/2, y:360, age:0, facing:1, turned:true };
     this.trainingState = { gauge:0, target:100, fireballs:[], shotTimer:1.35, complete:false, mistakes:0, resultAge:0 };
     // Training begins with the strong tap spells already learned in the journey.
     this.magicUpgradeUnlocked = true;
@@ -3181,8 +3181,7 @@ class Game {
     // The arena is fixed. Papa remains seated and calmly watches the fairy.
     p.x=this.width/2;
     p.y=365 + Math.sin(p.age*1.4)*1.8;
-    p.turned = p.age > 2.4;
-    if (!p.turned) return;
+    p.turned = true;
 
     if (t.complete) {
       t.resultAge += dt;
@@ -3249,8 +3248,7 @@ class Game {
   drawTrainingPapa(ctx) {
     if (!this.trainingMode) return;
     const p=this.trainingPapa;
-    const turn=Math.min(1,Math.max(0,(p.age-2.1)/.65));
-    const back=1-turn;
+    const turn=1;
     ctx.save();
     // Fixed training chamber floor.
     ctx.fillStyle='rgba(14,35,44,.22)';ctx.beginPath();ctx.ellipse(this.width/2,450,145,38,0,0,Math.PI*2);ctx.fill();
@@ -3265,20 +3263,12 @@ class Game {
     ctx.fillStyle='#3f6889';ctx.beginPath();ctx.ellipse(-34,78,26,18,-.2,0,Math.PI*2);ctx.ellipse(34,78,26,18,.2,0,Math.PI*2);ctx.fill();ctx.stroke();
     ctx.strokeStyle='#263d4b';ctx.lineWidth=16;ctx.beginPath();ctx.moveTo(30,62);ctx.quadraticCurveTo(96,78,72,128);ctx.quadraticCurveTo(49,153,22,126);ctx.stroke();
     ctx.strokeStyle='#4f7897';ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(30,62);ctx.quadraticCurveTo(96,78,72,128);ctx.quadraticCurveTo(49,153,22,126);ctx.stroke();
-    // Head begins as a back view, then smoothly reveals a calm smiling face.
+    // Papa faces forward from the beginning; no turn-around animation.
     ctx.fillStyle='#557f9e';ctx.beginPath();ctx.ellipse(0,-42,58,48,0,0,Math.PI*2);ctx.fill();ctx.stroke();
     ctx.fillStyle='#dccb9d';ctx.beginPath();ctx.moveTo(-35,-78);ctx.lineTo(-23,-112);ctx.lineTo(-9,-76);ctx.closePath();ctx.moveTo(15,-77);ctx.lineTo(34,-109);ctx.lineTo(38,-67);ctx.closePath();ctx.fill();ctx.stroke();
-    if(back>.02){
-      ctx.globalAlpha=back;ctx.fillStyle='#426b88';ctx.beginPath();ctx.ellipse(0,-38,38,31,0,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='rgba(223,243,250,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-18,-50);ctx.quadraticCurveTo(0,-67,18,-50);ctx.stroke();ctx.globalAlpha=1;
-    }
-    if(turn>.02){
-      ctx.globalAlpha=turn;
-      ctx.fillStyle='#eaf5f6';ctx.beginPath();ctx.ellipse(-21,-48,8,7,0,0,Math.PI*2);ctx.ellipse(21,-48,8,7,0,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#263d4b';ctx.beginPath();ctx.ellipse(-21,-47,3,2,0,0,Math.PI*2);ctx.ellipse(21,-47,3,2,0,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,-31,22,.2,Math.PI-.2);ctx.stroke();
-      ctx.globalAlpha=1;
-    }
+    ctx.fillStyle='#eaf5f6';ctx.beginPath();ctx.ellipse(-21,-48,8,7,0,0,Math.PI*2);ctx.ellipse(21,-48,8,7,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#263d4b';ctx.beginPath();ctx.ellipse(-21,-47,3,2,0,0,Math.PI*2);ctx.ellipse(21,-47,3,2,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,-31,22,.2,Math.PI-.2);ctx.stroke();
     ctx.restore();
 
     const t=this.trainingState;
@@ -3291,7 +3281,7 @@ class Game {
     // Training gauge.
     ctx.save();ctx.fillStyle='rgba(235,247,255,.94)';ctx.strokeStyle='rgba(78,102,128,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(58,84,this.width-116,91,22);ctx.fill();ctx.stroke();
     ctx.fillStyle='#36516a';ctx.textAlign='center';ctx.font='800 18px system-ui';
-    const heading=!p.turned?'大きな背中が、静かに待っています':t.complete?'特訓合格！':'魔法を当てて、火球をよけよう';
+    const heading=t.complete?'特訓合格！':'魔法を当てて、火球をよけよう';
     ctx.fillText(heading,this.width/2,111);
     ctx.fillStyle='rgba(44,75,91,.2)';ctx.beginPath();ctx.roundRect(92,128,this.width-184,18,9);ctx.fill();
     const ratio=Math.min(1,t.gauge/t.target);const gg=ctx.createLinearGradient(92,0,this.width-92,0);gg.addColorStop(0,'#80e6c5');gg.addColorStop(1,'#9fd8ff');ctx.fillStyle=gg;ctx.beginPath();ctx.roundRect(92,128,(this.width-184)*ratio,18,9);ctx.fill();
@@ -4563,6 +4553,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.6</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.9.4</div>
 </body>
 </html>
