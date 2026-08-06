@@ -2662,7 +2662,7 @@ class Game {
     this.dragonTrainingEvaluation = { minusLimit: 300, eligible: true, rank: '★★★' };
     this.trainingUnlocked = localStorage.getItem('fairyGuardianTrainingUnlocked') === '1';
     this.trainingMode = false;
-    this.trainingPapa = { x:270, y:245, age:0, facing:1 };
+    this.trainingPapa = { x:270, y:325, age:0, facing:1, turned:false };
     this.onTrainingUnlock = null;
     this.onDragonResult = null;
     this.forestAnomalySeen = false;
@@ -2670,7 +2670,7 @@ class Game {
     this.dragonEventReady = false;
     this.magicUpgradeUnlocked = false;
     this.magicUpgradeNotice = 0;
-      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:245, prevX:this.width/2, facing:1, tailHealth:15, maxTailHealth:15, fireTimer:.75, fires:[], fireballTimer:2.8, fireballs:[], craters:[], nextCraterId:1, notice:0, rewardGiven:false, resultDelay:4.2, resultShown:false };
+      this.dragonRescue = { active:false, completed:false, age:0, familyAge:0, x:this.width/2, y:245, prevX:this.width/2, facing:1, tailHealth:15, maxTailHealth:15, fireTimer:.75, fires:[], fireballTimer:2.8, fireballs:[], craters:[], nextCraterId:1, notice:0, rewardGiven:false, resultDelay:10.5, resultShown:false };
     this.returnNotice = 0;
     this.transition = null;
     this.transitionPass = false;
@@ -3165,33 +3165,56 @@ class Game {
     this.mushrooms=[];this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];
     this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandLotuses=[];
     this.birdSpawnTimer=this.catSpawnTimer=this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=99999;
-    this.trainingPapa = { x:this.width/2, y:255, age:0, facing:1 };
+    this.trainingPapa = { x:this.width/2, y:360, age:0, facing:1, turned:false };
     this.returnNotice = 4.0;
   }
 
   updateTrainingPapa(dt) {
     if (!this.trainingMode) return;
-    const p=this.trainingPapa; p.age+=dt;
-    p.x=this.width/2+Math.sin(p.age*.65)*72;
-    p.y=250+Math.sin(p.age*1.15)*12;
-    p.facing=Math.cos(p.age*.65)>=0?1:-1;
+    const p=this.trainingPapa;
+    p.age+=dt;
+    // The training room is a calm, fixed arena. Papa sits still and turns
+    // around after a short welcome pause instead of hovering across the room.
+    p.x=this.width/2;
+    p.y=365 + Math.sin(p.age*1.4)*1.8;
+    p.turned = p.age > 2.4;
   }
 
   drawTrainingPapa(ctx) {
     if (!this.trainingMode) return;
-    const p=this.trainingPapa, flap=Math.sin(p.age*8);
-    ctx.save();ctx.translate(p.x,p.y);ctx.scale(p.facing,1);
-    ctx.fillStyle='rgba(15,32,42,.22)';ctx.beginPath();ctx.ellipse(0,70,76,22,0,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#263d4b';ctx.lineWidth=5;ctx.lineJoin='round';
-    ctx.fillStyle='#466c91';ctx.beginPath();ctx.ellipse(0,15,68,54,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.save();ctx.translate(-22,0);ctx.rotate(-.18+flap*.14);ctx.fillStyle='rgba(99,147,185,.95)';ctx.beginPath();ctx.moveTo(0,5);ctx.quadraticCurveTo(-75,-58,-95,-4);ctx.quadraticCurveTo(-70,24,-8,32);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
-    ctx.save();ctx.translate(18,0);ctx.rotate(.18-flap*.14);ctx.fillStyle='rgba(99,147,185,.95)';ctx.beginPath();ctx.moveTo(0,5);ctx.quadraticCurveTo(75,-58,95,-4);ctx.quadraticCurveTo(70,24,8,32);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
-    ctx.fillStyle='#527b9f';ctx.beginPath();ctx.ellipse(5,-45,55,43,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#e9f4f5';ctx.beginPath();ctx.ellipse(25,-51,10,12,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#263d4b';ctx.beginPath();ctx.arc(29,-50,4,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#d9c6a0';ctx.beginPath();ctx.moveTo(-27,-73);ctx.lineTo(-16,-102);ctx.lineTo(-4,-72);ctx.closePath();ctx.moveTo(12,-75);ctx.lineTo(30,-99);ctx.lineTo(34,-66);ctx.closePath();ctx.fill();ctx.stroke();
-    ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(32,-34,13,.15,Math.PI-.2);ctx.stroke();
+    const p=this.trainingPapa;
+    const turn=Math.min(1,Math.max(0,(p.age-2.1)/.65));
+    const back=1-turn;
+    ctx.save();
+    // Fixed training chamber floor.
+    ctx.fillStyle='rgba(14,35,44,.22)';ctx.beginPath();ctx.ellipse(this.width/2,450,145,38,0,0,Math.PI*2);ctx.fill();
+    ctx.translate(p.x,p.y);
+    ctx.strokeStyle='#263d4b';ctx.lineWidth=5;ctx.lineJoin='round';ctx.lineCap='round';
+    // Folded wings frame the seated body.
+    ctx.fillStyle='#6f9ab3';
+    ctx.beginPath();ctx.moveTo(-34,-8);ctx.quadraticCurveTo(-118,-90,-116,26);ctx.quadraticCurveTo(-88,78,-35,48);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.moveTo(34,-8);ctx.quadraticCurveTo(118,-90,116,26);ctx.quadraticCurveTo(88,78,35,48);ctx.closePath();ctx.fill();ctx.stroke();
+    // Seated body, feet and curled tail.
+    ctx.fillStyle='#4f7897';ctx.beginPath();ctx.ellipse(0,28,58,65,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#3f6889';ctx.beginPath();ctx.ellipse(-34,78,26,18,-.2,0,Math.PI*2);ctx.ellipse(34,78,26,18,.2,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.strokeStyle='#263d4b';ctx.lineWidth=16;ctx.beginPath();ctx.moveTo(30,62);ctx.quadraticCurveTo(96,78,72,128);ctx.quadraticCurveTo(49,153,22,126);ctx.stroke();
+    ctx.strokeStyle='#4f7897';ctx.lineWidth=10;ctx.beginPath();ctx.moveTo(30,62);ctx.quadraticCurveTo(96,78,72,128);ctx.quadraticCurveTo(49,153,22,126);ctx.stroke();
+    // Head begins as a back view, then smoothly reveals a calm smiling face.
+    ctx.fillStyle='#557f9e';ctx.beginPath();ctx.ellipse(0,-42,58,48,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#dccb9d';ctx.beginPath();ctx.moveTo(-35,-78);ctx.lineTo(-23,-112);ctx.lineTo(-9,-76);ctx.closePath();ctx.moveTo(15,-77);ctx.lineTo(34,-109);ctx.lineTo(38,-67);ctx.closePath();ctx.fill();ctx.stroke();
+    if(back>.02){
+      ctx.globalAlpha=back;ctx.fillStyle='#426b88';ctx.beginPath();ctx.ellipse(0,-38,38,31,0,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(223,243,250,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-18,-50);ctx.quadraticCurveTo(0,-67,18,-50);ctx.stroke();ctx.globalAlpha=1;
+    }
+    if(turn>.02){
+      ctx.globalAlpha=turn;
+      ctx.fillStyle='#eaf5f6';ctx.beginPath();ctx.ellipse(-21,-48,8,7,0,0,Math.PI*2);ctx.ellipse(21,-48,8,7,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#263d4b';ctx.beginPath();ctx.ellipse(-21,-47,3,2,0,0,Math.PI*2);ctx.ellipse(21,-47,3,2,0,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,-31,22,.2,Math.PI-.2);ctx.stroke();
+      ctx.globalAlpha=1;
+    }
     ctx.restore();
-    ctx.save();ctx.fillStyle='rgba(235,247,255,.92)';ctx.strokeStyle='rgba(78,102,128,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(72,90,this.width-144,70,22);ctx.fill();ctx.stroke();ctx.fillStyle='#36516a';ctx.textAlign='center';ctx.font='800 19px system-ui';ctx.fillText('パパドラゴンが特訓場で待っています',this.width/2,120);ctx.font='700 14px system-ui';ctx.fillText('今回は入口の確認です。特訓内容は次の更新で追加します。',this.width/2,146);ctx.restore();
+    ctx.save();ctx.fillStyle='rgba(235,247,255,.94)';ctx.strokeStyle='rgba(78,102,128,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(72,92,this.width-144,72,22);ctx.fill();ctx.stroke();ctx.fillStyle='#36516a';ctx.textAlign='center';ctx.font='800 19px system-ui';ctx.fillText(p.age<2.4?'大きな背中が、静かに待っています':'パパドラゴンが振り返りました',this.width/2,122);ctx.font='700 14px system-ui';ctx.fillText('今回は特訓場の入口です。戦闘は次の更新で追加します。',this.width/2,148);ctx.restore();
   }
 
   startDragonRescue() {
@@ -3218,7 +3241,8 @@ class Game {
     d.nextCraterId = 1;
     d.notice = 3.2;
     d.rewardGiven = false;
-    d.resultDelay = 4.2;
+    d.familyAge = 0;
+    d.resultDelay = 10.5;
     d.resultShown = false;
     this.dragonEventReady = false;
   }
@@ -3230,7 +3254,8 @@ class Game {
     if (!d.active) {
       d.notice = Math.max(0, (d.notice || 0) - dt);
       if (d.completed && !d.resultShown) {
-        d.resultDelay = Math.max(0,(d.resultDelay ?? 4.2)-dt);
+        d.familyAge = (d.familyAge || 0) + dt;
+        d.resultDelay = Math.max(0,(d.resultDelay ?? 10.5)-dt);
         if (d.resultDelay <= 0) {
           d.resultShown = true;
           const evaluation = this.getDragonTrainingEvaluation();
@@ -3321,7 +3346,7 @@ class Game {
     d.fires = d.fires.filter(f=>!f.dead);
     const activePillars = d.craters.some(c=>c.fireActive);
     if (d.tailHealth <= 0 && d.fires.length === 0 && d.fireballs.length === 0 && !activePillars) {
-      d.active = false; d.completed = true; d.notice = 5.0;
+      d.active = false; d.completed = true; d.notice = 5.0; d.familyAge = 0; d.resultDelay = 10.5;
       for(const c of d.craters){c.fireActive=false;c.sprout=.01;}
       if (!d.rewardGiven) { d.rewardGiven = true; this.plus += 700; this.sound.flower(5); }
     }
@@ -3458,6 +3483,23 @@ class Game {
       for(const f of d.fires){ctx.save();ctx.translate(f.x,f.y);const pulse=1+Math.sin(this.elapsed*10+f.x)*.12;ctx.scale(pulse,pulse);ctx.fillStyle='rgba(255,104,32,.9)';ctx.beginPath();ctx.moveTo(0,14);ctx.quadraticCurveTo(-14,0,0,-22);ctx.quadraticCurveTo(15,0,0,14);ctx.fill();ctx.fillStyle='#ffe06a';ctx.beginPath();ctx.moveTo(0,9);ctx.quadraticCurveTo(-7,0,0,-11);ctx.quadraticCurveTo(8,0,0,9);ctx.fill();ctx.restore();}
       const ratio=d.tailHealth/d.maxTailHealth;ctx.save();ctx.fillStyle='rgba(255,250,235,.9)';ctx.strokeStyle='rgba(111,58,54,.6)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(128,132,this.width-256,24,12);ctx.fill();ctx.stroke();ctx.fillStyle='#58aee8';ctx.beginPath();ctx.roundRect(132,136,(this.width-264)*(1-ratio),16,8);ctx.fill();ctx.fillStyle='#69433d';ctx.font='800 13px system-ui';ctx.textAlign='center';ctx.fillText('しっぽと火柱を水で消そう',this.width/2,125);ctx.restore();
     }
+    if (d.completed && !d.resultShown) {
+      const a=d.familyAge||0;
+      // Child settles near the chick first.
+      const childT=Math.min(1,a/2.0);
+      const childX=this.width*.5 + 72*(1-childT);
+      const childY=330 - 42*childT + Math.sin(a*3)*2;
+      ctx.save();ctx.translate(childX,childY);ctx.strokeStyle='#285f68';ctx.lineWidth=3.5;ctx.fillStyle='#67cec2';ctx.beginPath();ctx.ellipse(0,7,27,24,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.ellipse(13,-16,24,20,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(20,-20,5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#263d4b';ctx.beginPath();ctx.arc(21,-19,2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#263d4b';ctx.lineWidth=2;ctx.beginPath();ctx.arc(15,-8,8,.15,Math.PI-.2);ctx.stroke();ctx.fillStyle='#95e2d7';ctx.beginPath();ctx.moveTo(-8,1);ctx.quadraticCurveTo(-38,-28,-39,9);ctx.quadraticCurveTo(-26,25,-5,18);ctx.fill();ctx.stroke();ctx.restore();
+      // Papa enters only after the child is visibly safe.
+      if(a>2.5){
+        const q=Math.min(1,(a-2.5)/2.1);
+        const px=this.width/2;
+        const py=110+(1-q)*(-155);
+        ctx.save();ctx.translate(px,py);ctx.strokeStyle='#263d4b';ctx.lineWidth=5;ctx.fillStyle='#4f7897';ctx.beginPath();ctx.ellipse(0,20,72,58,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#6f9ab3';ctx.beginPath();ctx.moveTo(-34,4);ctx.quadraticCurveTo(-126,-54,-112,45);ctx.quadraticCurveTo(-72,78,-28,45);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(34,4);ctx.quadraticCurveTo(126,-54,112,45);ctx.quadraticCurveTo(72,78,28,45);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#557f9e';ctx.beginPath();ctx.ellipse(0,-42,58,45,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#eaf5f6';ctx.beginPath();ctx.ellipse(-19,-48,7,6,0,0,Math.PI*2);ctx.ellipse(19,-48,7,6,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#263d4b';ctx.beginPath();ctx.arc(-19,-47,2.4,0,Math.PI*2);ctx.arc(19,-47,2.4,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,-30,21,.2,Math.PI-.2);ctx.stroke();ctx.restore();
+      }
+      if(a>5.2){ctx.save();ctx.fillStyle='rgba(255,252,238,.94)';ctx.strokeStyle='rgba(92,78,72,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(76,175,this.width-152,62,20);ctx.fill();ctx.stroke();ctx.fillStyle='#4e514f';ctx.font='800 18px system-ui';ctx.textAlign='center';ctx.fillText('パパドラゴンが、静かに頭を下げました',this.width/2,207);ctx.restore();}
+    }
+
     if (d.notice > 0) {
       ctx.save();ctx.globalAlpha=Math.min(1,d.notice/.5);ctx.fillStyle='rgba(255,251,235,.94)';ctx.strokeStyle='rgba(116,72,61,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(78,165,this.width-156,58,20);ctx.fill();ctx.stroke();ctx.fillStyle='#704539';ctx.font='800 18px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(d.completed?'火が消え、穴から芽が出ました！':'しっぽと地面の火を消そう！',this.width/2,194);ctx.restore();
     }
@@ -3556,6 +3598,15 @@ class Game {
     this.updateForestAnomaly(dt);
     this.updateDragonRescue(dt);
     this.updateTrainingPapa(dt);
+    if (this.trainingMode) {
+      // No scrolling in the training-room introduction.
+      const moveVector = this.input.getVector();
+      this.fairy.update(dt, moveVector, this.width, this.height);
+      this.chick.update(dt, this.elapsed);
+      this.cooldowns.wind = Math.max(0, this.cooldowns.wind - dt);
+      this.cooldowns.water = Math.max(0, this.cooldowns.water - dt);
+      return;
+    }
     // Every side route uses the same score checkpoint.  Do not infer route
     // state from scenery/mode flags: use activeRoute, which is set exactly when
     // the player enters a route.  This fixes wetland runs that could exceed the
