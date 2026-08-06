@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.7.9</title>
+  <title>Fairy Guardian v3.8.1</title>
   <style>
 :root {
   color-scheme: light;
@@ -479,6 +479,13 @@ class AudioEngine {
       this.tone(1510,.12,{type:'sine',volume:.010,endFreq:920,delay:.028});
       this.noise(.055,{volume:.006,highpass:1300,lowpass:5000,delay:.018});
     }
+  }
+  forestOmen(){
+    if(!this.can('forest-omen',4.5))return;
+    this.noise(.72,{volume:.024,highpass:65,lowpass:620});
+    this.tone(92,.82,{type:'sine',volume:.027,endFreq:68});
+    this.tone(138,.48,{type:'triangle',volume:.014,endFreq:102,delay:.18});
+    this.noise(.22,{volume:.016,highpass:430,lowpass:2100,delay:.58});
   }
   wings(speed=1){
     if(!this.can('wings',.34))return;
@@ -2640,6 +2647,9 @@ class Game {
     this.routeGoal = 5000;
     this.completedRoutes = new Set();
     this.dragonTrainingEvaluation = { minusLimit: 300, eligible: true, rank: '★★★' };
+    this.forestAnomalySeen = false;
+    this.forestAnomaly = { active:false, age:0, duration:9.0, soundPlayed:false };
+    this.dragonEventReady = false;
     this.returnNotice = 0;
     this.transition = null;
     this.transitionPass = false;
@@ -2727,6 +2737,7 @@ class Game {
   }
 
   enterCaveRoute() {
+    this.routeGoal=5000;
     this.mode='cave'; this.flowerRoute=false; this.pausedForRoute=false; this.sound.caveMode=true;
     this.activeRoute='cave';
     this.plus=0;
@@ -2746,6 +2757,7 @@ class Game {
   }
 
   enterFlowerRoute() {
+    this.routeGoal=5000;
     this.mode='meadow'; this.flowerRoute=true; this.pausedForRoute=false; this.sound.caveMode=false;
     this.activeRoute='flowers';
     this.plus=0;
@@ -2759,6 +2771,7 @@ class Game {
 
 
   enterWetlandRoute() {
+    this.routeGoal=3000;
     this.mode='wetland'; this.wetlandMode=true; this.flowerRoute=false; this.pausedForRoute=false; this.sound.caveMode=false;
     this.activeRoute='wetland';
     this.plus=0; this.routeStartPlus=0; this.pendingRouteBase=null; this.stage=new WetlandStage(this.width,this.height);
@@ -2803,6 +2816,13 @@ class Game {
     // Every common-meadow visit starts a fresh 2500-point walk.
     this.nextRouteAt=2500;
     this.returnNotice=3.0;
+    if (this.completedRoutes.size >= 3 && !this.forestAnomalySeen) {
+      this.forestAnomalySeen = true;
+      this.forestAnomaly = { active:true, age:0, duration:9.0, soundPlayed:false };
+      this.dragonEventReady = false;
+      this.returnNotice = 0;
+      this.routePromptShown = true;
+    }
   }
 
   updateDragonTrainingEvaluation() {
@@ -3088,6 +3108,75 @@ class Game {
     return null;
   }
 
+  updateForestAnomaly(dt) {
+    const omen = this.forestAnomaly;
+    if (!omen?.active) return;
+    omen.age += dt;
+    if (!omen.soundPlayed && omen.age > .65) {
+      omen.soundPlayed = true;
+      this.sound.forestOmen();
+      this.chick.lookMode = 'forward';
+      this.chick.turnTime = 2.2;
+    }
+    if (omen.age >= omen.duration) {
+      omen.active = false;
+      this.dragonEventReady = true;
+    }
+  }
+
+  drawForestAnomaly(ctx) {
+    const omen = this.forestAnomaly;
+    if (!omen?.active) return;
+    const a = omen.age;
+    const fadeIn = Math.min(1, a / 1.5);
+    const fadeOut = Math.min(1, (omen.duration - a) / 1.5);
+    const alpha = Math.max(0, Math.min(fadeIn, fadeOut));
+    ctx.save();
+    ctx.fillStyle = `rgba(45,48,67,${.18 * alpha})`;
+    ctx.fillRect(0,0,this.width,this.height);
+
+    // A distant red silhouette crosses the far end of the meadow.
+    if (a > 1.4 && a < 5.8) {
+      const q = (a - 1.4) / 4.4;
+      const x = -110 + q * (this.width + 220);
+      const y = 112 + Math.sin(q * Math.PI) * 28;
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.rotate(-.08 + Math.sin(a*2)*.025);
+      ctx.globalAlpha = .36 * alpha;
+      ctx.fillStyle = '#9b3b35';
+      ctx.beginPath();ctx.ellipse(0,0,54,18,0,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.moveTo(-18,-4);ctx.quadraticCurveTo(-56,-38,-82,-16);ctx.quadraticCurveTo(-52,-8,-20,5);ctx.fill();
+      ctx.beginPath();ctx.moveTo(18,-4);ctx.quadraticCurveTo(58,-36,88,-11);ctx.quadraticCurveTo(56,-7,20,6);ctx.fill();
+      ctx.beginPath();ctx.moveTo(47,0);ctx.quadraticCurveTo(77,8,94,28);ctx.quadraticCurveTo(65,18,39,8);ctx.fill();
+      ctx.restore();
+    }
+
+    // A few harmless sparks drift down as a warning of the coming event.
+    if (a > 3.0) {
+      for (let i=0;i<10;i++) {
+        const t = (a - 3 + i*.37) % 3.8;
+        const x = 45 + ((i*83 + 37) % (this.width-90));
+        const y = 55 + t * 118;
+        const p = Math.max(0,1-t/3.8) * alpha;
+        ctx.fillStyle = `rgba(255,${110+i%3*30},55,${.72*p})`;
+        ctx.beginPath();ctx.arc(x+Math.sin(a*2+i)*8,y,2.2+(i%2),0,Math.PI*2);ctx.fill();
+      }
+    }
+
+    if (a > 6.1) {
+      const t = Math.min(1,(a-6.1)/.5) * fadeOut;
+      ctx.globalAlpha = t;
+      ctx.fillStyle='rgba(252,248,233,.92)';
+      ctx.strokeStyle='rgba(119,75,60,.55)';ctx.lineWidth=3;
+      ctx.beginPath();ctx.roundRect(72,92,this.width-144,66,22);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#704539';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.font='800 20px system-ui,sans-serif';
+      ctx.fillText('森の向こうで、何かが慌てています…',this.width/2,125);
+    }
+    ctx.restore();
+  }
+
   update(dt) {
     if (this.pausedForRoute) return;
     if (this.transition && !this.transitionPass) {
@@ -3109,6 +3198,7 @@ class Game {
     }
     this.elapsed += dt;
     this.distance += dt * 5;
+    this.updateForestAnomaly(dt);
     // Every side route uses the same score checkpoint.  Do not infer route
     // state from scenery/mode flags: use activeRoute, which is set exactly when
     // the player enters a route.  This fixes wetland runs that could exceed the
@@ -3481,8 +3571,8 @@ class Game {
         } else {
           if(this.mode==='cave'){for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,radius*.62)){this.plus+=25;this.sound.mushroom(m.note);this.registerMushroomHit(m);}}}
           if(this.mode==='wetland'){
-            for(const f of this.wetlandFrogs){if(f.waterHit(e.x,e.y,radius*.62)){this.plus+=35;this.sound.frogNote(f.note);}}
-            for(const l of this.wetlandLotuses){if(l.waterHit(e.x,e.y,radius*.62)){this.plus+=55;this.sound.flower(1);}}
+            for(const f of this.wetlandFrogs){if(f.waterHit(e.x,e.y,radius*.62)){this.plus+=60;this.sound.frogNote(f.note);}}
+            for(const l of this.wetlandLotuses){if(l.waterHit(e.x,e.y,radius*.62)){this.plus+=90;this.sound.flower(1);}}
           }
           if(!e.frogChecked){this.tryFrogSplash(e.x,e.y);e.frogChecked=true;}
           for (const flower of this.flowers) {
@@ -3702,6 +3792,7 @@ class Game {
       for(let i=0;i<16;i++){const a=i*.9+this.elapsed*.55;const r=55+(i%5)*50;this.ctx.fillStyle=`rgba(215,255,246,${.22*t})`;this.ctx.beginPath();this.ctx.arc(this.width/2+Math.cos(a)*r,this.height*.52+Math.sin(a)*r*.55,1.8+(i%3),0,Math.PI*2);this.ctx.fill();}
       this.ctx.restore();
     }
+    this.drawForestAnomaly(this.ctx);
     if(this.returnNotice>0){
       const a=Math.min(1,this.returnNotice/.45, (3-this.returnNotice)/.45+1);
       this.ctx.save();
@@ -3913,6 +4004,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.7.9</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.1</div>
 </body>
 </html>
