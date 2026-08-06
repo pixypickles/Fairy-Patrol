@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.9.6</title>
+  <title>Fairy Guardian v3.9.7</title>
   <style>
 :root {
   color-scheme: light;
@@ -3167,7 +3167,7 @@ class Game {
     this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandLotuses=[];
     this.birdSpawnTimer=this.catSpawnTimer=this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=99999;
     this.trainingPapa = { x:this.width/2, y:360, age:0, facing:1, turned:true };
-    this.trainingState = { gauge:0, target:1000, fireballs:[], shotTimer:1.35, complete:false, mistakes:0, resultAge:0, shieldFlashes:[] };
+    this.trainingState = { gauge:0, target:1000, fireballs:[], shotTimer:.85, complete:false, mistakes:0, resultAge:0, shieldFlashes:[], shieldTimer:2.8, shieldActive:0, shieldAngle:0, wingGuard:0 };
     // Training begins with the strong tap spells already learned in the journey.
     this.magicUpgradeUnlocked = true;
     this.returnNotice = 4.0;
@@ -3191,19 +3191,50 @@ class Game {
       return;
     }
 
+    // Papa periodically brings both wings forward. Two compact tornadoes are
+    // released from the wing tips and orbit his body as a temporary shield.
+    t.shieldTimer -= dt;
+    if (t.shieldActive > 0) {
+      t.shieldActive = Math.max(0, t.shieldActive-dt);
+      t.shieldAngle += dt*5.4;
+      t.wingGuard += (1-t.wingGuard)*Math.min(1,dt*8);
+      if (t.shieldActive <= 0) t.shieldTimer = 3.4 + Math.random()*1.8;
+    } else {
+      t.wingGuard += (0-t.wingGuard)*Math.min(1,dt*7);
+      if (t.shieldTimer <= 0) {
+        t.shieldActive = 2.5;
+        t.shieldAngle = 0;
+        this.sound?.windBurst?.(.8);
+      }
+    }
+
+    // More frequent, denser fireball volleys. Water balls can cancel them.
     t.shotTimer -= dt;
     if (t.shotTimer <= 0) {
-      const sx=p.x + (Math.random()-.5)*42;
-      const sy=p.y+54;
-      const dx=this.fairy.x-sx, dy=this.fairy.y-sy;
-      const len=Math.hypot(dx,dy)||1;
-      const speed=145 + Math.random()*28;
-      t.fireballs.push({x:sx,y:sy,vx:dx/len*speed,vy:dy/len*speed,age:0,dead:false});
-      t.shotTimer=1.45+Math.random()*.65;
+      const volley = 2 + (Math.random()<.45 ? 1 : 0);
+      for(let i=0;i<volley;i++){
+        const sx=p.x + (i-(volley-1)/2)*34;
+        const sy=p.y+46;
+        const aimX=this.fairy.x + (i-(volley-1)/2)*26;
+        const dx=aimX-sx, dy=this.fairy.y-sy;
+        const len=Math.hypot(dx,dy)||1;
+        const speed=165 + Math.random()*35;
+        t.fireballs.push({x:sx,y:sy,vx:dx/len*speed,vy:dy/len*speed,age:0,dead:false});
+      }
+      t.shotTimer=.72+Math.random()*.45;
       this.sound?.dragonWhoosh?.();
     }
     for (const f of t.fireballs) {
       f.age+=dt; f.x+=f.vx*dt; f.y+=f.vy*dt;
+      // Water projectiles cancel fireballs instead of both passing through.
+      for(const e of this.effects){
+        if(f.dead || e.dead || e.phase!=='travel' || e.kind!=='water') continue;
+        if(Math.hypot(f.x-e.x,f.y-e.y)<28){
+          f.dead=true; e.phase='burst'; e.age=0;
+          this.sound?.impact?.('water',1.15,!!e.spreadShot);
+          this.effects.push({x:(f.x+e.x)/2,y:(f.y+e.y)/2,age:0,travel:0,burst:.28,kind:'water',phase:'burst',power:1.25});
+        }
+      }
       if (Math.hypot(f.x-this.fairy.x,f.y-this.fairy.y)<25) {
         f.dead=true; t.mistakes+=1; this.minus+=5; this.sound?.penalty?.();
       }
@@ -3219,14 +3250,12 @@ class Game {
     // Broad silhouette check first. Papa is intentionally a large training target.
     if (Math.hypot(lx,ly+8) > 135) return false;
 
-    // The folded wings guard both sides of the body. Magic bursts on the wing
-    // surface, but does not add to the training gauge.
-    const leftWing = lx < -28 && lx > -132 && ly > -82 && ly < 92;
-    const rightWing = lx > 28 && lx < 132 && ly > -82 && ly < 92;
-    if (leftWing || rightWing) {
+    // While the orbiting tornadoes are active, the moving wind ring guards the
+    // whole body. Outside that phase the wings are decorative and do not block.
+    if (this.trainingState.shieldActive > 0 && Math.hypot(lx,ly) < 146) {
       effect.trainingHit=true;
       this.trainingState.shieldFlashes.push({x:effect.x,y:effect.y,age:0});
-      this.sound?.windBurst?.(.35);
+      this.sound?.windBurst?.(.45);
       return true;
     }
 
@@ -3283,14 +3312,18 @@ class Game {
     ctx.strokeStyle='#496f86';ctx.lineWidth=15;ctx.beginPath();ctx.moveTo(34,70);ctx.quadraticCurveTo(111,96,82,146);ctx.quadraticCurveTo(56,180,23,151);ctx.stroke();
     ctx.fillStyle='#d9bd78';ctx.beginPath();ctx.moveTo(23,151);ctx.lineTo(7,143);ctx.lineTo(20,132);ctx.closePath();ctx.fill();ctx.strokeStyle='#243744';ctx.lineWidth=3;ctx.stroke();
 
-    // Large folded wings form the shield. Their angular silhouette reads as dragon wings.
+    // Wings normally rest beside the body. During guard they sweep forward and
+    // their tips become the origin points of the orbiting tornado shield.
+    const guard=t.wingGuard||0;
     ctx.fillStyle='#668ca3';ctx.strokeStyle='#243744';ctx.lineWidth=6;
-    ctx.beginPath();ctx.moveTo(-34,-20);ctx.lineTo(-75,-77);ctx.lineTo(-128,-57);ctx.lineTo(-102,-20);ctx.lineTo(-132,18);ctx.lineTo(-91,21);ctx.lineTo(-112,82);ctx.quadraticCurveTo(-70,92,-35,53);ctx.closePath();ctx.fill();ctx.stroke();
-    ctx.beginPath();ctx.moveTo(34,-20);ctx.lineTo(75,-77);ctx.lineTo(128,-57);ctx.lineTo(102,-20);ctx.lineTo(132,18);ctx.lineTo(91,21);ctx.lineTo(112,82);ctx.quadraticCurveTo(70,92,35,53);ctx.closePath();ctx.fill();ctx.stroke();
-    // Wing membranes and ribs.
-    ctx.strokeStyle='rgba(35,55,68,.72)';ctx.lineWidth=3;
     for(const side of [-1,1]){
+      ctx.save();
+      ctx.translate(side*(1-guard)*8,guard*10);
+      ctx.rotate(side*guard*-.48);
+      ctx.beginPath();ctx.moveTo(side*34,-20);ctx.lineTo(side*75,-77);ctx.lineTo(side*128,-57);ctx.lineTo(side*102,-20);ctx.lineTo(side*132,18);ctx.lineTo(side*91,21);ctx.lineTo(side*112,82);ctx.quadraticCurveTo(side*70,92,side*35,53);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.strokeStyle='rgba(35,55,68,.72)';ctx.lineWidth=3;
       ctx.beginPath();ctx.moveTo(side*40,-13);ctx.lineTo(side*102,-48);ctx.moveTo(side*43,5);ctx.lineTo(side*110,11);ctx.moveTo(side*40,25);ctx.lineTo(side*92,66);ctx.stroke();
+      ctx.restore();
     }
 
     // Broad seated torso with chest plates.
@@ -3320,14 +3353,33 @@ class Game {
     ctx.fillStyle='#263d4b';ctx.beginPath();ctx.ellipse(-10,-38,3,2,0,0,Math.PI*2);ctx.ellipse(10,-38,3,2,0,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-18,-27);ctx.quadraticCurveTo(0,-20,18,-27);ctx.stroke();
 
+    // Orbiting tornado shield. The two spirals circle in opposite positions,
+    // making the protection visible and useful against frontal attacks.
+    if(t.shieldActive>0){
+      for(let i=0;i<2;i++){
+        const a=t.shieldAngle+i*Math.PI;
+        const ox=Math.cos(a)*118, oy=Math.sin(a)*66+8;
+        ctx.save();ctx.translate(ox,oy);ctx.rotate(-a*1.7);
+        ctx.strokeStyle='rgba(164,255,203,.95)';ctx.lineWidth=5;ctx.lineCap='round';
+        ctx.beginPath();
+        for(let k=0;k<18;k++){
+          const q=k/17, rr=24*(1-q)+3, aa=q*Math.PI*4.5;
+          const xx=Math.cos(aa)*rr, yy=(q-.5)*38;
+          if(k===0)ctx.moveTo(xx,yy);else ctx.lineTo(xx,yy);
+        }
+        ctx.stroke();ctx.restore();
+      }
+      ctx.strokeStyle='rgba(145,245,195,.28)';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(0,8,132,78,0,0,Math.PI*2);ctx.stroke();
+    }
+
     ctx.restore();
 
-    // Shield feedback flashes where spells burst against the folded wings.
+    // Shield feedback flashes where spells burst against the tornado barrier.
     for(const f of t.shieldFlashes){
       const q=f.age/.38;ctx.save();ctx.globalAlpha=1-q;ctx.strokeStyle='rgba(255,239,130,.95)';ctx.lineWidth=5;ctx.beginPath();ctx.arc(f.x,f.y,10+22*q,0,Math.PI*2);ctx.stroke();ctx.restore();
     }
 
-    // Gentle practice fireballs.
+    // Dense practice fireballs. Water magic can cancel them.
     for(const f of t.fireballs){
       ctx.save();ctx.translate(f.x,f.y);ctx.globalCompositeOperation='screen';
       const g=ctx.createRadialGradient(0,0,2,0,0,17);g.addColorStop(0,'rgba(255,250,185,.98)');g.addColorStop(.45,'rgba(255,150,65,.92)');g.addColorStop(1,'rgba(235,62,42,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,18,0,Math.PI*2);ctx.fill();ctx.restore();
@@ -4637,6 +4689,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.9.6</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.9.7</div>
 </body>
 </html>
