@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v4.0.6</title>
+  <title>Fairy Guardian v4.0.7</title>
   <style>
 :root {
   color-scheme: light;
@@ -83,6 +83,22 @@ canvas {
 }
 .sound-button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(32,55,38,.20); }
 .sound-button.muted { opacity: .62; }
+
+.room-exit-button {
+  position: absolute;
+  z-index: 9;
+  top: 62px;
+  left: 12px;
+  border: 2px solid rgba(32,55,38,.72);
+  border-radius: 999px;
+  padding: 9px 13px;
+  background: rgba(245,255,252,.9);
+  color: #284c4a;
+  font-size: 12px;
+  font-weight: 900;
+  box-shadow: 0 3px 0 rgba(32,55,38,.20);
+}
+.room-exit-button:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(32,55,38,.20); }
 
 .screen-overlay {
   position: absolute;
@@ -255,6 +271,7 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
     <section class="game-frame" aria-label="Fairy Guardian game">
       <canvas id="gameCanvas" width="540" height="960"></canvas>
       <button id="soundButton" class="sound-button" type="button" aria-label="効果音を切り替える">🔊</button>
+      <button id="roomExitButton" class="room-exit-button hidden" type="button">キノコ部屋を出る</button>
 
       <div id="titleScreen" class="screen-overlay">
         <div class="title-card">
@@ -263,6 +280,7 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
           <p>風と水の力で、ヒヨコをそっと見守ろう。</p>
           <button id="startButton" class="primary-button" type="button">おさんぽを始める</button>
           <button id="trainingButton" class="primary-button cave-choice hidden" type="button">🐉 パパドラゴンの特訓</button>
+          <button id="mushroomRoomButton" class="primary-button cave-choice hidden" type="button">🍄 光るキノコ部屋</button>
           <button id="dragonTestButton" class="primary-button cave-choice" type="button">テスト：ドラゴンから開始</button>
         </div>
       </div>
@@ -2524,9 +2542,9 @@ class CaveMushroom {
     this.glow=0;this.activeTimer=0;this.hitCooldown=0;this.pulse=Math.random()*6.28;this.dead=false;
   }
   update(dt){
-    this.y+=38*dt;this.glow=Math.max(0,this.glow-dt*.11);
+    if(!this.fixed)this.y+=38*dt;this.glow=Math.max(0,this.glow-dt*.11);
     this.activeTimer=Math.max(0,this.activeTimer-dt);this.hitCooldown=Math.max(0,this.hitCooldown-dt);
-    if(this.y>1010){this.y=-70-Math.random()*260;this.glow=0;this.activeTimer=0;this.hitCooldown=0;}
+    if(!this.fixed&&this.y>1010){this.y=-70-Math.random()*260;this.glow=0;this.activeTimer=0;this.hitCooldown=0;}
   }
   waterHit(x,y,r){
     if(this.hitCooldown>0 || Math.hypot(x-this.x,y-this.y)>r+22)return false;
@@ -2665,6 +2683,7 @@ class Game {
     this.iceMagicUnlocked = localStorage.getItem('fairyGuardianIceMagicUnlocked') === '1';
     this.iceMagicNotice = 0;
     this.trainingMode = false;
+    this.mushroomRoomMode = false;
     this.trainingPapa = { x:270, y:325, age:0, facing:1, turned:false };
     this.trainingState = { gauge:0, target:100, fireballs:[], shotTimer:1.4, complete:false, mistakes:0, resultAge:0 };
     this.onTrainingUnlock = null;
@@ -2737,6 +2756,7 @@ class Game {
     if (this.running) return;
     this.mode=mode; this.sound.caveMode=mode==='cave' || mode==='training';
     if(mode==='training') this.enterTrainingMode();
+    if(mode==='mushroomRoom') this.enterMushroomRoom();
     if(mode==='cave'){
       this.stage=new CaveStage(this.width,this.height);
       this.mushrooms=[];
@@ -3241,7 +3261,45 @@ class Game {
     if (this.onTrainingUnlock) this.onTrainingUnlock();
   }
 
+  enterMushroomRoom() {
+    this.mushroomRoomMode = true;
+    this.trainingMode = false;
+    this.mode = 'cave';
+    this.flowerRoute = false;
+    this.activeRoute = null;
+    this.sound.caveMode = true;
+    this.stage = new CaveStage(this.width,this.height);
+    this.stage.speed = 0;
+    this.stage.offset = 0;
+    this.plus = 0;
+    this.distance = 0;
+    this.effects = [];
+    this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
+    this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];
+    this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandLotuses=[];
+    this.mushrooms=[];
+    const cols=7, rows=8;
+    for(let row=0;row<rows;row++){
+      for(let col=0;col<cols;col++){
+        const x=72+col*66+(row%2)*8;
+        const y=118+row*92+(col%2)*8;
+        const m=new CaveMushroom(x,y,(col+row*2)%7,100+row,col);
+        m.fixed=true;
+        m.glow=.18+Math.random()*.24;
+        this.mushrooms.push(m);
+      }
+    }
+    this.completedMushroomGroups.clear();
+    this.caveCelebration=0;
+    this.birdSpawnTimer=this.catSpawnTimer=this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=this.butterflySpawnTimer=this.ladybugSpawnTimer=99999;
+    this.fairy.x=this.width*.5;this.fairy.y=this.height*.72;
+    this.chick.x=this.width*.5;this.chick.y=this.height*.86;
+    document.querySelector('#roomExitButton')?.classList.remove('hidden');
+  }
+
   enterTrainingMode() {
+    this.mushroomRoomMode = false;
+    document.querySelector('#roomExitButton')?.classList.add('hidden');
     this.trainingMode = true;
     this.mode = 'training';
     this.flowerRoute = false;
@@ -3344,8 +3402,8 @@ class Game {
     // Broad silhouette check first. Papa is intentionally a large training target.
     if (Math.hypot(lx,ly+8) > 135) return false;
 
-    // While the orbiting tornadoes are active, the moving wind ring guards the
-    // whole body. Outside that phase the wings are decorative and do not block.
+    // While the round wind shield is active, its mirror-like air membrane guards
+    // the whole body evenly. Outside that phase Papa can be hit normally.
     if (this.trainingState.shieldActive > 0 && Math.hypot(lx,ly) < 146) {
       effect.trainingHit=true;
       this.trainingState.shieldFlashes.push({x:effect.x,y:effect.y,age:0});
@@ -3475,23 +3533,37 @@ class Game {
     ctx.fillStyle='#263d4b';ctx.beginPath();ctx.ellipse(-10,-38,3,2,0,0,Math.PI*2);ctx.ellipse(10,-38,3,2,0,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-18,-27);ctx.quadraticCurveTo(0,-20,18,-27);ctx.stroke();
 
-    // Orbiting tornado shield. The two spirals circle in opposite positions,
-    // making the protection visible and useful against frontal attacks.
+    // A round, mirror-like wind shield surrounds Papa evenly from every angle.
+    // The surface itself stays circular while the wind texture rotates inside it.
     if(t.shieldActive>0){
-      for(let i=0;i<2;i++){
-        const a=t.shieldAngle+i*Math.PI;
-        const ox=Math.cos(a)*118, oy=Math.sin(a)*66+8;
-        ctx.save();ctx.translate(ox,oy);ctx.rotate(-a*1.7);
-        ctx.strokeStyle='rgba(164,255,203,.95)';ctx.lineWidth=5;ctx.lineCap='round';
-        ctx.beginPath();
-        for(let k=0;k<18;k++){
-          const q=k/17, rr=24*(1-q)+3, aa=q*Math.PI*4.5;
-          const xx=Math.cos(aa)*rr, yy=(q-.5)*38;
-          if(k===0)ctx.moveTo(xx,yy);else ctx.lineTo(xx,yy);
-        }
-        ctx.stroke();ctx.restore();
+      const shieldPulse=.5+.5*Math.sin(p.age*5.2);
+      ctx.save();
+      ctx.globalCompositeOperation='screen';
+      const sg=ctx.createRadialGradient(-34,-42,12,0,4,148);
+      sg.addColorStop(0,`rgba(235,255,250,${.20+.05*shieldPulse})`);
+      sg.addColorStop(.54,'rgba(135,244,213,.13)');
+      sg.addColorStop(.82,'rgba(88,218,191,.20)');
+      sg.addColorStop(1,'rgba(198,255,239,.08)');
+      ctx.fillStyle=sg;ctx.beginPath();ctx.arc(0,5,143,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(188,255,233,.88)';ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,5,141,0,Math.PI*2);ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.42)';ctx.lineWidth=2.2;ctx.beginPath();ctx.arc(-8,-4,126,-2.65,-1.15);ctx.stroke();
+      ctx.save();ctx.beginPath();ctx.arc(0,5,138,0,Math.PI*2);ctx.clip();
+      for(let band=0;band<5;band++){
+        const rr=42+band*21;
+        const phase=t.shieldAngle*(band%2?-.72:.82)+band*1.3;
+        ctx.strokeStyle=`rgba(${band%2?'156,255,223':'208,255,242'},${.24+band*.035})`;
+        ctx.lineWidth=2.2+band*.45;ctx.beginPath();
+        ctx.arc(0,5,rr,phase,phase+Math.PI*1.18);ctx.stroke();
       }
-      ctx.strokeStyle='rgba(145,245,195,.28)';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(0,8,132,78,0,0,Math.PI*2);ctx.stroke();
+      ctx.restore();
+      for(let i=0;i<18;i++){
+        const a=t.shieldAngle*.85+i*Math.PI*2/18;
+        const rr=141+Math.sin(p.age*4+i)*4;
+        const px=Math.cos(a)*rr,py=5+Math.sin(a)*rr;
+        ctx.fillStyle=`rgba(226,255,245,${.45+.3*((i%3)/2)})`;
+        ctx.beginPath();ctx.ellipse(px,py,3.6,1.5,a,0,Math.PI*2);ctx.fill();
+      }
+      ctx.restore();
     }
 
     ctx.restore();
@@ -3510,7 +3582,7 @@ class Game {
     // Training gauge.
     ctx.save();ctx.fillStyle='rgba(235,247,255,.94)';ctx.strokeStyle='rgba(78,102,128,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(58,84,this.width-116,91,22);ctx.fill();ctx.stroke();
     ctx.fillStyle='#36516a';ctx.textAlign='center';ctx.font='800 18px system-ui';
-    const heading=t.complete?'特訓合格！':'翼を避けて、体へ魔法を当てよう';
+    const heading=t.complete?'特訓合格！':'丸い風の盾が消えた時に魔法を当てよう';
     ctx.fillText(heading,this.width/2,111);
     ctx.fillStyle='rgba(44,75,91,.2)';ctx.beginPath();ctx.roundRect(92,128,this.width-184,18,9);ctx.fill();
     const ratio=Math.min(1,t.gauge/t.target);const gg=ctx.createLinearGradient(92,0,this.width-92,0);gg.addColorStop(0,'#80e6c5');gg.addColorStop(1,'#9fd8ff');ctx.fillStyle=gg;ctx.beginPath();ctx.roundRect(92,128,(this.width-184)*ratio,18,9);ctx.fill();
@@ -3968,7 +4040,7 @@ class Game {
       return;
     }
     this.elapsed += dt;
-    this.distance += dt * 5;
+    if(!this.mushroomRoomMode)this.distance += dt * 5;
     this.updateForestAnomaly(dt);
     this.updateDragonRescue(dt);
     this.updateTrainingPapa(dt);
@@ -4789,6 +4861,8 @@ const canvas = document.querySelector('#gameCanvas');
 const titleScreen = document.querySelector('#titleScreen');
 const startButton = document.querySelector('#startButton');
 const trainingButton = document.querySelector('#trainingButton');
+const mushroomRoomButton = document.querySelector('#mushroomRoomButton');
+const roomExitButton = document.querySelector('#roomExitButton');
 const dragonTestButton = document.querySelector('#dragonTestButton');
 const dragonResultScreen = document.querySelector('#dragonResultScreen');
 const dragonResultText = document.querySelector('#dragonResultText');
@@ -4837,6 +4911,7 @@ game.onRouteChoice = () => {
 };
 
 startButton.addEventListener('click', () => {
+  roomExitButton.classList.add('hidden');
   sound.unlock();
   titleScreen.classList.add('hidden');
   controls.classList.remove('hidden');
@@ -4847,6 +4922,7 @@ startButton.addEventListener('click', () => {
 
 function refreshTrainingButton() {
   trainingButton.classList.toggle('hidden', !game.trainingUnlocked);
+  mushroomRoomButton.classList.toggle('hidden', !game.iceMagicUnlocked);
 }
 refreshTrainingButton();
 game.onTrainingUnlock = refreshTrainingButton;
@@ -4861,6 +4937,11 @@ trainingButton.addEventListener('click', () => {
   sound.unlock(); titleScreen.classList.add('hidden'); controls.classList.remove('hidden'); hudElement.classList.remove('hidden');
   game.start('training');
 });
+mushroomRoomButton.addEventListener('click', () => {
+  sound.unlock(); titleScreen.classList.add('hidden'); controls.classList.remove('hidden'); hudElement.classList.remove('hidden');
+  game.start('mushroomRoom');
+});
+roomExitButton.addEventListener('click', () => location.reload());
 goTrainingButton.addEventListener('click', () => {
   dragonResultScreen.classList.add('hidden');
   try { sessionStorage.setItem('fairyGuardianAutoTraining','1'); } catch (_) {}
@@ -5019,6 +5100,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.6</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.7</div>
 </body>
 </html>
