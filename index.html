@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.9.7</title>
+  <title>Fairy Guardian v3.9.8</title>
   <style>
 :root {
   color-scheme: light;
@@ -3693,19 +3693,60 @@ class Game {
     }
     if (d.completed && !d.resultShown) {
       const a=d.familyAge||0;
-      // Child settles near the chick first.
       const childT=Math.min(1,a/2.0);
-      const childX=this.width*.5 + 72*(1-childT);
-      const childY=330 - 42*childT + Math.sin(a*3)*2;
-      ctx.save();ctx.translate(childX,childY);ctx.strokeStyle='#285f68';ctx.lineWidth=3.5;ctx.fillStyle='#67cec2';ctx.beginPath();ctx.ellipse(0,7,27,24,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.ellipse(13,-16,24,20,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(20,-20,5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#263d4b';ctx.beginPath();ctx.arc(21,-19,2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#263d4b';ctx.lineWidth=2;ctx.beginPath();ctx.arc(15,-8,8,.15,Math.PI-.2);ctx.stroke();ctx.fillStyle='#95e2d7';ctx.beginPath();ctx.moveTo(-8,1);ctx.quadraticCurveTo(-38,-28,-39,9);ctx.quadraticCurveTo(-26,25,-5,18);ctx.fill();ctx.stroke();ctx.restore();
-      // Papa enters only after the child is visibly safe.
+      const childX=this.width*.5 + 76*(1-childT);
+      const childY=329 - 40*childT + Math.sin(a*2.8)*1.5;
+
+      // Calm child dragon: same side-facing anatomy as the rescue scene.
+      ctx.save();ctx.translate(childX,childY);ctx.scale(-1,1);
+      ctx.strokeStyle='#285f68';ctx.lineWidth=3.5;ctx.lineJoin='round';ctx.lineCap='round';
+      ctx.strokeStyle='#285f68';ctx.lineWidth=11;ctx.beginPath();ctx.moveTo(-12,18);ctx.quadraticCurveTo(-44,25,-61,43);ctx.stroke();
+      ctx.strokeStyle='#67cec2';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(-12,18);ctx.quadraticCurveTo(-44,25,-61,43);ctx.stroke();
+      ctx.fillStyle='rgba(143,224,214,.9)';ctx.strokeStyle='#285f68';ctx.lineWidth=3;
+      ctx.beginPath();ctx.moveTo(-8,-2);ctx.quadraticCurveTo(-36,-35,-53,-18);ctx.quadraticCurveTo(-41,4,-15,15);ctx.quadraticCurveTo(-38,18,-43,38);ctx.quadraticCurveTo(-18,34,-3,13);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.fillStyle='#67cec2';ctx.beginPath();ctx.ellipse(0,12,27,25,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#c8f0df';ctx.beginPath();ctx.ellipse(7,16,14,15,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#4eadab';ctx.beginPath();ctx.ellipse(-8,35,9,5,-.2,0,Math.PI*2);ctx.ellipse(14,34,9,5,.15,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#67cec2';ctx.beginPath();ctx.ellipse(20,-13,24,20,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.ellipse(40,-8,15,10,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#f3dd9d';ctx.beginPath();ctx.moveTo(6,-29);ctx.lineTo(11,-44);ctx.lineTo(19,-28);ctx.closePath();ctx.moveTo(24,-31);ctx.lineTo(33,-43);ctx.lineTo(34,-25);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(29,-17,5.5,6.5,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#263d4b';ctx.beginPath();ctx.arc(30,-16,2.2,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#31545a';ctx.beginPath();ctx.ellipse(48,-9,2.3,1.8,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#31545a';ctx.lineWidth=2.2;ctx.beginPath();ctx.arc(39,-2,7,.15,Math.PI-.2);ctx.stroke();
+      ctx.restore();
+
+      // Papa uses the same dragon silhouette as the training model.
       if(a>2.5){
-        const q=Math.min(1,(a-2.5)/2.1);
+        const q=Math.min(1,(a-2.5)/2.35);
         const px=this.width/2;
-        const py=110+(1-q)*(-155);
-        ctx.save();ctx.translate(px,py);ctx.strokeStyle='#263d4b';ctx.lineWidth=5;ctx.fillStyle='#4f7897';ctx.beginPath();ctx.ellipse(0,20,72,58,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#6f9ab3';ctx.beginPath();ctx.moveTo(-34,4);ctx.quadraticCurveTo(-126,-54,-112,45);ctx.quadraticCurveTo(-72,78,-28,45);ctx.closePath();ctx.fill();ctx.stroke();ctx.beginPath();ctx.moveTo(34,4);ctx.quadraticCurveTo(126,-54,112,45);ctx.quadraticCurveTo(72,78,28,45);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='#557f9e';ctx.beginPath();ctx.ellipse(0,-42,58,45,0,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#eaf5f6';ctx.beginPath();ctx.ellipse(-19,-48,7,6,0,0,Math.PI*2);ctx.ellipse(19,-48,7,6,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#263d4b';ctx.beginPath();ctx.arc(-19,-47,2.4,0,Math.PI*2);ctx.arc(19,-47,2.4,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,-30,21,.2,Math.PI-.2);ctx.stroke();ctx.restore();
+        const py=126+(1-q)*(-190);
+        const scale=.72;
+        ctx.save();ctx.translate(px,py);ctx.scale(scale,scale);
+        ctx.strokeStyle='#243744';ctx.lineWidth=6;ctx.lineJoin='round';ctx.lineCap='round';
+        ctx.strokeStyle='#243744';ctx.lineWidth=24;ctx.beginPath();ctx.moveTo(34,70);ctx.quadraticCurveTo(111,96,82,146);ctx.quadraticCurveTo(56,180,23,151);ctx.stroke();
+        ctx.strokeStyle='#496f86';ctx.lineWidth=15;ctx.beginPath();ctx.moveTo(34,70);ctx.quadraticCurveTo(111,96,82,146);ctx.quadraticCurveTo(56,180,23,151);ctx.stroke();
+        ctx.fillStyle='#d9bd78';ctx.beginPath();ctx.moveTo(23,151);ctx.lineTo(7,143);ctx.lineTo(20,132);ctx.closePath();ctx.fill();ctx.strokeStyle='#243744';ctx.lineWidth=3;ctx.stroke();
+        ctx.fillStyle='#668ca3';ctx.strokeStyle='#243744';ctx.lineWidth=6;
+        for(const side of [-1,1]){ctx.beginPath();ctx.moveTo(side*34,-20);ctx.lineTo(side*75,-77);ctx.lineTo(side*128,-57);ctx.lineTo(side*102,-20);ctx.lineTo(side*132,18);ctx.lineTo(side*91,21);ctx.lineTo(side*112,82);ctx.quadraticCurveTo(side*70,92,side*35,53);ctx.closePath();ctx.fill();ctx.stroke();}
+        ctx.fillStyle='#496f86';ctx.beginPath();ctx.ellipse(0,30,61,78,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+        ctx.fillStyle='#708fa0';ctx.beginPath();ctx.ellipse(0,33,31,61,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(36,55,68,.75)';ctx.lineWidth=3;for(let yy=-1;yy<70;yy+=17){ctx.beginPath();ctx.moveTo(-24,yy);ctx.quadraticCurveTo(0,yy+8,24,yy);ctx.stroke();}
+        ctx.fillStyle='#42657c';ctx.strokeStyle='#243744';ctx.lineWidth=5;ctx.beginPath();ctx.ellipse(-43,38,24,40,-.22,0,Math.PI*2);ctx.ellipse(43,38,24,40,.22,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.beginPath();ctx.ellipse(-39,91,31,21,-.14,0,Math.PI*2);ctx.ellipse(39,91,31,21,.14,0,Math.PI*2);ctx.fill();ctx.stroke();
+        ctx.fillStyle='#527b92';ctx.strokeStyle='#243744';ctx.lineWidth=6;ctx.beginPath();ctx.ellipse(0,-55,61,49,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+        ctx.fillStyle='#5f879b';ctx.beginPath();ctx.ellipse(0,-34,43,27,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+        ctx.fillStyle='#d9bd78';ctx.beginPath();ctx.moveTo(-36,-87);ctx.lineTo(-25,-126);ctx.lineTo(-9,-87);ctx.closePath();ctx.moveTo(14,-88);ctx.lineTo(35,-124);ctx.lineTo(39,-79);ctx.closePath();ctx.fill();ctx.stroke();
+        ctx.fillStyle='#688da1';ctx.beginPath();ctx.moveTo(-55,-63);ctx.lineTo(-91,-82);ctx.lineTo(-72,-49);ctx.lineTo(-96,-30);ctx.lineTo(-57,-35);ctx.closePath();ctx.moveTo(55,-63);ctx.lineTo(91,-82);ctx.lineTo(72,-49);ctx.lineTo(96,-30);ctx.lineTo(57,-35);ctx.closePath();ctx.fill();ctx.stroke();
+        ctx.strokeStyle='#1e303a';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(-31,-61);ctx.quadraticCurveTo(-20,-57,-10,-61);ctx.moveTo(10,-61);ctx.quadraticCurveTo(20,-57,31,-61);ctx.stroke();
+        ctx.fillStyle='#263d4b';ctx.beginPath();ctx.ellipse(-10,-38,3,2,0,0,Math.PI*2);ctx.ellipse(10,-38,3,2,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(-18,-27);ctx.quadraticCurveTo(0,-20,18,-27);ctx.stroke();
+        ctx.restore();
       }
-      if(a>5.2){ctx.save();ctx.fillStyle='rgba(255,252,238,.94)';ctx.strokeStyle='rgba(92,78,72,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(76,175,this.width-152,62,20);ctx.fill();ctx.stroke();ctx.fillStyle='#4e514f';ctx.font='800 18px system-ui';ctx.textAlign='center';ctx.fillText('パパドラゴンが、静かに頭を下げました',this.width/2,207);ctx.restore();}
+
+      // Papa gently rests a forepaw on the child's head.
+      if(a>5.1){
+        const t=Math.min(1,(a-5.1)/.75);
+        ctx.save();ctx.strokeStyle='#243744';ctx.lineWidth=5;ctx.fillStyle='#42657c';
+        const handX=this.width/2+34+(childX-(this.width/2+34))*t;
+        const handY=207+(childY-41-207)*t;
+        ctx.beginPath();ctx.ellipse(handX,handY,16,12,-.2,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
+      }
+      if(a>5.6){ctx.save();ctx.fillStyle='rgba(255,252,238,.94)';ctx.strokeStyle='rgba(92,78,72,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(66,178,this.width-132,64,20);ctx.fill();ctx.stroke();ctx.fillStyle='#4e514f';ctx.font='800 17px system-ui';ctx.textAlign='center';ctx.fillText('パパドラゴンが、静かに感謝を伝えました',this.width/2,211);ctx.restore();}
     }
 
     if (d.notice > 0) {
@@ -4689,6 +4730,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.9.7</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.9.8</div>
 </body>
 </html>
