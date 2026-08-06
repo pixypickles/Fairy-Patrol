@@ -1,5 +1,8 @@
-Fairy Guardian v4.0.1
+# Fairy Guardian v4.0.2
 
-- Training completion returns automatically to the title.
-- Ice tornado is larger, deeper blue, with orbiting snow crystals.
-- Ice tornado keeps normal wind interactions, including rocks, ledges, leaves, branches, cave puddles, and wetland objects.
+- 風チャージを絶対零度レーザーへ変更
+- 太い青白い貫通レーザー
+- 火柱を一撃消火、火球を消去
+- 岩・枝・段差など従来の風ギミックにも作用
+- 照射後の通り道に霜と氷の跡が約3秒残る
+- ZIPは index.html と README.md のみ
