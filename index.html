@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.7.5</title>
+  <title>Fairy Guardian v3.7.7</title>
   <style>
 :root {
   color-scheme: light;
@@ -2630,6 +2630,13 @@ class Game {
     this.pausedForRoute = false;
     this.nextRouteAt = 2500;
     this.routeStartPlus = null;
+    // Route progress is tracked independently from the visual mode.  This
+    // prevents a route (especially the wetland) from getting stuck if its
+    // scenery flags change while the player is still inside it.
+    this.activeRoute = null;
+    this.routeGoal = 5000;
+    this.completedRoutes = new Set();
+    this.dragonTrainingEvaluation = { minusLimit: 300, eligible: true, rank: '★★★' };
     this.returnNotice = 0;
     this.transition = null;
     this.transitionPass = false;
@@ -2718,6 +2725,7 @@ class Game {
 
   enterCaveRoute() {
     this.mode='cave'; this.flowerRoute=false; this.pausedForRoute=false; this.sound.caveMode=true;
+    this.activeRoute='cave';
     this.routeStartPlus=this.plus;
     this.stage=new CaveStage(this.width,this.height);
     this.mushrooms=[]; this.cavePuddles=[]; this.cavePebbles=[]; this.caveCrystals=[]; this.glowMoss=[];
@@ -2734,6 +2742,7 @@ class Game {
 
   enterFlowerRoute() {
     this.mode='meadow'; this.flowerRoute=true; this.pausedForRoute=false; this.sound.caveMode=false;
+    this.activeRoute='flowers';
     this.routeStartPlus=this.plus;
     this.flowerSpawnTimer=.35; this.dandelionSpawnTimer=1.2; this.butterflySpawnTimer=.6;
     this.birdSpawnTimer=Math.max(this.birdSpawnTimer,12); this.catSpawnTimer=Math.max(this.catSpawnTimer,15);
@@ -2744,10 +2753,11 @@ class Game {
 
   enterWetlandRoute() {
     this.mode='wetland'; this.wetlandMode=true; this.flowerRoute=false; this.pausedForRoute=false; this.sound.caveMode=false;
+    this.activeRoute='wetland';
     this.routeStartPlus=this.plus; this.stage=new WetlandStage(this.width,this.height);
     this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
     this.mushrooms=[];this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];
-    this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandMode=false;
+    this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandMode=true;
     this.wetlandFrogs=Array.from({length:7},()=>new WetlandFrog(this.width,this.height));
     this.wetlandDragonflies=Array.from({length:5},()=>new WetlandDragonfly(this.width,this.height));
     this.cattails=Array.from({length:7},()=>new Cattail(this.width,this.height));
@@ -2778,10 +2788,30 @@ class Game {
     this.butterflySpawnTimer=2.2;this.ladybugSpawnTimer=4.5;
 
     this.routeStartPlus=null;
+    this.activeRoute=null;
+    this.updateDragonTrainingEvaluation();
     this.routePromptShown=false;
     // After a short common meadow walk, the next fork can appear again.
     this.nextRouteAt=this.plus+2500;
     this.returnNotice=3.0;
+  }
+
+  updateDragonTrainingEvaluation() {
+    const m = this.minus;
+    let rank = '★';
+    if (m <= 100) rank = '★★★';
+    else if (m <= 300) rank = '★★';
+    this.dragonTrainingEvaluation = {
+      minusLimit: 300,
+      eligible: m <= 300,
+      rank,
+      minus: m
+    };
+  }
+
+  getDragonTrainingEvaluation() {
+    this.updateDragonTrainingEvaluation();
+    return { ...this.dragonTrainingEvaluation };
   }
 
   beginForkTransition() {
@@ -2800,7 +2830,7 @@ class Game {
 
   beginReturnTransition() {
     if (this.transition) return;
-    const from = this.mode === 'cave' ? 'cave' : this.mode === 'wetland' ? 'wetland' : 'flowers';
+    const from = this.activeRoute || (this.mode === 'cave' ? 'cave' : this.mode === 'wetland' ? 'wetland' : 'flowers');
     this.transition = { type:'return', age:0, duration:7.0, target:'meadow', from };
   }
 
@@ -3066,9 +3096,13 @@ class Game {
     }
     this.elapsed += dt;
     this.distance += dt * 5;
-    // A fork appears only on the common meadow. Route areas last until the
-    // player earns another 5000 positive points, then merge back automatically.
-    if (!this.transitionPass && (this.mode==='cave' || this.mode==='wetland' || this.flowerRoute) && this.routeStartPlus !== null && this.plus-this.routeStartPlus >= 5000) {
+    // Every side route uses the same score checkpoint.  Do not infer route
+    // state from scenery/mode flags: use activeRoute, which is set exactly when
+    // the player enters a route.  This fixes wetland runs that could exceed the
+    // target score without starting the return path.
+    if (!this.transitionPass && this.activeRoute && this.routeStartPlus !== null && this.plus - this.routeStartPlus >= this.routeGoal) {
+      this.completedRoutes.add(this.activeRoute);
+      this.updateDragonTrainingEvaluation();
       this.beginReturnTransition();
       return;
     }
@@ -3479,6 +3513,7 @@ class Game {
     this.frogs=this.frogs.filter(f=>!f.dead);
     if (this.minus > this.previousMinus) this.sound.penalty();
     this.previousMinus = this.minus;
+    this.updateDragonTrainingEvaluation();
     this.hud.distance.textContent = `${Math.floor(this.distance)} m`;
     this.hud.plus.textContent = this.plus;
     this.hud.minus.textContent = this.minus;
@@ -3846,6 +3881,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.7.5</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.7.7</div>
 </body>
 </html>
