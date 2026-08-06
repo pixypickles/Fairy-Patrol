@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.8.3</title>
+  <title>Fairy Guardian v3.8.4</title>
   <style>
 :root {
   color-scheme: light;
@@ -2653,7 +2653,7 @@ class Game {
     this.dragonEventReady = false;
     this.magicUpgradeUnlocked = false;
     this.magicUpgradeNotice = 0;
-      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:125, tailHealth:6, maxTailHealth:6, fireTimer:1.0, fires:[], notice:0, rewardGiven:false };
+      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:225, tailHealth:6, maxTailHealth:6, fireTimer:1.0, fires:[], notice:0, rewardGiven:false };
     this.returnNotice = 0;
     this.transition = null;
     this.transitionPass = false;
@@ -3132,7 +3132,12 @@ class Game {
     d.active = true;
     d.age = 0;
     d.x = this.width * .5;
-    d.y = 128;
+    d.y = 228;
+    // The rescue event is its own scene: ordinary birds and cats leave first.
+    this.birds = [];
+    this.cats = [];
+    this.birdSpawnTimer = 99999;
+    this.catSpawnTimer = 99999;
     d.tailHealth = d.maxTailHealth;
     d.fireTimer = .75;
     d.fires = [];
@@ -3148,12 +3153,13 @@ class Game {
     if (!d.active) { d.notice = Math.max(0, (d.notice || 0) - dt); return; }
     d.age += dt;
     d.notice = Math.max(0, d.notice - dt);
-    d.x = this.width * .5 + Math.sin(d.age * .82) * 135 + Math.sin(d.age * 1.93) * 22;
-    d.y = 118 + Math.sin(d.age * 1.3) * 14;
+    // Nervous, uneven flight, kept below the HUD so the face stays visible.
+    d.x = this.width * .5 + Math.sin(d.age * 1.18) * 142 + Math.sin(d.age * 2.77) * 28;
+    d.y = 224 + Math.sin(d.age * 1.72) * 25 + Math.sin(d.age * 3.35) * 7;
     if (d.tailHealth > 0) {
       d.fireTimer -= dt;
       if (d.fireTimer <= 0) {
-        d.fireTimer = 1.05 + Math.random() * .75;
+        d.fireTimer = 1.45 + Math.random() * 1.25;
         d.fires.push({ x:d.x + (Math.random()-.5)*38, y:d.y+72, age:0, life:9, r:12, dead:false, hitChick:false });
       }
     }
@@ -3197,27 +3203,52 @@ class Game {
     if (!d) return;
     if (d.active) {
       ctx.save(); ctx.translate(d.x,d.y);
-      const flap=Math.sin(d.age*8)*.28;
-      ctx.globalAlpha=.18;ctx.fillStyle='#321b27';ctx.beginPath();ctx.ellipse(0,73,58,17,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
-      ctx.fillStyle='#c84e4b';ctx.strokeStyle='#6d2d36';ctx.lineWidth=4;
-      ctx.save();ctx.rotate(-.18+flap);ctx.beginPath();ctx.ellipse(-48,4,48,17,-.18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
-      ctx.save();ctx.rotate(.18-flap);ctx.beginPath();ctx.ellipse(48,4,48,17,.18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
-      ctx.beginPath();ctx.ellipse(0,12,38,49,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.fillStyle='#e56c59';ctx.beginPath();ctx.ellipse(0,-29,31,25,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-10,-33,6,0,Math.PI*2);ctx.arc(10,-33,6,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#3a2830';ctx.beginPath();ctx.arc(-9,-32,2.5,0,Math.PI*2);ctx.arc(9,-32,2.5,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='#74323b';ctx.lineWidth=8;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(0,48);ctx.quadraticCurveTo(20,61,Math.sin(d.age*2.2)*12,70);ctx.stroke();
+      const flap=Math.sin(d.age*10)*.34;
+      const bob=Math.sin(d.age*7)*2;
+      ctx.translate(0,bob);
+      // A soft distant shadow reinforces that this little dragon is airborne.
+      ctx.globalAlpha=.12;ctx.fillStyle='#18383e';ctx.beginPath();ctx.ellipse(0,78,55,15,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+      // Soft aqua body: the fire is an accident, not the dragon's nature.
+      const body='#62c9c2', belly='#b9eee0', outline='#286a70', wing='#8fe0d6';
+      ctx.strokeStyle=outline;ctx.lineWidth=4;ctx.lineJoin='round';ctx.lineCap='round';
+      // Rounded wings, two-frame-like flapping.
+      ctx.fillStyle=wing;
+      ctx.save();ctx.rotate(-.28+flap);ctx.beginPath();ctx.moveTo(-20,-3);ctx.quadraticCurveTo(-62,-33,-76,-5);ctx.quadraticCurveTo(-65,23,-26,17);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+      ctx.save();ctx.rotate(.28-flap);ctx.beginPath();ctx.moveTo(20,-3);ctx.quadraticCurveTo(62,-33,76,-5);ctx.quadraticCurveTo(65,23,26,17);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+      // Body, belly and tiny feet.
+      ctx.fillStyle=body;ctx.beginPath();ctx.ellipse(0,16,36,48,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle=belly;ctx.beginPath();ctx.ellipse(0,24,20,31,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#4caeaa';ctx.beginPath();ctx.ellipse(-17,59,12,7,-.15,0,Math.PI*2);ctx.ellipse(17,59,12,7,.15,0,Math.PI*2);ctx.fill();ctx.stroke();
+      // Large chibi head and small horns.
+      ctx.fillStyle=body;ctx.beginPath();ctx.ellipse(0,-31,34,28,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#f1d995';ctx.beginPath();ctx.moveTo(-23,-51);ctx.lineTo(-17,-69);ctx.lineTo(-8,-50);ctx.closePath();ctx.moveTo(23,-51);ctx.lineTo(17,-69);ctx.lineTo(8,-50);ctx.closePath();ctx.fill();ctx.stroke();
+      // Worried eyes, eyebrows and open panting mouth.
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(-11,-34,7,8,0,0,Math.PI*2);ctx.ellipse(11,-34,7,8,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#243d43';ctx.beginPath();ctx.arc(-10,-32,3,0,Math.PI*2);ctx.arc(10,-32,3,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#286a70';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(-18,-45);ctx.lineTo(-6,-42);ctx.moveTo(18,-45);ctx.lineTo(6,-42);ctx.stroke();
+      ctx.fillStyle='#31545a';ctx.beginPath();ctx.ellipse(0,-17,8,6,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#f49ba5';ctx.beginPath();ctx.ellipse(0,-15,4,2.5,0,0,Math.PI*2);ctx.fill();
+      // Lots of animated sweat droplets make the panic readable without dialogue.
+      for(let i=0;i<5;i++){
+        const side=i%2?-1:1, phase=(d.age*2.8+i*.31)%1;
+        const sx=side*(31+phase*13), sy=-47+i*9+phase*18;
+        ctx.globalAlpha=.85*(1-phase);ctx.fillStyle='#a9ecff';ctx.beginPath();ctx.moveTo(sx,sy-6);ctx.quadraticCurveTo(sx-5,sy+2,sx,sy+7);ctx.quadraticCurveTo(sx+5,sy+2,sx,sy-6);ctx.fill();
+      }
+      ctx.globalAlpha=1;
+      // Tail swishes wildly while the accidental flame hangs on its tip.
+      const tx=Math.sin(d.age*3.1)*19, ty=73+Math.cos(d.age*2.3)*4;
+      ctx.strokeStyle=outline;ctx.lineWidth=13;ctx.beginPath();ctx.moveTo(0,49);ctx.quadraticCurveTo(25,62,tx,ty);ctx.stroke();
+      ctx.strokeStyle=body;ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(0,49);ctx.quadraticCurveTo(25,62,tx,ty);ctx.stroke();
       if(d.tailHealth>0){
-        const tx=Math.sin(d.age*2.2)*12, ty=70;
-        const g=ctx.createRadialGradient(tx,ty,2,tx,ty,25);g.addColorStop(0,'rgba(255,249,145,.98)');g.addColorStop(.45,'rgba(255,138,45,.94)');g.addColorStop(1,'rgba(220,42,26,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(tx,ty,26,0,Math.PI*2);ctx.fill();
-        ctx.fillStyle='#ff6a32';ctx.beginPath();ctx.moveTo(tx,ty+12);ctx.quadraticCurveTo(tx-16,ty-5,tx,ty-28);ctx.quadraticCurveTo(tx+18,ty-4,tx,ty+12);ctx.fill();
+        const g=ctx.createRadialGradient(tx,ty,2,tx,ty,28);g.addColorStop(0,'rgba(255,249,145,.98)');g.addColorStop(.43,'rgba(255,138,45,.94)');g.addColorStop(1,'rgba(220,42,26,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(tx,ty,29,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#ff7138';ctx.beginPath();ctx.moveTo(tx,ty+13);ctx.quadraticCurveTo(tx-17,ty-4,tx-2,ty-30);ctx.quadraticCurveTo(tx+20,ty-5,tx,ty+13);ctx.fill();
       }
       ctx.restore();
       for(const f of d.fires){ctx.save();ctx.translate(f.x,f.y);const pulse=1+Math.sin(this.elapsed*10+f.x)*.12;ctx.scale(pulse,pulse);ctx.fillStyle='rgba(255,104,32,.9)';ctx.beginPath();ctx.moveTo(0,14);ctx.quadraticCurveTo(-14,0,0,-22);ctx.quadraticCurveTo(15,0,0,14);ctx.fill();ctx.fillStyle='#ffe06a';ctx.beginPath();ctx.moveTo(0,9);ctx.quadraticCurveTo(-7,0,0,-11);ctx.quadraticCurveTo(8,0,0,9);ctx.fill();ctx.restore();}
-      const ratio=d.tailHealth/d.maxTailHealth;ctx.save();ctx.fillStyle='rgba(255,250,235,.9)';ctx.strokeStyle='rgba(111,58,54,.6)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(128,62,this.width-256,24,12);ctx.fill();ctx.stroke();ctx.fillStyle='#58aee8';ctx.beginPath();ctx.roundRect(132,66,(this.width-264)*(1-ratio),16,8);ctx.fill();ctx.fillStyle='#69433d';ctx.font='800 13px system-ui';ctx.textAlign='center';ctx.fillText('しっぽの火を水で消そう',this.width/2,55);ctx.restore();
+      const ratio=d.tailHealth/d.maxTailHealth;ctx.save();ctx.fillStyle='rgba(255,250,235,.9)';ctx.strokeStyle='rgba(111,58,54,.6)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(128,132,this.width-256,24,12);ctx.fill();ctx.stroke();ctx.fillStyle='#58aee8';ctx.beginPath();ctx.roundRect(132,136,(this.width-264)*(1-ratio),16,8);ctx.fill();ctx.fillStyle='#69433d';ctx.font='800 13px system-ui';ctx.textAlign='center';ctx.fillText('しっぽの火を水で消そう',this.width/2,125);ctx.restore();
     }
     if (d.notice > 0) {
-      ctx.save();ctx.globalAlpha=Math.min(1,d.notice/.5);ctx.fillStyle='rgba(255,251,235,.94)';ctx.strokeStyle='rgba(116,72,61,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(78,95,this.width-156,64,20);ctx.fill();ctx.stroke();ctx.fillStyle='#704539';ctx.font='800 19px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(d.completed?'子ドラゴンの火が消えました！':'燃えたしっぽを追いかけよう！',this.width/2,127);ctx.restore();
+      ctx.save();ctx.globalAlpha=Math.min(1,d.notice/.5);ctx.fillStyle='rgba(255,251,235,.94)';ctx.strokeStyle='rgba(116,72,61,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(78,165,this.width-156,58,20);ctx.fill();ctx.stroke();ctx.fillStyle='#704539';ctx.font='800 18px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(d.completed?'子ドラゴンの火が消えました！':'慌てた子ドラゴンを助けよう！',this.width/2,194);ctx.restore();
     }
   }
 
@@ -3482,10 +3513,14 @@ class Game {
     this.cooldowns.water = Math.max(0, this.cooldowns.water - dt);
 
     // Keep the pace gentle: only one approaching animal is normally present.
+    // During the dragon rescue, ordinary animals stay away from the commotion.
+    const dragonScene = !!this.dragonRescue?.active;
     const threatPresent = this.birds.some(b => b.state === 'approach') || this.cats.some(c => c.state === 'approach');
-    this.birdSpawnTimer -= dt;
-    this.catSpawnTimer -= dt;
-    if (!threatPresent) {
+    if (!dragonScene) {
+      this.birdSpawnTimer -= dt;
+      this.catSpawnTimer -= dt;
+    }
+    if (!dragonScene && !threatPresent) {
       if (this.birdSpawnTimer <= 0 && this.catSpawnTimer > 0) {
         this.birds.push(new Bird(this.width, this.height, Math.floor(Math.random() * 3)));
         this.birdSpawnTimer = 7.0 + Math.random() * 4.0;
@@ -4151,6 +4186,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.3</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.4</div>
 </body>
 </html>
