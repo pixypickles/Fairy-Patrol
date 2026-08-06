@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.7.7</title>
+  <title>Fairy Guardian v3.7.9</title>
   <style>
 :root {
   color-scheme: light;
@@ -235,6 +235,8 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
 .route-button.cave { background:linear-gradient(135deg,#c8f6ef,#68b6c9); box-shadow:0 5px 0 #39788a; }
 .route-button.flowers { background:linear-gradient(135deg,#fff7c8,#ffb9d7); box-shadow:0 5px 0 #c87796; }
 .route-button.wetland { background:linear-gradient(135deg,#dff6b7,#79c9a2); box-shadow:0 5px 0 #4b8d70; }
+.route-button:disabled { filter:grayscale(.45); opacity:.48; box-shadow:0 3px 0 rgba(60,70,60,.35); cursor:not-allowed; transform:none; }
+.route-button .visited-mark { display:block; margin-top:4px; font-size:12px; font-weight:800; opacity:.78; }
 .route-button:active { transform:translateY(3px); box-shadow:0 2px 0 rgba(35,69,56,.35); }
 .route-note { font-size:13px; opacity:.78; }
 
@@ -274,7 +276,7 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
             <button id="routeFlowerButton" class="route-button flowers" type="button">🌸 このまま花の多く咲くほうへ</button>
             <button id="routeWetlandButton" class="route-button wetland" type="button">🌾 カエルたちの湿地へ</button>
           </div>
-          <p class="route-note">プラス点とマイナス点は、そのまま引き継ぎます。</p>
+          <p class="route-note">プラス点はエリアごとに0へ戻ります。マイナス点は旅のあいだ残ります。</p>
         </div>
       </div>
 
@@ -2630,6 +2632,7 @@ class Game {
     this.pausedForRoute = false;
     this.nextRouteAt = 2500;
     this.routeStartPlus = null;
+    this.pendingRouteBase = null;
     // Route progress is tracked independently from the visual mode.  This
     // prevents a route (especially the wetland) from getting stuck if its
     // scenery flags change while the player is still inside it.
@@ -2726,7 +2729,9 @@ class Game {
   enterCaveRoute() {
     this.mode='cave'; this.flowerRoute=false; this.pausedForRoute=false; this.sound.caveMode=true;
     this.activeRoute='cave';
-    this.routeStartPlus=this.plus;
+    this.plus=0;
+    this.routeStartPlus=0;
+    this.pendingRouteBase=null;
     this.stage=new CaveStage(this.width,this.height);
     this.mushrooms=[]; this.cavePuddles=[]; this.cavePebbles=[]; this.caveCrystals=[]; this.glowMoss=[];
     const notes=[0,1,2,3,4,2,4]; const rows=[105,285,465];
@@ -2743,7 +2748,9 @@ class Game {
   enterFlowerRoute() {
     this.mode='meadow'; this.flowerRoute=true; this.pausedForRoute=false; this.sound.caveMode=false;
     this.activeRoute='flowers';
-    this.routeStartPlus=this.plus;
+    this.plus=0;
+    this.routeStartPlus=0;
+    this.pendingRouteBase=null;
     this.flowerSpawnTimer=.35; this.dandelionSpawnTimer=1.2; this.butterflySpawnTimer=.6;
     this.birdSpawnTimer=Math.max(this.birdSpawnTimer,12); this.catSpawnTimer=Math.max(this.catSpawnTimer,15);
     this.riverSpawnTimer=Math.max(this.riverSpawnTimer,24); this.ledgeSpawnTimer=Math.max(this.ledgeSpawnTimer,26);
@@ -2754,7 +2761,7 @@ class Game {
   enterWetlandRoute() {
     this.mode='wetland'; this.wetlandMode=true; this.flowerRoute=false; this.pausedForRoute=false; this.sound.caveMode=false;
     this.activeRoute='wetland';
-    this.routeStartPlus=this.plus; this.stage=new WetlandStage(this.width,this.height);
+    this.plus=0; this.routeStartPlus=0; this.pendingRouteBase=null; this.stage=new WetlandStage(this.width,this.height);
     this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
     this.mushrooms=[];this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];
     this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandMode=true;
@@ -2787,12 +2794,14 @@ class Game {
     this.dandelionSpawnTimer=7.0;this.sideBranchSpawnTimer=9.0;this.rockSpawnTimer=12.0;
     this.butterflySpawnTimer=2.2;this.ladybugSpawnTimer=4.5;
 
+    this.plus=0;
     this.routeStartPlus=null;
+    this.pendingRouteBase=null;
     this.activeRoute=null;
     this.updateDragonTrainingEvaluation();
     this.routePromptShown=false;
-    // After a short common meadow walk, the next fork can appear again.
-    this.nextRouteAt=this.plus+2500;
+    // Every common-meadow visit starts a fresh 2500-point walk.
+    this.nextRouteAt=2500;
     this.returnNotice=3.0;
   }
 
@@ -2817,6 +2826,9 @@ class Game {
   beginForkTransition() {
     if (this.transition || this.pausedForRoute) return;
     this.routePromptShown = true;
+    // The connector path still belongs to the common meadow. The selected
+    // route starts from +0 after the entrance transition finishes.
+    this.pendingRouteBase = 0;
     this.transition = { type:'fork', age:0, duration:6.5, target:null };
     this.leftHintButton?.classList.remove('hint');
     this.rightHintButton?.classList.remove('hint');
@@ -2824,6 +2836,7 @@ class Game {
 
   chooseRoute(target) {
     if (!['cave','flowers','wetland'].includes(target)) return;
+    if (this.completedRoutes.has(target)) return;
     this.pausedForRoute = false;
     this.transition = { type:'toRoute', age:0, duration:6.2, target };
   }
@@ -3106,7 +3119,7 @@ class Game {
       this.beginReturnTransition();
       return;
     }
-    if (!this.transitionPass && this.mode==='meadow' && !this.flowerRoute && !this.routePromptShown && this.plus >= this.nextRouteAt) {
+    if (!this.transitionPass && this.mode==='meadow' && !this.flowerRoute && this.completedRoutes.size < 3 && !this.routePromptShown && this.plus >= this.nextRouteAt) {
       this.beginForkTransition();
       return;
     }
@@ -3739,7 +3752,23 @@ const game = new Game(canvas, input, {
   minus: document.querySelector('#minusScore')
 });
 
-game.onRouteChoice = () => routeScreen.classList.remove('hidden');
+function refreshRouteButtons() {
+  const specs = [
+    [routeCaveButton, 'cave', '💧 音の洞くつへ'],
+    [routeFlowerButton, 'flowers', '🌸 このまま花の多く咲くほうへ'],
+    [routeWetlandButton, 'wetland', '🌾 カエルたちの湿地へ']
+  ];
+  for (const [button, route, label] of specs) {
+    const visited = game.completedRoutes.has(route);
+    button.disabled = visited;
+    button.innerHTML = visited ? `${label}<span class="visited-mark">訪問済み</span>` : label;
+  }
+}
+
+game.onRouteChoice = () => {
+  refreshRouteButtons();
+  routeScreen.classList.remove('hidden');
+};
 
 startButton.addEventListener('click', () => {
   sound.unlock();
@@ -3759,6 +3788,7 @@ caveButton.addEventListener('click', () => {
 
 
 routeCaveButton.addEventListener('click', () => {
+  if (routeCaveButton.disabled) return;
   sound.unlock();
   windChargeStarted = 0; waterChargeStarted = 0;
   cancelAnimationFrame(windChargeFrame); cancelAnimationFrame(waterChargeFrame);
@@ -3767,6 +3797,7 @@ routeCaveButton.addEventListener('click', () => {
   routeScreen.classList.add('hidden'); game.chooseRoute('cave');
 });
 routeFlowerButton.addEventListener('click', () => {
+  if (routeFlowerButton.disabled) return;
   sound.unlock();
   windChargeStarted = 0; waterChargeStarted = 0;
   cancelAnimationFrame(windChargeFrame); cancelAnimationFrame(waterChargeFrame);
@@ -3775,6 +3806,7 @@ routeFlowerButton.addEventListener('click', () => {
   routeScreen.classList.add('hidden'); game.chooseRoute('flowers');
 });
 routeWetlandButton.addEventListener('click', () => {
+  if (routeWetlandButton.disabled) return;
   sound.unlock();
   windChargeStarted = 0; waterChargeStarted = 0;
   cancelAnimationFrame(windChargeFrame); cancelAnimationFrame(waterChargeFrame);
@@ -3881,6 +3913,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.7.7</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.7.9</div>
 </body>
 </html>
