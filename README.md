@@ -1,7 +1,3 @@
-# Fairy Guardian v4.0.5
+# Fairy Guardian v4.0.5b
 
-- 強化後でも風・水の長押しチャージを有効化
-- タップ: 強化通常魔法
-- 風長押し: 絶対零度の猛吹雪
-- 水長押し: 氷のつらら3ウェーブ
-- 氷魔法未解放時は従来どおり、強化通常魔法を即発射
+Cache-check build. Upload index.html to repository root.
