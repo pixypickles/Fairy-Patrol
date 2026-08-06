@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.8.1</title>
+  <title>Fairy Guardian v3.8.2</title>
   <style>
 :root {
   color-scheme: light;
@@ -2650,6 +2650,7 @@ class Game {
     this.forestAnomalySeen = false;
     this.forestAnomaly = { active:false, age:0, duration:9.0, soundPlayed:false };
     this.dragonEventReady = false;
+      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:125, tailHealth:6, maxTailHealth:6, fireTimer:1.0, fires:[], notice:0, rewardGiven:false };
     this.returnNotice = 0;
     this.transition = null;
     this.transitionPass = false;
@@ -3108,6 +3109,102 @@ class Game {
     return null;
   }
 
+
+  startDragonRescue() {
+    const d = this.dragonRescue;
+    if (!d || d.active || d.completed || !this.dragonEventReady || this.mode !== 'meadow') return;
+    d.active = true;
+    d.age = 0;
+    d.x = this.width * .5;
+    d.y = 128;
+    d.tailHealth = d.maxTailHealth;
+    d.fireTimer = .75;
+    d.fires = [];
+    d.notice = 3.2;
+    d.rewardGiven = false;
+    this.dragonEventReady = false;
+  }
+
+  updateDragonRescue(dt) {
+    const d = this.dragonRescue;
+    if (!d) return;
+    if (!d.active && !d.completed && this.dragonEventReady && !this.forestAnomaly?.active) this.startDragonRescue();
+    if (!d.active) { d.notice = Math.max(0, (d.notice || 0) - dt); return; }
+    d.age += dt;
+    d.notice = Math.max(0, d.notice - dt);
+    d.x = this.width * .5 + Math.sin(d.age * .82) * 135 + Math.sin(d.age * 1.93) * 22;
+    d.y = 118 + Math.sin(d.age * 1.3) * 14;
+    if (d.tailHealth > 0) {
+      d.fireTimer -= dt;
+      if (d.fireTimer <= 0) {
+        d.fireTimer = 1.05 + Math.random() * .75;
+        d.fires.push({ x:d.x + (Math.random()-.5)*38, y:d.y+72, age:0, life:9, r:12, dead:false, hitChick:false });
+      }
+    }
+    for (const f of d.fires) {
+      f.age += dt; f.y += 48 * dt;
+      if (!f.dead && !f.hitChick && Math.hypot(f.x-this.chick.x,f.y-this.chick.y) < f.r+20) {
+        f.hitChick = true; f.dead = true; this.minus += 20;
+      }
+      if (f.age > f.life || f.y > this.height+45) f.dead = true;
+    }
+    d.fires = d.fires.filter(f=>!f.dead);
+    if (d.tailHealth <= 0 && d.fires.length === 0) {
+      d.active = false; d.completed = true; d.notice = 5.0;
+      if (!d.rewardGiven) { d.rewardGiven = true; this.plus += 500; this.sound.flower(5); }
+    }
+  }
+
+  waterHitDragonRescue(e, radius) {
+    const d = this.dragonRescue;
+    if (!d?.active) return false;
+    let hit = false;
+    const tailX = d.x + Math.sin(d.age*2.2)*12;
+    const tailY = d.y + 66;
+    if (!e.dragonTailHit && d.tailHealth > 0 && Math.hypot(e.x-tailX,e.y-tailY) < radius+28) {
+      e.dragonTailHit = true;
+      d.tailHealth = Math.max(0,d.tailHealth-1);
+      this.plus += 40;
+      this.sound.impact('water',1.2,!!e.spreadShot);
+      hit = true;
+    }
+    for (const f of d.fires) {
+      if (!f.dead && Math.hypot(e.x-f.x,e.y-f.y) < radius+f.r) {
+        f.dead = true; this.plus += 25; hit = true;
+      }
+    }
+    return hit;
+  }
+
+  drawDragonRescue(ctx) {
+    const d = this.dragonRescue;
+    if (!d) return;
+    if (d.active) {
+      ctx.save(); ctx.translate(d.x,d.y);
+      const flap=Math.sin(d.age*8)*.28;
+      ctx.globalAlpha=.18;ctx.fillStyle='#321b27';ctx.beginPath();ctx.ellipse(0,73,58,17,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+      ctx.fillStyle='#c84e4b';ctx.strokeStyle='#6d2d36';ctx.lineWidth=4;
+      ctx.save();ctx.rotate(-.18+flap);ctx.beginPath();ctx.ellipse(-48,4,48,17,-.18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
+      ctx.save();ctx.rotate(.18-flap);ctx.beginPath();ctx.ellipse(48,4,48,17,.18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.restore();
+      ctx.beginPath();ctx.ellipse(0,12,38,49,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#e56c59';ctx.beginPath();ctx.ellipse(0,-29,31,25,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(-10,-33,6,0,Math.PI*2);ctx.arc(10,-33,6,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#3a2830';ctx.beginPath();ctx.arc(-9,-32,2.5,0,Math.PI*2);ctx.arc(9,-32,2.5,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#74323b';ctx.lineWidth=8;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(0,48);ctx.quadraticCurveTo(20,61,Math.sin(d.age*2.2)*12,70);ctx.stroke();
+      if(d.tailHealth>0){
+        const tx=Math.sin(d.age*2.2)*12, ty=70;
+        const g=ctx.createRadialGradient(tx,ty,2,tx,ty,25);g.addColorStop(0,'rgba(255,249,145,.98)');g.addColorStop(.45,'rgba(255,138,45,.94)');g.addColorStop(1,'rgba(220,42,26,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(tx,ty,26,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#ff6a32';ctx.beginPath();ctx.moveTo(tx,ty+12);ctx.quadraticCurveTo(tx-16,ty-5,tx,ty-28);ctx.quadraticCurveTo(tx+18,ty-4,tx,ty+12);ctx.fill();
+      }
+      ctx.restore();
+      for(const f of d.fires){ctx.save();ctx.translate(f.x,f.y);const pulse=1+Math.sin(this.elapsed*10+f.x)*.12;ctx.scale(pulse,pulse);ctx.fillStyle='rgba(255,104,32,.9)';ctx.beginPath();ctx.moveTo(0,14);ctx.quadraticCurveTo(-14,0,0,-22);ctx.quadraticCurveTo(15,0,0,14);ctx.fill();ctx.fillStyle='#ffe06a';ctx.beginPath();ctx.moveTo(0,9);ctx.quadraticCurveTo(-7,0,0,-11);ctx.quadraticCurveTo(8,0,0,9);ctx.fill();ctx.restore();}
+      const ratio=d.tailHealth/d.maxTailHealth;ctx.save();ctx.fillStyle='rgba(255,250,235,.9)';ctx.strokeStyle='rgba(111,58,54,.6)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(128,62,this.width-256,24,12);ctx.fill();ctx.stroke();ctx.fillStyle='#58aee8';ctx.beginPath();ctx.roundRect(132,66,(this.width-264)*(1-ratio),16,8);ctx.fill();ctx.fillStyle='#69433d';ctx.font='800 13px system-ui';ctx.textAlign='center';ctx.fillText('しっぽの火を水で消そう',this.width/2,55);ctx.restore();
+    }
+    if (d.notice > 0) {
+      ctx.save();ctx.globalAlpha=Math.min(1,d.notice/.5);ctx.fillStyle='rgba(255,251,235,.94)';ctx.strokeStyle='rgba(116,72,61,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(78,95,this.width-156,64,20);ctx.fill();ctx.stroke();ctx.fillStyle='#704539';ctx.font='800 19px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(d.completed?'子ドラゴンの火が消えました！':'燃えたしっぽを追いかけよう！',this.width/2,127);ctx.restore();
+    }
+  }
+
   updateForestAnomaly(dt) {
     const omen = this.forestAnomaly;
     if (!omen?.active) return;
@@ -3199,6 +3296,7 @@ class Game {
     this.elapsed += dt;
     this.distance += dt * 5;
     this.updateForestAnomaly(dt);
+    this.updateDragonRescue(dt);
     // Every side route uses the same score checkpoint.  Do not infer route
     // state from scenery/mode flags: use activeRoute, which is set exactly when
     // the player enters a route.  This fixes wetland runs that could exceed the
@@ -3416,6 +3514,7 @@ class Game {
           e.x += (e.vx || 0) * dt + Math.sin(e.age * 10) * (e.kind === 'wind' ? 0.8 : 0.25);
         }
         if (e.kind === 'water') {
+          if (this.waterHitDragonRescue(e, e.spreadShot ? 14 : 22)) { e.phase='burst'; e.age=0; }
           if(this.mode==='cave'){
             for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,e.spreadShot?13:20)){this.plus+=25;this.sound.mushroom(m.note);this.registerMushroomHit(m);e.phase='burst';e.age=0;break;}}
           }
@@ -3569,6 +3668,7 @@ class Game {
             if (hit) { this.plus += hit === 2 ? 40 : 15; this.sound.rock(hit === 2); } this.sound.rock(hit === 2);
           }
         } else {
+          this.waterHitDragonRescue(e, radius*.62);
           if(this.mode==='cave'){for(const m of this.mushrooms){if(m.waterHit(e.x,e.y,radius*.62)){this.plus+=25;this.sound.mushroom(m.note);this.registerMushroomHit(m);}}}
           if(this.mode==='wetland'){
             for(const f of this.wetlandFrogs){if(f.waterHit(e.x,e.y,radius*.62)){this.plus+=60;this.sound.frogNote(f.note);}}
@@ -3781,6 +3881,7 @@ class Game {
     this.chick.draw(this.ctx, this.elapsed);
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
+    this.drawDragonRescue(this.ctx);
     for (const e of this.effects) this.drawEffect(e);
     if(this.mode==='meadow') this.drawSunbeams(this.ctx);
     if(this.mode==='cave' && this.caveCelebration>0){
@@ -4004,6 +4105,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.1</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.2</div>
 </body>
 </html>
