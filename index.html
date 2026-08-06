@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v4.0.2</title>
+  <title>Fairy Guardian v4.0.3</title>
   <style>
 :root {
   color-scheme: light;
@@ -3062,21 +3062,21 @@ class Game {
     if (!this.running || this.pausedForRoute || this.cooldowns[kind] > 0) return;
     const isWater = kind === 'water';
     const rawCharge = Math.min(1, Math.max(0, chargeSeconds / 0.9));
-    const iceLaser = !isWater && this.iceMagicUnlocked && rawCharge >= .55;
+    const iceBlizzard = !isWater && this.iceMagicUnlocked && rawCharge >= .55;
     let charge = rawCharge;
     // After two routes, a tap fires the former maximum-charge spell. Once ice
-    // magic is learned, holding Wind past the threshold fires one piercing
-    // absolute-zero beam instead of the normal fan gust.
+    // magic is learned, holding Wind past the threshold releases a long,
+    // narrow blizzard that reaches the top edge of the play field.
     if (this.magicUpgradeUnlocked) charge = 1;
-    this.cooldowns[kind] = iceLaser ? 1.45 : (isWater ? 0.60 + charge * .25 : 0.52 + charge * 0.18);
-    this.sound.cast(kind, iceLaser ? 1 : charge);
+    this.cooldowns[kind] = iceBlizzard ? 1.55 : (isWater ? 0.60 + charge * .25 : 0.52 + charge * 0.18);
+    this.sound.cast(kind, iceBlizzard ? 1 : charge);
 
-    if (iceLaser) {
+    if (iceBlizzard) {
       const startX=this.fairy.x, startY=this.fairy.y-28;
       this.effects.push({
-        x:startX,y:startY,startX,startY,endY:54,width:43,age:0,duration:.56,
-        frostDuration:3.1,kind:'wind',phase:'laser',iceLaser:true,piercing:true,
-        applied:false,trainingHit:false,windTouched:new Set(),pillarHits:[]
+        x:startX,y:startY,startX,startY,endY:42,nearWidth:34,farWidth:66,age:0,duration:.82,
+        frostDuration:3.0,kind:'wind',phase:'blizzard',iceBlizzard:true,piercing:true,
+        tick:0,trainingTick:0,windTouched:new Set(),pillarHits:[],multiHits:new Map()
       });
       return;
     }
@@ -3122,14 +3122,18 @@ class Game {
   }
 
 
-  pointInIceLaser(e,x,y,pad=0){
-    return y<=e.startY+pad && y>=e.endY-pad && Math.abs(x-e.startX)<=e.width+pad;
+  pointInIceBlizzard(e,x,y,pad=0){
+    if(y>e.startY+pad || y<e.endY-pad)return false;
+    const span=Math.max(1,e.startY-e.endY);
+    const q=Math.max(0,Math.min(1,(e.startY-y)/span));
+    const half=(e.nearWidth||34)+((e.farWidth||66)-(e.nearWidth||34))*q;
+    return Math.abs(x-e.startX)<=half+pad;
   }
 
-  applyIceLaser(e){
+  applyIceBlizzardTick(e,firstTick=false){
     const touched=e.windTouched||(e.windTouched=new Set());
-    const once=(obj,fn)=>{if(touched.has(obj))return false;const hit=fn();if(hit)touched.add(obj);return hit;};
-    const hit=(x,y,pad=0)=>this.pointInIceLaser(e,x,y,pad);
+    const once=(obj,fn)=>{if(touched.has(obj))return false;const ok=fn();if(ok)touched.add(obj);return ok;};
+    const hit=(x,y,pad=0)=>this.pointInIceBlizzard(e,x,y,pad);
     const d=this.dragonRescue;
     if(d?.active){
       for(const c of d.craters){if(c.fireActive&&hit(c.x,c.y,c.r)){c.fireHealth=0;c.fireActive=false;this.plus+=100;this.sound.grow('bridge');}}
@@ -3138,22 +3142,27 @@ class Game {
     }
     for(const bird of this.birds){if(bird.state==='approach'&&hit(bird.x,bird.y,bird.hitRadius)){if(bird.scare(e.startX,e.startY)){this.plus+=50;this.sound.scare('bird');}}}
     for(const cat of this.cats){if(cat.state==='approach'&&hit(cat.x,cat.y,cat.hitRadius)){if(cat.scare(e.startX,e.startY)){this.plus+=60;this.sound.scare('cat');}}}
+
+    // Repeated musical reactions. Cooldowns inside each object keep the sound
+    // lively without becoming an uncontrolled wall of audio.
     if(this.mode==='cave'){
-      for(const pebble of this.cavePebbles) once(pebble,()=>{if(!hit(pebble.x,pebble.y,28))return false;const h=pebble.windHit(pebble.x,pebble.y,70,1);if(h)for(const c of this.caveCrystals)c.resonate(pebble.x,pebble.y,90,this.sound);return h;});
-      for(const puddle of this.cavePuddles) once(puddle,()=>{if(!hit(puddle.x,puddle.y,38))return false;const h=puddle.windHit(puddle.x,puddle.y,74);if(h)this.triggerPuddleSplash(puddle);return h;});
+      for(const m of this.mushrooms){if(hit(m.x,m.y,24)&&m.waterHit(m.x,m.y,30)){this.plus+=8;this.sound.mushroom(m.note);this.registerMushroomHit(m);}}
+      for(const pebble of this.cavePebbles) once(pebble,()=>{if(!hit(pebble.x,pebble.y,28))return false;const h=pebble.windHit(pebble.x,pebble.y,74,1);if(h)for(const c of this.caveCrystals)c.resonate(pebble.x,pebble.y,92,this.sound);return h;});
+      for(const puddle of this.cavePuddles) once(puddle,()=>{if(!hit(puddle.x,puddle.y,38))return false;const h=puddle.windHit(puddle.x,puddle.y,78);if(h)this.triggerPuddleSplash(puddle);return h;});
     }
     if(this.mode==='wetland'){
+      for(const f of this.wetlandFrogs){if(hit(f.x,f.y,28)&&f.waterHit(f.x,f.y,34)){this.plus+=12;this.sound.frogNote(f.note);}}
       for(const w of this.crocodiles) once(w,()=>{if(hit(w.x,w.y,40)&&w.scare()){this.plus+=80;this.sound.cavePuddle();return true;}return false;});
-      for(const c of this.cattails) once(c,()=>{if(hit(c.x,c.y,30)&&c.windHit(c.x,c.y,70)){this.plus+=25;this.sound.dandelion();return true;}return false;});
-      for(const m of this.mudPatches) once(m,()=>{if(hit(m.x,m.y,40)&&m.windHit(m.x,m.y,76)){this.plus+=15;this.sound.leaves();return true;}return false;});
+      for(const c of this.cattails) once(c,()=>{if(hit(c.x,c.y,30)&&c.windHit(c.x,c.y,74)){this.plus+=25;this.sound.dandelion();return true;}return false;});
+      for(const m of this.mudPatches) once(m,()=>{if(hit(m.x,m.y,40)&&m.windHit(m.x,m.y,80)){this.plus+=15;this.sound.leaves();return true;}return false;});
     }
-    for(const pile of this.leafPiles) once(pile,()=>{if(hit(pile.x,pile.y,36)&&pile.windHit(pile.x,pile.y,74)){this.plus+=30;this.sound.leaves();return true;}return false;});
-    for(const dan of this.dandelions) once(dan,()=>{if(hit(dan.x,dan.y,30)&&dan.windHit(dan.x,dan.y,72)){this.plus+=45;this.sound.dandelion();return true;}return false;});
-    for(const branch of this.sideBranches) once(branch,()=>{if(hit(branch.x,branch.y,44)&&branch.windHit(branch.x,branch.y,78)){this.plus+=40;this.sound.leaves();return true;}return false;});
-    for(const rock of this.rocks) once(rock,()=>{if(!hit(rock.x,rock.y,42))return false;let any=false;for(let i=0;i<3&&!rock.dead;i++){const h=rock.windHit(rock.x,rock.y,80);if(h){this.plus+=h===2?40:15;this.sound.rock(h===2);any=true;}}return any;});
-    for(const ledge of this.ledges) once(ledge,()=>{if(!hit(ledge.x||this.width/2,ledge.y,70))return false;const h=ledge.windHit(e.startX,ledge.y,86);if(h){this.plus+=100;this.sound.grow('ledge');return true;}return false;});
-    for(const b of this.butterflies)if(hit(b.x,b.y,28))b.gust(e.startX,b.y,100);
-    for(const l of this.ladybugs)if(hit(l.x,l.y,24))l.gust(e.startX,l.y,90);
+    for(const pile of this.leafPiles) once(pile,()=>{if(hit(pile.x,pile.y,36)&&pile.windHit(pile.x,pile.y,78)){this.plus+=30;this.sound.leaves();return true;}return false;});
+    for(const dan of this.dandelions) once(dan,()=>{if(hit(dan.x,dan.y,30)&&dan.windHit(dan.x,dan.y,76)){this.plus+=45;this.sound.dandelion();return true;}return false;});
+    for(const branch of this.sideBranches) once(branch,()=>{if(hit(branch.x,branch.y,44)&&branch.windHit(branch.x,branch.y,82)){this.plus+=40;this.sound.leaves();return true;}return false;});
+    for(const rock of this.rocks) once(rock,()=>{if(!hit(rock.x,rock.y,42))return false;let any=false;for(let i=0;i<3&&!rock.dead;i++){const h=rock.windHit(rock.x,rock.y,84);if(h){this.plus+=h===2?40:15;this.sound.rock(h===2);any=true;}}return any;});
+    for(const ledge of this.ledges) once(ledge,()=>{if(!hit(ledge.x||this.width/2,ledge.y,74))return false;const h=ledge.windHit(e.startX,ledge.y,90);if(h){this.plus+=100;this.sound.grow('ledge');return true;}return false;});
+    for(const b of this.butterflies)if(hit(b.x,b.y,28))b.gust(e.startX,b.y,105);
+    for(const l of this.ladybugs)if(hit(l.x,l.y,24))l.gust(e.startX,l.y,95);
   }
 
   tryFrogSplash(x,y){
@@ -3332,7 +3341,7 @@ class Game {
         this.iceMagicNotice=6;
         try{localStorage.setItem('fairyGuardianIceMagicUnlocked','1');}catch(_){ }
         const windLabel=document.querySelector('#windButton span:last-child');
-        if(windLabel)windLabel.textContent='風・絶対零度';
+        if(windLabel)windLabel.textContent='風・猛吹雪';
       }
     }
     return true;
@@ -3341,19 +3350,19 @@ class Game {
   updateTrainingEffects(dt) {
     for (const e of this.effects) {
       e.age += dt;
-      if(e.phase==='laser'){
+      if(e.phase==='blizzard'){
         e.x=e.startX;e.y=e.startY;
-        if(!e.applied){
-          e.applied=true;
+        e.trainingTick=(e.trainingTick||0)-dt;
+        if(e.trainingTick<=0){e.trainingTick=.09;
           const t=this.trainingState,p=this.trainingPapa;
-          for(const f of t.fireballs)if(!f.dead&&this.pointInIceLaser(e,f.x,f.y,22))f.dead=true;
-          if(this.pointInIceLaser(e,p.x,p.y,96)){
+          for(const f of t.fireballs)if(!f.dead&&this.pointInIceBlizzard(e,f.x,f.y,22))f.dead=true;
+          if(this.pointInIceBlizzard(e,p.x,p.y,96)){
             if(t.shieldActive>0){t.shieldFlashes.push({x:p.x,y:p.y-20,age:0});this.sound?.windBurst?.(.7);}
             else{
               const gain=85;t.gauge=Math.min(t.target,t.gauge+gain);this.plus+=gain;this.sound?.caveChord?.();
               if(t.gauge>=t.target){
                 t.complete=true;t.fireballs=[];t.resultAge=0;
-                if(!this.iceMagicUnlocked){this.iceMagicUnlocked=true;this.iceMagicNotice=6;try{localStorage.setItem('fairyGuardianIceMagicUnlocked','1');}catch(_){} const label=document.querySelector('#windButton span:last-child');if(label)label.textContent='風・絶対零度';}
+                if(!this.iceMagicUnlocked){this.iceMagicUnlocked=true;this.iceMagicNotice=6;try{localStorage.setItem('fairyGuardianIceMagicUnlocked','1');}catch(_){} const label=document.querySelector('#windButton span:last-child');if(label)label.textContent='風・猛吹雪';}
               }
             }
           }
@@ -3475,7 +3484,7 @@ class Game {
     ctx.fillStyle='#36516a';ctx.font='700 13px system-ui';ctx.fillText(`訓練 ${Math.round(t.gauge)} / ${t.target}　被弾 ${t.mistakes}`,this.width/2,164);ctx.restore();
 
     if(t.complete){
-      ctx.save();ctx.globalAlpha=Math.min(1,t.resultAge/.45);ctx.fillStyle='rgba(255,252,224,.94)';ctx.strokeStyle='rgba(102,126,90,.68)';ctx.lineWidth=4;ctx.beginPath();ctx.roundRect(78,665,this.width-156,104,24);ctx.fill();ctx.stroke();ctx.fillStyle='#496348';ctx.textAlign='center';ctx.font='900 27px system-ui';ctx.fillText('特訓 合格！',this.width/2,705);ctx.font='700 15px system-ui';ctx.fillText(this.iceMagicUnlocked?'絶対零度レーザーを覚えました！':'パパドラゴンが、静かにうなずきました',this.width/2,733);ctx.font='700 12px system-ui';ctx.fillText('まもなくタイトルへ戻ります',this.width/2,754);ctx.restore();
+      ctx.save();ctx.globalAlpha=Math.min(1,t.resultAge/.45);ctx.fillStyle='rgba(255,252,224,.94)';ctx.strokeStyle='rgba(102,126,90,.68)';ctx.lineWidth=4;ctx.beginPath();ctx.roundRect(78,665,this.width-156,104,24);ctx.fill();ctx.stroke();ctx.fillStyle='#496348';ctx.textAlign='center';ctx.font='900 27px system-ui';ctx.fillText('特訓 合格！',this.width/2,705);ctx.font='700 15px system-ui';ctx.fillText(this.iceMagicUnlocked?'絶対零度の猛吹雪を覚えました！':'パパドラゴンが、静かにうなずきました',this.width/2,733);ctx.font='700 12px system-ui';ctx.fillText('まもなくタイトルへ戻ります',this.width/2,754);ctx.restore();
     }
   }
 
@@ -4149,9 +4158,10 @@ class Game {
     for (const e of this.effects) {
       const phaseBefore = e.phase;
       e.age += dt;
-      if(e.phase==='laser'){
+      if(e.phase==='blizzard'){
         e.x=e.startX;e.y=e.startY;
-        if(!e.applied){this.applyIceLaser(e);e.applied=true;}
+        e.trainingTick=(e.trainingTick||0)-dt;
+        if(e.trainingTick<=0){e.trainingTick=.09;this.applyIceBlizzardTick(e);e.applied=true;}
         if(e.age>=e.duration){e.phase='frost';e.age=0;}
         continue;
       }
@@ -4496,38 +4506,58 @@ class Game {
     }
   }
 
-  drawIceLaser(ctx,e){
-    const len=Math.max(80,e.startY-e.endY);
-    const pulse=.88+Math.sin(e.age*34)*.12;
+  drawIceBlizzard(ctx,e){
+    const len=Math.max(120,e.startY-e.endY);
+    const t=Math.min(1,e.age/e.duration);
+    const strength=Math.sin(Math.min(1,t/.16)*Math.PI/2)*Math.min(1,(1-t)/.13);
     ctx.globalCompositeOperation='lighter';
+    ctx.globalAlpha=.92*Math.max(.25,strength);
+    const near=e.nearWidth||34, far=e.farWidth||66;
     const g=ctx.createLinearGradient(0,0,0,-len);
-    g.addColorStop(0,'rgba(245,255,255,.98)');
-    g.addColorStop(.12,'rgba(80,215,255,.98)');
-    g.addColorStop(.55,'rgba(18,112,255,.94)');
-    g.addColorStop(1,'rgba(205,250,255,.82)');
-    ctx.strokeStyle=g;ctx.lineCap='round';
-    ctx.lineWidth=e.width*2.05*pulse;ctx.shadowColor='rgba(68,180,255,.95)';ctx.shadowBlur=32;
-    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-len);ctx.stroke();
-    ctx.shadowBlur=15;ctx.strokeStyle='rgba(255,255,255,.96)';ctx.lineWidth=e.width*.56;
-    ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(0,-len);ctx.stroke();
-    for(let i=0;i<24;i++){
-      const q=(i/24+e.age*1.8)%1, y=-q*len;
-      const side=Math.sin(i*2.7+e.age*18)*(e.width*.72+8);
-      ctx.save();ctx.translate(side,y);ctx.rotate(e.age*5+i);
-      ctx.strokeStyle=i%3?'rgba(185,235,255,.9)':'rgba(255,255,255,.98)';ctx.lineWidth=1.5;
-      for(let a=0;a<3;a++){ctx.rotate(Math.PI/3);ctx.beginPath();ctx.moveTo(-4,0);ctx.lineTo(4,0);ctx.stroke();}
-      ctx.restore();
+    g.addColorStop(0,'rgba(235,252,255,.96)');
+    g.addColorStop(.24,'rgba(82,199,255,.76)');
+    g.addColorStop(.72,'rgba(20,116,244,.52)');
+    g.addColorStop(1,'rgba(210,250,255,.18)');
+    ctx.fillStyle=g;ctx.shadowColor='rgba(70,182,255,.85)';ctx.shadowBlur=24;
+    ctx.beginPath();ctx.moveTo(-near,0);ctx.lineTo(-far,-len);ctx.lineTo(far,-len);ctx.lineTo(near,0);ctx.closePath();ctx.fill();
+    ctx.shadowBlur=0;
+    // Dense high-speed streaks and tiny snow crystals. Their narrow spread and
+    // long travel sell force rather than a soft, wide snow fan.
+    const seed=Math.floor(e.age*70);
+    for(let i=0;i<92;i++){
+      const q=((i*0.071+e.age*(2.5+(i%5)*.16))%1);
+      const y=-q*len;
+      const half=near+(far-near)*q;
+      const wave=Math.sin(i*12.9898+seed*.17);
+      const x=wave*half*.88;
+      const streak=12+(i%7)*4;
+      ctx.strokeStyle=i%4===0?'rgba(255,255,255,.95)':'rgba(125,211,255,.78)';
+      ctx.lineWidth=i%6===0?2.2:1.15;
+      ctx.beginPath();ctx.moveTo(x,y+streak*.42);ctx.lineTo(x+(i%2?2:-2),y-streak);ctx.stroke();
+      if(i%7===0){
+        ctx.save();ctx.translate(x,y);ctx.rotate(e.age*5+i);
+        ctx.strokeStyle='rgba(228,250,255,.92)';ctx.lineWidth=1.2;
+        for(let a=0;a<3;a++){ctx.rotate(Math.PI/3);ctx.beginPath();ctx.moveTo(-3.5,0);ctx.lineTo(3.5,0);ctx.stroke();}
+        ctx.restore();
+      }
+    }
+    ctx.globalAlpha=.65*Math.max(.25,strength);
+    ctx.strokeStyle='rgba(238,253,255,.72)';ctx.lineWidth=2;
+    for(let i=0;i<7;i++){
+      const x=(i-3)*near*.34+Math.sin(e.age*18+i)*5;
+      ctx.beginPath();ctx.moveTo(x,0);ctx.quadraticCurveTo(x*1.25,-len*.45,x*(far/near),-len);ctx.stroke();
     }
   }
 
   drawFrozenTrail(ctx,e){
     const len=Math.max(80,e.startY-e.endY), t=Math.min(1,e.age/e.frostDuration);
+    const trailWidth=e.farWidth||e.width||44;
     ctx.globalAlpha=(1-t)*.72;ctx.globalCompositeOperation='lighter';
     const g=ctx.createLinearGradient(0,0,0,-len);g.addColorStop(0,'rgba(148,222,255,.20)');g.addColorStop(.5,'rgba(212,247,255,.58)');g.addColorStop(1,'rgba(120,205,255,.18)');
-    ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(-e.width*.86,-len,e.width*1.72,len,18);ctx.fill();
+    ctx.fillStyle=g;ctx.beginPath();ctx.roundRect(-trailWidth*.78,-len,trailWidth*1.56,len,18);ctx.fill();
     ctx.strokeStyle=`rgba(235,252,255,${(1-t)*.8})`;ctx.lineWidth=2;
     for(let i=0;i<13;i++){
-      const y=-len*(i+.5)/13, x=Math.sin(i*1.9)*e.width*.45;
+      const y=-len*(i+.5)/13, x=Math.sin(i*1.9)*trailWidth*.42;
       ctx.beginPath();ctx.moveTo(x-12,y-5);ctx.lineTo(x,y);ctx.lineTo(x+10,y-8);ctx.stroke();
     }
   }
@@ -4599,7 +4629,7 @@ class Game {
     const ctx = this.ctx;
     ctx.save();
     ctx.translate(e.x, e.y);
-    if(e.phase==='laser')this.drawIceLaser(ctx,e);
+    if(e.phase==='blizzard')this.drawIceBlizzard(ctx,e);
     else if(e.phase==='frost')this.drawFrozenTrail(ctx,e);
     else if (e.phase === 'travel') {
       if (e.kind === 'wind') this.drawWindTravel(ctx, e);
@@ -4845,7 +4875,7 @@ soundButton.addEventListener('click', (e) => {
 });
 
 const windButton = document.querySelector('#windButton');
-if(game.iceMagicUnlocked){const label=windButton.querySelector('span:last-child');if(label)label.textContent='風・絶対零度';}
+if(game.iceMagicUnlocked){const label=windButton.querySelector('span:last-child');if(label)label.textContent='風・猛吹雪';}
 let windChargeStarted = 0;
 let windChargeFrame = 0;
 
@@ -4935,6 +4965,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.2</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v4.0.3</div>
 </body>
 </html>
