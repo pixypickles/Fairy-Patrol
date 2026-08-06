@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.8.5</title>
+  <title>Fairy Guardian v3.8.6</title>
   <style>
 :root {
   color-scheme: light;
@@ -2653,7 +2653,7 @@ class Game {
     this.dragonEventReady = false;
     this.magicUpgradeUnlocked = false;
     this.magicUpgradeNotice = 0;
-      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:245, prevX:this.width/2, facing:1, tailHealth:15, maxTailHealth:15, fireTimer:.75, fires:[], notice:0, rewardGiven:false };
+      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:245, prevX:this.width/2, facing:1, tailHealth:15, maxTailHealth:15, fireTimer:.75, fires:[], fireballTimer:2.8, fireballs:[], craters:[], nextCraterId:1, notice:0, rewardGiven:false };
     this.returnNotice = 0;
     this.transition = null;
     this.transitionPass = false;
@@ -3144,6 +3144,10 @@ class Game {
     d.tailHealth = d.maxTailHealth;
     d.fireTimer = .75;
     d.fires = [];
+    d.fireballTimer = 2.4;
+    d.fireballs = [];
+    d.craters = [];
+    d.nextCraterId = 1;
     d.notice = 3.2;
     d.rewardGiven = false;
     this.dragonEventReady = false;
@@ -3178,6 +3182,53 @@ class Game {
         }
       }
     }
+    // In the worst part of the panic the dragon sometimes coughs out a
+    // fireball.  It is not aiming at the chick: the landing point wanders in
+    // front of the party and leaves a dangerous crater with a fire pillar.
+    if (d.tailHealth > 0) {
+      d.fireballTimer -= dt;
+      const openCraterCount = d.craters.filter(c=>!c.dead).length;
+      if (d.fireballTimer <= 0 && openCraterCount < 3) {
+        const mouthX = d.x + d.facing * 62;
+        const mouthY = d.y - 12;
+        let targetX = 90 + Math.random() * (this.width - 180);
+        let targetY = Math.max(250, this.chick.y - 310 - Math.random()*120);
+        for (let tries=0; tries<6 && d.craters.some(c=>Math.hypot(c.x-targetX,c.y-targetY)<110); tries++) {
+          targetX = 90 + Math.random() * (this.width - 180);
+          targetY = Math.max(250, this.chick.y - 310 - Math.random()*120);
+        }
+        d.fireballs.push({x:mouthX,y:mouthY,startX:mouthX,startY:mouthY,targetX,targetY,age:0,travel:.88+Math.random()*.22,dead:false});
+        d.fireballTimer = 4.0 + Math.random()*2.2 + (1-panic)*1.8;
+      }
+    }
+    for (const b of d.fireballs) {
+      b.age += dt;
+      const p = Math.min(1,b.age/b.travel);
+      const eased = 1-Math.pow(1-p,2);
+      b.x = b.startX + (b.targetX-b.startX)*eased;
+      b.y = b.startY + (b.targetY-b.startY)*eased - Math.sin(p*Math.PI)*72;
+      if (p>=1 && !b.dead) {
+        b.dead=true;
+        d.craters.push({id:d.nextCraterId++,x:b.targetX,y:b.targetY,r:39+Math.random()*5,fireHealth:10,maxFireHealth:10,fireActive:true,age:0,hitCooldown:0,dead:false,sprout:0});
+        this.sound.rock(true);
+      }
+    }
+    d.fireballs = d.fireballs.filter(b=>!b.dead);
+    for (const c of d.craters) {
+      c.age += dt;
+      c.y += 38*dt;
+      c.hitCooldown = Math.max(0,c.hitCooldown-dt);
+      if (!c.fireActive && d.completed) c.sprout = Math.min(1,(c.sprout||0)+dt*.7);
+      if (c.y > this.height+100) c.dead=true;
+      if (!c.hitCooldown && Math.hypot(c.x-this.chick.x,c.y-this.chick.y) < c.r+19) {
+        c.hitCooldown=2.0;
+        this.minus += c.fireActive ? 45 : 30;
+        const safeLane = this.chick.lanes.reduce((best,x,i)=>Math.abs(x-c.x)>Math.abs(this.chick.lanes[best]-c.x)?i:best,0);
+        this.chick.assistTo(this.chick.lanes[safeLane]);
+      }
+    }
+    d.craters = d.craters.filter(c=>!c.dead);
+
     for (const f of d.fires) {
       f.age += dt; f.x += (f.vx || 0) * dt; f.y += 48 * dt;
       if (!f.dead && !f.hitChick && Math.hypot(f.x-this.chick.x,f.y-this.chick.y) < f.r+20) {
@@ -3186,9 +3237,11 @@ class Game {
       if (f.age > f.life || f.y > this.height+45) f.dead = true;
     }
     d.fires = d.fires.filter(f=>!f.dead);
-    if (d.tailHealth <= 0 && d.fires.length === 0) {
+    const activePillars = d.craters.some(c=>c.fireActive);
+    if (d.tailHealth <= 0 && d.fires.length === 0 && d.fireballs.length === 0 && !activePillars) {
       d.active = false; d.completed = true; d.notice = 5.0;
-      if (!d.rewardGiven) { d.rewardGiven = true; this.plus += 500; this.sound.flower(5); }
+      for(const c of d.craters){c.fireActive=false;c.sprout=.01;}
+      if (!d.rewardGiven) { d.rewardGiven = true; this.plus += 700; this.sound.flower(5); }
     }
   }
 
@@ -3211,12 +3264,49 @@ class Game {
         f.dead = true; this.plus += 25; hit = true;
       }
     }
+    for (const b of d.fireballs) {
+      if (!b.dead && Math.hypot(e.x-b.x,e.y-b.y) < radius+18) {
+        b.dead=true; this.plus+=35; this.sound.impact('water',1.35,!!e.spreadShot); hit=true;
+      }
+    }
+    if(!e.pillarHits)e.pillarHits=[];
+    for (const c of d.craters) {
+      if (!c.fireActive || e.pillarHits.includes(c.id)) continue;
+      if (Math.hypot(e.x-c.x,e.y-c.y) < radius+c.r*.76) {
+        e.pillarHits.push(c.id);
+        const damage=e.spreadShot?2:1;
+        c.fireHealth=Math.max(0,c.fireHealth-damage);
+        this.plus+=12*damage;
+        this.sound.impact('water',1.25,!!e.spreadShot);
+        if(c.fireHealth<=0){c.fireActive=false;this.plus+=100;this.sound.grow('bridge');}
+        hit=true;
+      }
+    }
     return hit;
   }
 
   drawDragonRescue(ctx) {
     const d = this.dragonRescue;
     if (!d) return;
+    // Craters sit on the ground below every airborne element.  Extinguished
+    // holes remain as steering hazards; after the rescue a small sprout grows.
+    for(const c of d.craters||[]){
+      ctx.save();ctx.translate(c.x,c.y);
+      ctx.fillStyle='rgba(77,48,39,.34)';ctx.beginPath();ctx.ellipse(3,7,c.r*1.08,c.r*.63,.08,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#4a302c';ctx.beginPath();ctx.ellipse(0,0,c.r,c.r*.58,-.08,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#211f23';ctx.beginPath();ctx.ellipse(0,2,c.r*.72,c.r*.39,-.04,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='rgba(137,87,56,.72)';ctx.lineWidth=5;ctx.beginPath();ctx.arc(-9,-4,c.r*.67,3.35,5.82);ctx.stroke();
+      if(c.fireActive){
+        const health=c.fireHealth/c.maxFireHealth;
+        const h=48+health*48+Math.sin(this.elapsed*13+c.x)*8;
+        const g=ctx.createLinearGradient(0,20,0,-h);g.addColorStop(0,'rgba(255,60,20,.86)');g.addColorStop(.5,'rgba(255,151,34,.94)');g.addColorStop(1,'rgba(255,247,135,.18)');
+        ctx.fillStyle=g;ctx.beginPath();ctx.moveTo(-24,14);ctx.quadraticCurveTo(-35,-25,-8,-h*.72);ctx.quadraticCurveTo(0,-h,11,-h*.65);ctx.quadraticCurveTo(37,-24,24,14);ctx.closePath();ctx.fill();
+        ctx.fillStyle='rgba(255,239,128,.82)';ctx.beginPath();ctx.ellipse(0,-h*.35,11,27,0,0,Math.PI*2);ctx.fill();
+      }
+      if((c.sprout||0)>0){const q=c.sprout;ctx.strokeStyle='#397e45';ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(0,-4);ctx.lineTo(0,-4-22*q);ctx.stroke();ctx.fillStyle='#75c96a';ctx.beginPath();ctx.ellipse(-7*q,-16*q,9*q,5*q,-.45,0,Math.PI*2);ctx.ellipse(7*q,-20*q,9*q,5*q,.45,0,Math.PI*2);ctx.fill();}
+      ctx.restore();
+    }
+    for(const b of d.fireballs||[]){ctx.save();ctx.translate(b.x,b.y);const pulse=1+Math.sin(this.elapsed*16)*.1;ctx.scale(pulse,pulse);const g=ctx.createRadialGradient(-5,-6,2,0,0,22);g.addColorStop(0,'#fff7a2');g.addColorStop(.38,'#ff9a32');g.addColorStop(1,'rgba(214,38,22,.2)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,22,0,Math.PI*2);ctx.fill();ctx.fillStyle='rgba(255,97,35,.5)';ctx.beginPath();ctx.moveTo(-15,8);ctx.quadraticCurveTo(-38,16,-49,3);ctx.quadraticCurveTo(-30,-7,-13,-5);ctx.fill();ctx.restore();}
     if (d.active) {
       const panic = Math.max(0, d.tailHealth / d.maxTailHealth);
       const facing = d.facing || 1;
@@ -3284,10 +3374,10 @@ class Game {
       ctx.restore();
 
       for(const f of d.fires){ctx.save();ctx.translate(f.x,f.y);const pulse=1+Math.sin(this.elapsed*10+f.x)*.12;ctx.scale(pulse,pulse);ctx.fillStyle='rgba(255,104,32,.9)';ctx.beginPath();ctx.moveTo(0,14);ctx.quadraticCurveTo(-14,0,0,-22);ctx.quadraticCurveTo(15,0,0,14);ctx.fill();ctx.fillStyle='#ffe06a';ctx.beginPath();ctx.moveTo(0,9);ctx.quadraticCurveTo(-7,0,0,-11);ctx.quadraticCurveTo(8,0,0,9);ctx.fill();ctx.restore();}
-      const ratio=d.tailHealth/d.maxTailHealth;ctx.save();ctx.fillStyle='rgba(255,250,235,.9)';ctx.strokeStyle='rgba(111,58,54,.6)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(128,132,this.width-256,24,12);ctx.fill();ctx.stroke();ctx.fillStyle='#58aee8';ctx.beginPath();ctx.roundRect(132,136,(this.width-264)*(1-ratio),16,8);ctx.fill();ctx.fillStyle='#69433d';ctx.font='800 13px system-ui';ctx.textAlign='center';ctx.fillText('しっぽの火を水で消そう',this.width/2,125);ctx.restore();
+      const ratio=d.tailHealth/d.maxTailHealth;ctx.save();ctx.fillStyle='rgba(255,250,235,.9)';ctx.strokeStyle='rgba(111,58,54,.6)';ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(128,132,this.width-256,24,12);ctx.fill();ctx.stroke();ctx.fillStyle='#58aee8';ctx.beginPath();ctx.roundRect(132,136,(this.width-264)*(1-ratio),16,8);ctx.fill();ctx.fillStyle='#69433d';ctx.font='800 13px system-ui';ctx.textAlign='center';ctx.fillText('しっぽと火柱を水で消そう',this.width/2,125);ctx.restore();
     }
     if (d.notice > 0) {
-      ctx.save();ctx.globalAlpha=Math.min(1,d.notice/.5);ctx.fillStyle='rgba(255,251,235,.94)';ctx.strokeStyle='rgba(116,72,61,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(78,165,this.width-156,58,20);ctx.fill();ctx.stroke();ctx.fillStyle='#704539';ctx.font='800 18px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(d.completed?'子ドラゴンの火が消えました！':'慌てた子ドラゴンを助けよう！',this.width/2,194);ctx.restore();
+      ctx.save();ctx.globalAlpha=Math.min(1,d.notice/.5);ctx.fillStyle='rgba(255,251,235,.94)';ctx.strokeStyle='rgba(116,72,61,.55)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(78,165,this.width-156,58,20);ctx.fill();ctx.stroke();ctx.fillStyle='#704539';ctx.font='800 18px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(d.completed?'火が消え、穴から芽が出ました！':'しっぽと地面の火を消そう！',this.width/2,194);ctx.restore();
     }
   }
 
@@ -4225,6 +4315,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.5</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.6</div>
 </body>
 </html>
