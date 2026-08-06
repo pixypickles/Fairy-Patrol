@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.8.6</title>
+  <title>Fairy Guardian v3.9.0</title>
   <style>
 :root {
   color-scheme: light;
@@ -2654,6 +2654,7 @@ class Game {
     this.magicUpgradeUnlocked = false;
     this.magicUpgradeNotice = 0;
       this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:245, prevX:this.width/2, facing:1, tailHealth:15, maxTailHealth:15, fireTimer:.75, fires:[], fireballTimer:2.8, fireballs:[], craters:[], nextCraterId:1, notice:0, rewardGiven:false };
+      this.dragonAftermath = { active:false, age:0, phase:'none', papaX:this.width+180, papaY:255, papaFacing:-1, ratingShown:false, trainingEligible:false };
     this.returnNotice = 0;
     this.transition = null;
     this.transitionPass = false;
@@ -3242,6 +3243,8 @@ class Game {
       d.active = false; d.completed = true; d.notice = 5.0;
       for(const c of d.craters){c.fireActive=false;c.sprout=.01;}
       if (!d.rewardGiven) { d.rewardGiven = true; this.plus += 700; this.sound.flower(5); }
+      this.updateDragonTrainingEvaluation();
+      this.dragonAftermath = { active:true, age:0, phase:'child_relief', papaX:this.width+190, papaY:248, papaFacing:-1, ratingShown:false, trainingEligible:this.dragonTrainingEvaluation.eligible };
     }
   }
 
@@ -3381,6 +3384,87 @@ class Game {
     }
   }
 
+  updateDragonAftermath(dt) {
+    const a = this.dragonAftermath;
+    if (!a?.active) return;
+    a.age += dt;
+    // Keep the scene calm while the family reunites.
+    this.birds = [];
+    this.cats = [];
+    this.birdSpawnTimer = 99999;
+    this.catSpawnTimer = 99999;
+    if (a.phase === 'child_relief' && a.age > 2.8) {
+      a.phase = 'papa_arrival';
+      a.age = 0;
+      this.sound.forestOmen?.();
+    } else if (a.phase === 'papa_arrival') {
+      const targetX = this.width * .67;
+      a.papaX += (targetX - a.papaX) * Math.min(1, dt * 1.35);
+      a.papaY = 244 + Math.sin(this.elapsed * 1.7) * 5;
+      if (Math.abs(a.papaX-targetX) < 3 && a.age > 2.6) {
+        a.phase = 'evaluation';
+        a.age = 0;
+        a.ratingShown = true;
+        this.sound.flower?.(6);
+      }
+    } else if (a.phase === 'evaluation' && a.age > 7.5) {
+      a.phase = 'complete';
+      a.age = 0;
+    }
+  }
+
+  drawDragonAftermath(ctx) {
+    const a = this.dragonAftermath;
+    if (!a?.active) return;
+    // Child dragon rests near the chick after being rescued.
+    const childX = this.width * .39 + Math.sin(this.elapsed*1.6)*5;
+    const childY = 286 + Math.sin(this.elapsed*2.2)*3;
+    ctx.save();
+    ctx.translate(childX, childY);
+    ctx.fillStyle='rgba(34,63,66,.12)';ctx.beginPath();ctx.ellipse(0,47,43,9,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#285f68';ctx.lineWidth=4;ctx.lineJoin='round';
+    ctx.fillStyle='#70d2c5';ctx.beginPath();ctx.ellipse(0,12,30,27,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.beginPath();ctx.ellipse(20,-15,27,23,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#c8f0df';ctx.beginPath();ctx.ellipse(5,17,16,17,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(28,-19,6,7,0,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#203d43';ctx.beginPath();ctx.arc(29,-18,2.5,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#31545a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(28,-7,8,.15,Math.PI-.15);ctx.stroke();
+    ctx.fillStyle='#9be5da';ctx.beginPath();ctx.moveTo(-16,-2);ctx.quadraticCurveTo(-47,-30,-38,8);ctx.quadraticCurveTo(-31,29,-9,20);ctx.fill();ctx.stroke();
+    ctx.restore();
+
+    if (a.phase === 'papa_arrival' || a.phase === 'evaluation' || a.phase === 'complete') {
+      const px=a.papaX, py=a.papaY;
+      const flap=Math.sin(this.elapsed*5.5)*.28;
+      ctx.save();ctx.translate(px,py);ctx.scale(-1,1);
+      ctx.globalAlpha=.13;ctx.fillStyle='#15393f';ctx.beginPath();ctx.ellipse(0,98,91,16,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+      ctx.strokeStyle='#315d66';ctx.lineWidth=5;ctx.lineJoin='round';ctx.lineCap='round';
+      ctx.fillStyle='#4e9ba1';ctx.beginPath();ctx.ellipse(0,26,59,51,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#bce3d9';ctx.beginPath();ctx.ellipse(10,35,34,34,0,0,Math.PI*2);ctx.fill();
+      ctx.save();ctx.translate(-15,3);ctx.rotate(-.15+flap);ctx.fillStyle='rgba(110,184,189,.94)';ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(-62,-76,-90,-28);ctx.quadraticCurveTo(-67,1,-15,28);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+      ctx.fillStyle='#4e9ba1';ctx.beginPath();ctx.ellipse(44,-25,49,39,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.ellipse(76,-13,30,19,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#f3dda0';ctx.beginPath();ctx.moveTo(22,-53);ctx.lineTo(31,-82);ctx.lineTo(43,-51);ctx.closePath();ctx.moveTo(48,-55);ctx.lineTo(63,-79);ctx.lineTo(67,-48);ctx.closePath();ctx.fill();ctx.stroke();
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(58,-30,9,10,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#203d43';ctx.beginPath();ctx.arc(60,-29,3.5,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#31545a';ctx.lineWidth=3;ctx.beginPath();ctx.arc(69,-7,13,.15,Math.PI-.2);ctx.stroke();
+      ctx.restore();
+    }
+
+    if (a.phase === 'evaluation' || a.phase === 'complete') {
+      const ev=this.dragonTrainingEvaluation;
+      const alpha=Math.min(1,a.age/.5);
+      ctx.save();ctx.globalAlpha=alpha;
+      ctx.fillStyle='rgba(255,252,235,.96)';ctx.strokeStyle='rgba(71,91,83,.65)';ctx.lineWidth=3;
+      ctx.beginPath();ctx.roundRect(63,155,this.width-126,148,24);ctx.fill();ctx.stroke();
+      ctx.fillStyle='#31594f';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.font='800 20px system-ui,sans-serif';ctx.fillText('パパドラゴンがお礼に来ました',this.width/2,186);
+      ctx.font='900 30px system-ui,sans-serif';ctx.fillStyle='#e7a53d';ctx.fillText(ev.rank,this.width/2,226);
+      ctx.font='700 15px system-ui,sans-serif';ctx.fillStyle='#4c655f';ctx.fillText(`旅のマイナス ${this.minus}点`,this.width/2,260);
+      ctx.font='700 14px system-ui,sans-serif';ctx.fillText(ev.eligible?'特訓に誘ってくれそうです':'もう少し森を守る練習をしよう',this.width/2,284);
+      ctx.restore();
+    }
+  }
+
   updateForestAnomaly(dt) {
     const omen = this.forestAnomaly;
     if (!omen?.active) return;
@@ -3473,6 +3557,7 @@ class Game {
     this.distance += dt * 5;
     this.updateForestAnomaly(dt);
     this.updateDragonRescue(dt);
+    this.updateDragonAftermath(dt);
     // Every side route uses the same score checkpoint.  Do not infer route
     // state from scenery/mode flags: use activeRoute, which is set exactly when
     // the player enters a route.  This fixes wetland runs that could exceed the
@@ -3643,7 +3728,7 @@ class Game {
 
     // Keep the pace gentle: only one approaching animal is normally present.
     // During the dragon rescue, ordinary animals stay away from the commotion.
-    const dragonScene = !!this.dragonRescue?.active;
+    const dragonScene = !!this.dragonRescue?.active || !!this.dragonAftermath?.active;
     const threatPresent = this.birds.some(b => b.state === 'approach') || this.cats.some(c => c.state === 'approach');
     if (!dragonScene) {
       this.birdSpawnTimer -= dt;
@@ -4064,6 +4149,7 @@ class Game {
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
     this.drawDragonRescue(this.ctx);
+    this.drawDragonAftermath(this.ctx);
     for (const e of this.effects) this.drawEffect(e);
     if(this.mode==='meadow') this.drawSunbeams(this.ctx);
     if(this.mode==='cave' && this.caveCelebration>0){
@@ -4315,6 +4401,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.6</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.9.0</div>
 </body>
 </html>
