@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.9.0</title>
+  <title>Fairy Guardian v3.8.6</title>
   <style>
 :root {
   color-scheme: light;
@@ -262,7 +262,7 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
           <h1>妖精とヒヨコの<br>森のおさんぽ</h1>
           <p>風と水の力で、ヒヨコをそっと見守ろう。</p>
           <button id="startButton" class="primary-button" type="button">おさんぽを始める</button>
-          <button id="caveButton" class="primary-button cave-choice" type="button">音の洞くつを試す</button>
+          <button id="trainingButton" class="primary-button cave-choice hidden" type="button">🐉 パパドラゴンの特訓</button>
           <button id="dragonTestButton" class="primary-button cave-choice" type="button">テスト：ドラゴンから開始</button>
         </div>
       </div>
@@ -278,6 +278,18 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
             <button id="routeWetlandButton" class="route-button wetland" type="button">🌾 カエルたちの湿地へ</button>
           </div>
           <p class="route-note">プラス点はエリアごとに0へ戻ります。マイナス点は旅のあいだ残ります。</p>
+        </div>
+      </div>
+
+      <div id="dragonResultScreen" class="screen-overlay hidden">
+        <div class="title-card route-card">
+          <p class="eyebrow">子ドラゴン救助</p>
+          <h2 id="dragonResultTitle">森を守れました！</h2>
+          <p id="dragonResultText"></p>
+          <div class="route-buttons">
+            <button id="goTrainingButton" class="route-button cave hidden" type="button">🐉 パパドラゴンの特訓へ</button>
+            <button id="returnTitleButton" class="route-button flowers" type="button">タイトルへ戻る</button>
+          </div>
         </div>
       </div>
 
@@ -2648,13 +2660,17 @@ class Game {
     this.routeGoal = 5000;
     this.completedRoutes = new Set();
     this.dragonTrainingEvaluation = { minusLimit: 300, eligible: true, rank: '★★★' };
+    this.trainingUnlocked = localStorage.getItem('fairyGuardianTrainingUnlocked') === '1';
+    this.trainingMode = false;
+    this.trainingPapa = { x:270, y:245, age:0, facing:1 };
+    this.onTrainingUnlock = null;
+    this.onDragonResult = null;
     this.forestAnomalySeen = false;
     this.forestAnomaly = { active:false, age:0, duration:9.0, soundPlayed:false };
     this.dragonEventReady = false;
     this.magicUpgradeUnlocked = false;
     this.magicUpgradeNotice = 0;
-      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:245, prevX:this.width/2, facing:1, tailHealth:15, maxTailHealth:15, fireTimer:.75, fires:[], fireballTimer:2.8, fireballs:[], craters:[], nextCraterId:1, notice:0, rewardGiven:false };
-      this.dragonAftermath = { active:false, age:0, phase:'none', papaX:this.width+180, papaY:255, papaFacing:-1, ratingShown:false, trainingEligible:false };
+      this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:245, prevX:this.width/2, facing:1, tailHealth:15, maxTailHealth:15, fireTimer:.75, fires:[], fireballTimer:2.8, fireballs:[], craters:[], nextCraterId:1, notice:0, rewardGiven:false, resultDelay:4.2, resultShown:false };
     this.returnNotice = 0;
     this.transition = null;
     this.transitionPass = false;
@@ -2715,7 +2731,8 @@ class Game {
 
   start(mode='meadow') {
     if (this.running) return;
-    this.mode=mode; this.sound.caveMode=mode==='cave';
+    this.mode=mode; this.sound.caveMode=mode==='cave' || mode==='training';
+    if(mode==='training') this.enterTrainingMode();
     if(mode==='cave'){
       this.stage=new CaveStage(this.width,this.height);
       this.mushrooms=[];
@@ -3127,6 +3144,56 @@ class Game {
   }
 
 
+  unlockDragonTraining() {
+    if (this.trainingUnlocked) return;
+    this.trainingUnlocked = true;
+    try { localStorage.setItem('fairyGuardianTrainingUnlocked','1'); } catch (_) {}
+    if (this.onTrainingUnlock) this.onTrainingUnlock();
+  }
+
+  enterTrainingMode() {
+    this.trainingMode = true;
+    this.mode = 'training';
+    this.flowerRoute = false;
+    this.activeRoute = null;
+    this.sound.caveMode = true;
+    this.stage = new CaveStage(this.width,this.height);
+    this.plus = 0;
+    this.distance = 0;
+    this.effects = [];
+    this.birds=[];this.cats=[];this.rivers=[];this.ledges=[];this.leafPiles=[];this.flowers=[];this.dandelions=[];this.sideBranches=[];this.rocks=[];this.butterflies=[];this.ladybugs=[];this.frogs=[];
+    this.mushrooms=[];this.cavePuddles=[];this.cavePebbles=[];this.caveCrystals=[];this.glowMoss=[];
+    this.wetlandFrogs=[];this.wetlandDragonflies=[];this.cattails=[];this.mudPatches=[];this.crocodiles=[];this.wetlandLotuses=[];
+    this.birdSpawnTimer=this.catSpawnTimer=this.riverSpawnTimer=this.ledgeSpawnTimer=this.leafPileSpawnTimer=this.flowerSpawnTimer=this.dandelionSpawnTimer=this.sideBranchSpawnTimer=this.rockSpawnTimer=99999;
+    this.trainingPapa = { x:this.width/2, y:255, age:0, facing:1 };
+    this.returnNotice = 4.0;
+  }
+
+  updateTrainingPapa(dt) {
+    if (!this.trainingMode) return;
+    const p=this.trainingPapa; p.age+=dt;
+    p.x=this.width/2+Math.sin(p.age*.65)*72;
+    p.y=250+Math.sin(p.age*1.15)*12;
+    p.facing=Math.cos(p.age*.65)>=0?1:-1;
+  }
+
+  drawTrainingPapa(ctx) {
+    if (!this.trainingMode) return;
+    const p=this.trainingPapa, flap=Math.sin(p.age*8);
+    ctx.save();ctx.translate(p.x,p.y);ctx.scale(p.facing,1);
+    ctx.fillStyle='rgba(15,32,42,.22)';ctx.beginPath();ctx.ellipse(0,70,76,22,0,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#263d4b';ctx.lineWidth=5;ctx.lineJoin='round';
+    ctx.fillStyle='#466c91';ctx.beginPath();ctx.ellipse(0,15,68,54,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.save();ctx.translate(-22,0);ctx.rotate(-.18+flap*.14);ctx.fillStyle='rgba(99,147,185,.95)';ctx.beginPath();ctx.moveTo(0,5);ctx.quadraticCurveTo(-75,-58,-95,-4);ctx.quadraticCurveTo(-70,24,-8,32);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    ctx.save();ctx.translate(18,0);ctx.rotate(.18-flap*.14);ctx.fillStyle='rgba(99,147,185,.95)';ctx.beginPath();ctx.moveTo(0,5);ctx.quadraticCurveTo(75,-58,95,-4);ctx.quadraticCurveTo(70,24,8,32);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
+    ctx.fillStyle='#527b9f';ctx.beginPath();ctx.ellipse(5,-45,55,43,0,0,Math.PI*2);ctx.fill();ctx.stroke();
+    ctx.fillStyle='#e9f4f5';ctx.beginPath();ctx.ellipse(25,-51,10,12,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#263d4b';ctx.beginPath();ctx.arc(29,-50,4,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#d9c6a0';ctx.beginPath();ctx.moveTo(-27,-73);ctx.lineTo(-16,-102);ctx.lineTo(-4,-72);ctx.closePath();ctx.moveTo(12,-75);ctx.lineTo(30,-99);ctx.lineTo(34,-66);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.strokeStyle='#263d4b';ctx.lineWidth=3;ctx.beginPath();ctx.arc(32,-34,13,.15,Math.PI-.2);ctx.stroke();
+    ctx.restore();
+    ctx.save();ctx.fillStyle='rgba(235,247,255,.92)';ctx.strokeStyle='rgba(78,102,128,.7)';ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(72,90,this.width-144,70,22);ctx.fill();ctx.stroke();ctx.fillStyle='#36516a';ctx.textAlign='center';ctx.font='800 19px system-ui';ctx.fillText('パパドラゴンが特訓場で待っています',this.width/2,120);ctx.font='700 14px system-ui';ctx.fillText('今回は入口の確認です。特訓内容は次の更新で追加します。',this.width/2,146);ctx.restore();
+  }
+
   startDragonRescue() {
     const d = this.dragonRescue;
     if (!d || d.active || d.completed || !this.dragonEventReady || this.mode !== 'meadow') return;
@@ -3151,6 +3218,8 @@ class Game {
     d.nextCraterId = 1;
     d.notice = 3.2;
     d.rewardGiven = false;
+    d.resultDelay = 4.2;
+    d.resultShown = false;
     this.dragonEventReady = false;
   }
 
@@ -3158,7 +3227,19 @@ class Game {
     const d = this.dragonRescue;
     if (!d) return;
     if (!d.active && !d.completed && this.dragonEventReady && !this.forestAnomaly?.active) this.startDragonRescue();
-    if (!d.active) { d.notice = Math.max(0, (d.notice || 0) - dt); return; }
+    if (!d.active) {
+      d.notice = Math.max(0, (d.notice || 0) - dt);
+      if (d.completed && !d.resultShown) {
+        d.resultDelay = Math.max(0,(d.resultDelay ?? 4.2)-dt);
+        if (d.resultDelay <= 0) {
+          d.resultShown = true;
+          const evaluation = this.getDragonTrainingEvaluation();
+          if (evaluation.eligible) this.unlockDragonTraining();
+          if (this.onDragonResult) this.onDragonResult(evaluation);
+        }
+      }
+      return;
+    }
     d.age += dt;
     d.notice = Math.max(0, d.notice - dt);
     // Panic is strongest at the beginning and eases as the tail fire is cooled.
@@ -3243,8 +3324,6 @@ class Game {
       d.active = false; d.completed = true; d.notice = 5.0;
       for(const c of d.craters){c.fireActive=false;c.sprout=.01;}
       if (!d.rewardGiven) { d.rewardGiven = true; this.plus += 700; this.sound.flower(5); }
-      this.updateDragonTrainingEvaluation();
-      this.dragonAftermath = { active:true, age:0, phase:'child_relief', papaX:this.width+190, papaY:248, papaFacing:-1, ratingShown:false, trainingEligible:this.dragonTrainingEvaluation.eligible };
     }
   }
 
@@ -3384,87 +3463,6 @@ class Game {
     }
   }
 
-  updateDragonAftermath(dt) {
-    const a = this.dragonAftermath;
-    if (!a?.active) return;
-    a.age += dt;
-    // Keep the scene calm while the family reunites.
-    this.birds = [];
-    this.cats = [];
-    this.birdSpawnTimer = 99999;
-    this.catSpawnTimer = 99999;
-    if (a.phase === 'child_relief' && a.age > 2.8) {
-      a.phase = 'papa_arrival';
-      a.age = 0;
-      this.sound.forestOmen?.();
-    } else if (a.phase === 'papa_arrival') {
-      const targetX = this.width * .67;
-      a.papaX += (targetX - a.papaX) * Math.min(1, dt * 1.35);
-      a.papaY = 244 + Math.sin(this.elapsed * 1.7) * 5;
-      if (Math.abs(a.papaX-targetX) < 3 && a.age > 2.6) {
-        a.phase = 'evaluation';
-        a.age = 0;
-        a.ratingShown = true;
-        this.sound.flower?.(6);
-      }
-    } else if (a.phase === 'evaluation' && a.age > 7.5) {
-      a.phase = 'complete';
-      a.age = 0;
-    }
-  }
-
-  drawDragonAftermath(ctx) {
-    const a = this.dragonAftermath;
-    if (!a?.active) return;
-    // Child dragon rests near the chick after being rescued.
-    const childX = this.width * .39 + Math.sin(this.elapsed*1.6)*5;
-    const childY = 286 + Math.sin(this.elapsed*2.2)*3;
-    ctx.save();
-    ctx.translate(childX, childY);
-    ctx.fillStyle='rgba(34,63,66,.12)';ctx.beginPath();ctx.ellipse(0,47,43,9,0,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#285f68';ctx.lineWidth=4;ctx.lineJoin='round';
-    ctx.fillStyle='#70d2c5';ctx.beginPath();ctx.ellipse(0,12,30,27,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.beginPath();ctx.ellipse(20,-15,27,23,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-    ctx.fillStyle='#c8f0df';ctx.beginPath();ctx.ellipse(5,17,16,17,0,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(28,-19,6,7,0,0,Math.PI*2);ctx.fill();
-    ctx.fillStyle='#203d43';ctx.beginPath();ctx.arc(29,-18,2.5,0,Math.PI*2);ctx.fill();
-    ctx.strokeStyle='#31545a';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(28,-7,8,.15,Math.PI-.15);ctx.stroke();
-    ctx.fillStyle='#9be5da';ctx.beginPath();ctx.moveTo(-16,-2);ctx.quadraticCurveTo(-47,-30,-38,8);ctx.quadraticCurveTo(-31,29,-9,20);ctx.fill();ctx.stroke();
-    ctx.restore();
-
-    if (a.phase === 'papa_arrival' || a.phase === 'evaluation' || a.phase === 'complete') {
-      const px=a.papaX, py=a.papaY;
-      const flap=Math.sin(this.elapsed*5.5)*.28;
-      ctx.save();ctx.translate(px,py);ctx.scale(-1,1);
-      ctx.globalAlpha=.13;ctx.fillStyle='#15393f';ctx.beginPath();ctx.ellipse(0,98,91,16,0,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
-      ctx.strokeStyle='#315d66';ctx.lineWidth=5;ctx.lineJoin='round';ctx.lineCap='round';
-      ctx.fillStyle='#4e9ba1';ctx.beginPath();ctx.ellipse(0,26,59,51,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.fillStyle='#bce3d9';ctx.beginPath();ctx.ellipse(10,35,34,34,0,0,Math.PI*2);ctx.fill();
-      ctx.save();ctx.translate(-15,3);ctx.rotate(-.15+flap);ctx.fillStyle='rgba(110,184,189,.94)';ctx.beginPath();ctx.moveTo(0,0);ctx.quadraticCurveTo(-62,-76,-90,-28);ctx.quadraticCurveTo(-67,1,-15,28);ctx.closePath();ctx.fill();ctx.stroke();ctx.restore();
-      ctx.fillStyle='#4e9ba1';ctx.beginPath();ctx.ellipse(44,-25,49,39,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.beginPath();ctx.ellipse(76,-13,30,19,0,0,Math.PI*2);ctx.fill();ctx.stroke();
-      ctx.fillStyle='#f3dda0';ctx.beginPath();ctx.moveTo(22,-53);ctx.lineTo(31,-82);ctx.lineTo(43,-51);ctx.closePath();ctx.moveTo(48,-55);ctx.lineTo(63,-79);ctx.lineTo(67,-48);ctx.closePath();ctx.fill();ctx.stroke();
-      ctx.fillStyle='#fff';ctx.beginPath();ctx.ellipse(58,-30,9,10,0,0,Math.PI*2);ctx.fill();
-      ctx.fillStyle='#203d43';ctx.beginPath();ctx.arc(60,-29,3.5,0,Math.PI*2);ctx.fill();
-      ctx.strokeStyle='#31545a';ctx.lineWidth=3;ctx.beginPath();ctx.arc(69,-7,13,.15,Math.PI-.2);ctx.stroke();
-      ctx.restore();
-    }
-
-    if (a.phase === 'evaluation' || a.phase === 'complete') {
-      const ev=this.dragonTrainingEvaluation;
-      const alpha=Math.min(1,a.age/.5);
-      ctx.save();ctx.globalAlpha=alpha;
-      ctx.fillStyle='rgba(255,252,235,.96)';ctx.strokeStyle='rgba(71,91,83,.65)';ctx.lineWidth=3;
-      ctx.beginPath();ctx.roundRect(63,155,this.width-126,148,24);ctx.fill();ctx.stroke();
-      ctx.fillStyle='#31594f';ctx.textAlign='center';ctx.textBaseline='middle';
-      ctx.font='800 20px system-ui,sans-serif';ctx.fillText('パパドラゴンがお礼に来ました',this.width/2,186);
-      ctx.font='900 30px system-ui,sans-serif';ctx.fillStyle='#e7a53d';ctx.fillText(ev.rank,this.width/2,226);
-      ctx.font='700 15px system-ui,sans-serif';ctx.fillStyle='#4c655f';ctx.fillText(`旅のマイナス ${this.minus}点`,this.width/2,260);
-      ctx.font='700 14px system-ui,sans-serif';ctx.fillText(ev.eligible?'特訓に誘ってくれそうです':'もう少し森を守る練習をしよう',this.width/2,284);
-      ctx.restore();
-    }
-  }
-
   updateForestAnomaly(dt) {
     const omen = this.forestAnomaly;
     if (!omen?.active) return;
@@ -3557,7 +3555,7 @@ class Game {
     this.distance += dt * 5;
     this.updateForestAnomaly(dt);
     this.updateDragonRescue(dt);
-    this.updateDragonAftermath(dt);
+    this.updateTrainingPapa(dt);
     // Every side route uses the same score checkpoint.  Do not infer route
     // state from scenery/mode flags: use activeRoute, which is set exactly when
     // the player enters a route.  This fixes wetland runs that could exceed the
@@ -3728,7 +3726,7 @@ class Game {
 
     // Keep the pace gentle: only one approaching animal is normally present.
     // During the dragon rescue, ordinary animals stay away from the commotion.
-    const dragonScene = !!this.dragonRescue?.active || !!this.dragonAftermath?.active;
+    const dragonScene = !!this.dragonRescue?.active || this.trainingMode;
     const threatPresent = this.birds.some(b => b.state === 'approach') || this.cats.some(c => c.state === 'approach');
     if (!dragonScene) {
       this.birdSpawnTimer -= dt;
@@ -4149,7 +4147,7 @@ class Game {
     for (const cat of this.cats) cat.draw(this.ctx, this.elapsed);
     for (const bird of this.birds) bird.draw(this.ctx, this.elapsed);
     this.drawDragonRescue(this.ctx);
-    this.drawDragonAftermath(this.ctx);
+    this.drawTrainingPapa(this.ctx);
     for (const e of this.effects) this.drawEffect(e);
     if(this.mode==='meadow') this.drawSunbeams(this.ctx);
     if(this.mode==='cave' && this.caveCelebration>0){
@@ -4203,8 +4201,12 @@ class Game {
 const canvas = document.querySelector('#gameCanvas');
 const titleScreen = document.querySelector('#titleScreen');
 const startButton = document.querySelector('#startButton');
-const caveButton = document.querySelector('#caveButton');
+const trainingButton = document.querySelector('#trainingButton');
 const dragonTestButton = document.querySelector('#dragonTestButton');
+const dragonResultScreen = document.querySelector('#dragonResultScreen');
+const dragonResultText = document.querySelector('#dragonResultText');
+const goTrainingButton = document.querySelector('#goTrainingButton');
+const returnTitleButton = document.querySelector('#returnTitleButton');
 const routeScreen = document.querySelector('#routeScreen');
 const routeCaveButton = document.querySelector('#routeCaveButton');
 const routeFlowerButton = document.querySelector('#routeFlowerButton');
@@ -4236,6 +4238,12 @@ function refreshRouteButtons() {
   }
 }
 
+if (sessionStorage.getItem('fairyGuardianAutoTraining') === '1') {
+  sessionStorage.removeItem('fairyGuardianAutoTraining');
+  sound.unlock(); titleScreen.classList.add('hidden'); controls.classList.remove('hidden'); hudElement.classList.remove('hidden');
+  game.start('training');
+}
+
 game.onRouteChoice = () => {
   refreshRouteButtons();
   routeScreen.classList.remove('hidden');
@@ -4249,13 +4257,29 @@ startButton.addEventListener('click', () => {
   game.start('meadow');
 });
 
-caveButton.addEventListener('click', () => {
-  sound.unlock();
-  titleScreen.classList.add('hidden');
-  controls.classList.remove('hidden');
-  hudElement.classList.remove('hidden');
-  game.start('cave');
+
+function refreshTrainingButton() {
+  trainingButton.classList.toggle('hidden', !game.trainingUnlocked);
+}
+refreshTrainingButton();
+game.onTrainingUnlock = refreshTrainingButton;
+
+game.onDragonResult = (evaluation) => {
+  dragonResultText.textContent = `旅のマイナスは ${evaluation.minus} 点。評価 ${evaluation.rank}。` + (evaluation.eligible ? ' パパドラゴンの特訓が解放されました！' : ' 特訓はマイナス300点以内で解放されます。');
+  goTrainingButton.classList.toggle('hidden', !evaluation.eligible);
+  dragonResultScreen.classList.remove('hidden');
+};
+
+trainingButton.addEventListener('click', () => {
+  sound.unlock(); titleScreen.classList.add('hidden'); controls.classList.remove('hidden'); hudElement.classList.remove('hidden');
+  game.start('training');
 });
+goTrainingButton.addEventListener('click', () => {
+  dragonResultScreen.classList.add('hidden');
+  try { sessionStorage.setItem('fairyGuardianAutoTraining','1'); } catch (_) {}
+  location.reload();
+});
+returnTitleButton.addEventListener('click', () => { location.reload(); });
 
 dragonTestButton.addEventListener('click', () => {
   sound.unlock();
@@ -4401,6 +4425,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.9.0</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.6</div>
 </body>
 </html>
