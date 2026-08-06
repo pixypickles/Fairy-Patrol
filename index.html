@@ -7,7 +7,7 @@
   <meta http-equiv="Expires" content="0" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#dff3d2" />
-  <title>Fairy Guardian v3.8.2</title>
+  <title>Fairy Guardian v3.8.3</title>
   <style>
 :root {
   color-scheme: light;
@@ -263,6 +263,7 @@ h1 { margin: 0 0 14px; font-size: clamp(28px, 8vw, 42px); line-height: 1.2; }
           <p>風と水の力で、ヒヨコをそっと見守ろう。</p>
           <button id="startButton" class="primary-button" type="button">おさんぽを始める</button>
           <button id="caveButton" class="primary-button cave-choice" type="button">音の洞くつを試す</button>
+          <button id="dragonTestButton" class="primary-button cave-choice" type="button">テスト：ドラゴンから開始</button>
         </div>
       </div>
 
@@ -2650,6 +2651,8 @@ class Game {
     this.forestAnomalySeen = false;
     this.forestAnomaly = { active:false, age:0, duration:9.0, soundPlayed:false };
     this.dragonEventReady = false;
+    this.magicUpgradeUnlocked = false;
+    this.magicUpgradeNotice = 0;
       this.dragonRescue = { active:false, completed:false, age:0, x:this.width/2, y:125, tailHealth:6, maxTailHealth:6, fireTimer:1.0, fires:[], notice:0, rewardGiven:false };
     this.returnNotice = 0;
     this.transition = null;
@@ -3024,10 +3027,23 @@ class Game {
     });
   }
 
+  unlockMagicUpgrade() {
+    if (this.magicUpgradeUnlocked) return;
+    this.magicUpgradeUnlocked = true;
+    this.magicUpgradeNotice = 4.5;
+    const windLabel = document.querySelector('#windButton span:last-child');
+    const waterLabel = document.querySelector('#waterButton span:last-child');
+    if (windLabel) windLabel.textContent = '風・強化';
+    if (waterLabel) waterLabel.textContent = '水・強化';
+  }
+
   cast(kind, chargeSeconds = 0) {
     if (!this.running || this.pausedForRoute || this.cooldowns[kind] > 0) return;
     const isWater = kind === 'water';
-    const charge = Math.min(1, Math.max(0, chargeSeconds / 0.9));
+    let charge = Math.min(1, Math.max(0, chargeSeconds / 0.9));
+    // After two routes, a tap always fires the former maximum-charge spell.
+    // Holding is intentionally disabled until the later ice/blizzard upgrade.
+    if (this.magicUpgradeUnlocked) charge = 1;
     this.cooldowns[kind] = isWater ? 0.60 + charge * .25 : 0.52 + charge * 0.18;
     this.sound.cast(kind, charge);
 
@@ -3303,6 +3319,7 @@ class Game {
     // target score without starting the return path.
     if (!this.transitionPass && this.activeRoute && this.routeStartPlus !== null && this.plus - this.routeStartPlus >= this.routeGoal) {
       this.completedRoutes.add(this.activeRoute);
+      if (this.completedRoutes.size >= 2) this.unlockMagicUpgrade();
       this.updateDragonTrainingEvaluation();
       this.beginReturnTransition();
       return;
@@ -3312,6 +3329,7 @@ class Game {
       return;
     }
     this.returnNotice=Math.max(0,this.returnNotice-dt);
+    this.magicUpgradeNotice=Math.max(0,this.magicUpgradeNotice-dt);
     this.frogCooldown = Math.max(0, this.frogCooldown - dt);
     this.mushroomNoteTimer = Math.max(0, this.mushroomNoteTimer - dt);
     this.caveCelebration = Math.max(0, this.caveCelebration - dt);
@@ -3906,6 +3924,16 @@ class Game {
       this.ctx.fillText('いつもの草原へ戻ってきました',this.width/2,123);
       this.ctx.restore();
     }
+    if(this.magicUpgradeNotice>0){
+      const a=Math.min(1,this.magicUpgradeNotice/.45,(4.5-this.magicUpgradeNotice)/.45+1);
+      this.ctx.save();this.ctx.globalAlpha=Math.max(0,Math.min(1,a));
+      this.ctx.fillStyle='rgba(246,255,238,.94)';this.ctx.strokeStyle='rgba(80,155,102,.72)';this.ctx.lineWidth=3;
+      this.ctx.beginPath();this.ctx.roundRect(78,162,this.width-156,76,23);this.ctx.fill();this.ctx.stroke();
+      this.ctx.fillStyle='#2f6848';this.ctx.textAlign='center';this.ctx.textBaseline='middle';
+      this.ctx.font='800 19px system-ui,sans-serif';this.ctx.fillText('魔法が育ちました！',this.width/2,188);
+      this.ctx.font='700 14px system-ui,sans-serif';this.ctx.fillText('タップで強化魔法（長押し不要）',this.width/2,214);
+      this.ctx.restore();
+    }
     this.fairy.draw(this.ctx, this.elapsed, this.chick);
   }
 
@@ -3926,6 +3954,7 @@ const canvas = document.querySelector('#gameCanvas');
 const titleScreen = document.querySelector('#titleScreen');
 const startButton = document.querySelector('#startButton');
 const caveButton = document.querySelector('#caveButton');
+const dragonTestButton = document.querySelector('#dragonTestButton');
 const routeScreen = document.querySelector('#routeScreen');
 const routeCaveButton = document.querySelector('#routeCaveButton');
 const routeFlowerButton = document.querySelector('#routeFlowerButton');
@@ -3976,6 +4005,21 @@ caveButton.addEventListener('click', () => {
   controls.classList.remove('hidden');
   hudElement.classList.remove('hidden');
   game.start('cave');
+});
+
+dragonTestButton.addEventListener('click', () => {
+  sound.unlock();
+  titleScreen.classList.add('hidden');
+  controls.classList.remove('hidden');
+  hudElement.classList.remove('hidden');
+  game.start('meadow');
+  game.completedRoutes = new Set(['flowers','cave','wetland']);
+  game.unlockMagicUpgrade();
+  game.magicUpgradeNotice = 0;
+  game.forestAnomalySeen = true;
+  game.forestAnomaly = { active:false, age:0, duration:9.0, soundPlayed:true };
+  game.dragonEventReady = true;
+  game.startDragonRescue();
 });
 
 
@@ -4042,6 +4086,7 @@ function releaseWind(e) {
 windButton.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   if (game.pausedForRoute || windChargeStarted) return;
+  if (game.magicUpgradeUnlocked) { game.cast('wind', 0); return; }
   windChargeStarted = performance.now();
   windButton.classList.add('charging');
   windButton.setPointerCapture?.(e.pointerId);
@@ -4074,6 +4119,7 @@ function releaseWater(e) {
 waterButton.addEventListener('pointerdown', (e) => {
   e.preventDefault();
   if (game.pausedForRoute || waterChargeStarted) return;
+  if (game.magicUpgradeUnlocked) { game.cast('water', 0); return; }
   waterChargeStarted = performance.now();
   waterButton.classList.add('charging');
   waterButton.setPointerCapture?.(e.pointerId);
@@ -4105,6 +4151,6 @@ window.addEventListener('keydown', (e) => {
 
 </script>
 
-<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.2</div>
+<div id="buildBadge" style="position:fixed;right:8px;bottom:8px;z-index:99999;padding:5px 9px;border-radius:999px;background:rgba(20,70,45,.82);color:white;font:700 12px/1 sans-serif;pointer-events:none">v3.8.3</div>
 </body>
 </html>
